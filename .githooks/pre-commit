@@ -1,0 +1,4 @@
+#!/bin/sh
+# Synchronise les agents Copilot <-> Claude avant chaque commit.
+node scripts/sync-agents.mjs || exit 1
+git add .github/agents .claude/agents

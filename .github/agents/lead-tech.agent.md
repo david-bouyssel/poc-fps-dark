@@ -79,9 +79,11 @@ l'utilisateur** :
   - **Jamais** : "ce commit fait X", "je", "nous", "maintenant" (le diff parle
     de lui-même), emoji, répétition du nom de fichier si le scope le couvre
     déjà.
-  - **Attribution** : le trailer `Co-authored-by: Copilot
-    <223556219+Copilot@users.noreply.github.com>` est ajouté, sauf demande
-    contraire explicite de l'utilisateur pour ce commit.
+  - **Attribution** : ajoute le trailer de co-auteur de l'outil IA utilisé,
+    sauf demande contraire explicite de l'utilisateur pour ce commit :
+    `Co-authored-by: Copilot <223556219+Copilot@users.noreply.github.com>`
+    avec GitHub Copilot, ou la ligne `Co-Authored-By: …` fournie par la session
+    avec Claude Code.
 - Exécute `git add` (en incluant les documents de conception/découpage), puis
   `git commit`, puis `git push`.
 - Si `git push` nécessite une passphrase (clé SSH), c'est l'**utilisateur** qui

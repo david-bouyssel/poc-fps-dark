@@ -30,13 +30,23 @@ Le schéma complet (Mermaid) est dans
 | `.github/copilot-instructions.md` | Règles d'orchestration, mode backlog, schéma |
 | `.github/agents/*.agent.md` | Définition de chaque agent (rôle, outils, limites) |
 | `AGENTS.md` | Guide générique pour tout agent IA |
+| `CLAUDE.md` | Point d'entrée Claude Code (importe `AGENTS.md` et les règles d'orchestration) |
+| `.claude/agents/*.md` | Agents Claude Code, synchronisés avec `.github/agents/` |
+| `.claude/settings.json` | Hook Claude Code : synchro après chaque édition |
+| `scripts/sync-agents.mjs` | Synchro bidirectionnelle des agents (`--check` pour vérifier) |
+| `.githooks/pre-commit` | Synchro avant chaque commit |
+| `.github/workflows/check-agents-sync.yml` | CI : échoue si les agents divergent |
 | `docs/agents/` | Gabarits à remplir : architecture, conventions, tests, build |
 | `docs/design/` | Plans de conception produits par le concepteur |
 
 ## L'adopter dans un projet
 
-1. Copier `.github/` et `docs/` à la racine du projet cible, ainsi que `AGENTS.md`.
+1. Copier `.github/`, `.claude/`, `docs/`, `scripts/`, `AGENTS.md` et `CLAUDE.md` à la
+   racine du projet cible (et `.githooks/`). Le dépôt fonctionne avec GitHub Copilot et
+   avec Claude Code ; les agents peuvent être édités des deux côtés. Activer le hook git :
+   `git config core.hooksPath .githooks`.
 2. Remplacer les placeholders : `<commande de build>`, `<commande de tests>`,
    `<dossier code applicatif>`, `<dossier tests>`.
 3. Compléter `AGENTS.md` et les gabarits de `docs/agents/` avec les spécificités du projet.
-4. Ajuster les axes de vérification de `testeur-securite` au profil de risque réel.
+4. Synchro manuelle si besoin : `node scripts/sync-agents.mjs`.
+5. Ajuster les axes de vérification de `testeur-securite` au profil de risque réel.

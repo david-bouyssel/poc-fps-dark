@@ -1,4 +1,9 @@
-# Instructions personnalisées pour GitHub Copilot
+# Instructions personnalisées (GitHub Copilot et Claude Code)
+
+Ce fichier est la source unique des règles d'orchestration. Copilot le lit directement ;
+Claude Code l'importe depuis [`CLAUDE.md`](../CLAUDE.md). Les agents
+`.github/agents/` (Copilot) et `.claude/agents/` (Claude Code) sont synchronisés dans les
+deux sens par `node scripts/sync-agents.mjs` : on peut éditer l'un ou l'autre.
 
 **Lis d'abord [`AGENTS.md`](../AGENTS.md)** à la racine du dépôt : il centralise
 l'architecture, les conventions de code, les tests et le tooling de build, avec des
