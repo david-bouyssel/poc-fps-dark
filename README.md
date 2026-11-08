@@ -1,15 +1,38 @@
-# poc-orchestration
+# poc-fps-orchestration
 
 Démo en ligne : <https://david-bouyssel.github.io/poc-fps-orchestration/>
 
-Preuve de concept d'un **workflow de développement orchestré par des agents IA**
-(GitHub Copilot CLI), indépendant de toute technologie applicative.
+Application concrète du POC
+[**poc-orchestration**](https://github.com/david-bouyssel/poc-orchestration) : un
+**FPS « mignon »** jouable dans le navigateur, développé entièrement par le workflow
+multi-agents de ce POC.
 
-Chaque nouvelle fonctionnalité demandée avec la phrase **"new func"** traverse une petite
-chaîne de rôles spécialisés, comme dans une équipe humaine :
+Le dépôt d'origine définit un processus de développement orchestré par des agents IA,
+indépendant de toute technologie. Ce dépôt en est une copie qui le met à l'épreuve sur un
+vrai produit : chaque fonctionnalité du jeu est demandée avec la phrase **"new func"** et
+traverse toute la chaîne d'agents, de la conception au commit.
 
-1. **Concepteur** — rédige un plan de conception ; peut challenger la demande s'il la
-   juge problématique, puis s'y plier si on insiste.
+## Le jeu
+
+État actuel : génération et affichage d'un labyrinthe parfait aléatoire, reproductible
+par graine, en vue de dessus (canvas 2D, palette pastel). La vue FPS viendra ensuite.
+
+- Stack : HTML + JavaScript ES modules vanilla, sans bundler ni dépendance npm.
+- Node >= 20 sert uniquement aux tests et au serveur local.
+
+| Action | Commande |
+|---|---|
+| Lancer en local (`http://127.0.0.1:8080/`) | `npm start` |
+| Tests | `npm test` |
+| Déploiement GitHub Pages | automatique à chaque push sur `main` |
+
+## Le workflow d'orchestration
+
+Chaque demande "new func" passe par une chaîne de rôles spécialisés, comme dans une
+équipe humaine :
+
+1. **Concepteur** — rédige un plan de conception dans `docs/design/` ; peut challenger
+   la demande s'il la juge problématique, puis s'y plier si on insiste.
 2. **Lead tech** — découpe le travail (jusqu'à 3 lots parallèles pour les grosses
    fonctionnalités), puis relit et intègre le résultat.
 3. **Développeurs** — implémentent le code.
@@ -20,36 +43,34 @@ chaîne de rôles spécialisés, comme dans une équipe humaine :
 Un mode **backlog** permet de fournir une liste de fonctionnalités : elles sont traitées
 une par une, avec un commit chacune et sans push automatique.
 
-## Schéma
-
-Le schéma complet (Mermaid) est dans
-[`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+Les plans produits pour le jeu sont dans [`docs/design/`](docs/design/) : ils gardent la
+trace de chaque fonctionnalité passée par le workflow. Le schéma complet (Mermaid) est
+dans [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
 
 ## Contenu du dépôt
 
 | Chemin | Rôle |
 |---|---|
+| `src/` | Code du jeu, publié tel quel sur GitHub Pages |
+| `tests/unit/`, `tests/functional/` | Tests (`node --test`) |
+| `scripts/serve.mjs`, `scripts/static-server.mjs` | Serveur statique local |
+| `docs/design/` | Plans de conception produits par le concepteur |
+| `docs/agents/` | Architecture, conventions, tests et build du jeu |
+| `AGENTS.md` | Guide pour tout agent IA travaillant sur le dépôt |
+| `CLAUDE.md` | Point d'entrée Claude Code (importe `AGENTS.md` et les règles d'orchestration) |
 | `.github/copilot-instructions.md` | Règles d'orchestration, mode backlog, schéma |
 | `.github/agents/*.agent.md` | Définition de chaque agent (rôle, outils, limites) |
-| `AGENTS.md` | Guide générique pour tout agent IA |
-| `CLAUDE.md` | Point d'entrée Claude Code (importe `AGENTS.md` et les règles d'orchestration) |
 | `.claude/agents/*.md` | Agents Claude Code, synchronisés avec `.github/agents/` |
 | `.claude/settings.json` | Hook Claude Code : synchro après chaque édition |
 | `scripts/sync-agents.mjs` | Synchro bidirectionnelle des agents (`--check` pour vérifier) |
 | `.githooks/pre-commit` | Synchro avant chaque commit |
 | `.github/workflows/check-agents-sync.yml` | CI : échoue si les agents divergent |
 | `.github/workflows/pages.yml` | CI : `npm test` puis publication de `src/` sur GitHub Pages |
-| `docs/agents/` | Gabarits à remplir : architecture, conventions, tests, build |
-| `docs/design/` | Plans de conception produits par le concepteur |
 
-## L'adopter dans un projet
+## Relation avec poc-orchestration
 
-1. Copier `.github/`, `.claude/`, `docs/`, `scripts/`, `AGENTS.md` et `CLAUDE.md` à la
-   racine du projet cible (et `.githooks/`). Le dépôt fonctionne avec GitHub Copilot et
-   avec Claude Code ; les agents peuvent être édités des deux côtés. Activer le hook git :
-   `git config core.hooksPath .githooks`.
-2. Remplacer les placeholders : `<commande de build>`, `<commande de tests>`,
-   `<dossier code applicatif>`, `<dossier tests>`.
-3. Compléter `AGENTS.md` et les gabarits de `docs/agents/` avec les spécificités du projet.
-4. Synchro manuelle si besoin : `node scripts/sync-agents.mjs`.
-5. Ajuster les axes de vérification de `testeur-securite` au profil de risque réel.
+Ce dépôt est une copie indépendante de
+[poc-orchestration](https://github.com/david-bouyssel/poc-orchestration), et non un fork
+GitHub. En local, le remote `upstream` pointe vers le POC d'origine pour récupérer les
+évolutions du workflow. Pour adopter le workflow dans un autre projet, partir du POC
+d'origine plutôt que de ce dépôt.
