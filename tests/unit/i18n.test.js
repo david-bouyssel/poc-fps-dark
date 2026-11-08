@@ -71,3 +71,30 @@ test('index.html : aucun texte alphabétique visible en dur', () => {
   const words = textOutsideTags.match(/\p{L}+/gu) ?? [];
   assert.deepEqual(words, [], `texte en dur trouvé : ${words.join(' ')}`);
 });
+
+// --- Vue FPS (plan docs/design/vue-fps.md §5) ---
+
+const EXPECTED_FPS = {
+  'fps.enter': 'Explorer en 3D',
+  'fps.exit': 'Revenir à la vue de dessus',
+  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Quitter : Échap',
+  'canvas.labelFps': 'Vue à la première personne dans le labyrinthe',
+};
+
+test('vue FPS : 4 nouvelles clés avec les textes du plan', () => {
+  for (const [key, text] of Object.entries(EXPECTED_FPS)) {
+    assert.equal(fr[key], text, key);
+    assert.equal(t(key), text, `t(${key})`);
+  }
+});
+
+test('vue FPS : index.html référence fps.enter, fps.exit, fps.help via data-i18n', () => {
+  const htmlPath = fileURLToPath(new URL('../../src/index.html', import.meta.url));
+  const html = readFileSync(htmlPath, 'utf8');
+  for (const key of ['fps.enter', 'fps.exit', 'fps.help']) {
+    assert.match(html, new RegExp(`data-i18n=["']${key.replace('.', '\.')}["']`), key);
+  }
+  for (const key of html.matchAll(/data-i18n=["']([^"']+)["']/g)) {
+    assert.equal(typeof fr[key[1]], 'string', `clé inconnue dans index.html : ${key[1]}`);
+  }
+});

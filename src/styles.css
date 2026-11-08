@@ -14,6 +14,11 @@
   --shadow: 0 6px 20px rgba(150, 120, 190, 0.18);
 }
 
+/* The hidden attribute must win over display rules of classes (.controls is flex). */
+[hidden] {
+  display: none !important;
+}
+
 *,
 *::before,
 *::after {
@@ -142,6 +147,20 @@ body {
 
 .button-secondary {
   background: var(--color-accent);
+}
+
+.view-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+}
+
+.help {
+  margin: 0;
+  text-align: center;
+  font-size: 0.9rem;
+  color: var(--color-muted);
 }
 
 .info {

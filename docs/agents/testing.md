@@ -15,8 +15,10 @@ Pas de test navigateur automatisé (pas de Playwright) : le rendu canvas et le c
 DOM se vérifient manuellement (voir plus bas).
 
 ## Écrire un test
-- Emplacement : `tests/unit/` (logique pure : `src/maze/`, `src/render/maze-geometry.js`,
-  `src/i18n/`) et `tests/functional/` (serveur statique, flux bout en bout côté Node).
+- Emplacement : `tests/unit/` (logique pure : `src/maze/`, `src/game/`,
+  `src/render/maze-geometry.js`, `src/render/raycaster.js`, `src/i18n/`) et
+  `tests/functional/` (serveur statique, flux bout en bout côté Node, dont la balade FPS
+  `fps-walkthrough.test.js`).
   Jamais dans `src/` : tout `src/` est servi au navigateur.
 - Nommage : `<module>.test.js` (ex. `maze.test.js`, `static-server.test.js`).
 - Import du code testé par chemin relatif avec extension :
@@ -24,7 +26,29 @@ DOM se vérifient manuellement (voir plus bas).
 - Tests déterministes : utiliser des graines fixes ; ne pas dépendre de `Math.random`.
 - Serveur : `createStaticServer({ root })` depuis `scripts/static-server.mjs`, puis
   `listen(0, '127.0.0.1')` (port éphémère) et `close()` dans `after`.
+- Grilles de test : pour une géométrie maîtrisée (couloir, pièce fermée), construire
+  directement `{ width, height, tiles: Uint8Array }` (`TILE.FLOOR = 0`, `TILE.WALL = 1`).
+- Boucle de jeu : `createGameLoop` se teste avec un faux `requestFrame` qui empile les
+  callbacks et que le test avance à la main (horodatages fixés) ; aucun `setTimeout`.
+- Clavier : utiliser des codes physiques (`KeyW`, `ArrowLeft`…) via `actionForCode`.
+- Aléa dans les tests de propriété : `createRng` du projet, jamais `Math.random`.
 - Rôles : seuls les agents `testeur` et `testeur-securite` écrivent dans `tests/`.
+
+### Tests de la vue FPS
+| Fichier | Couvre |
+|---|---|
+| `tests/unit/grid.test.js` | `isWallTile` (cohérence avec `tiles`, hors grille, non entier) |
+| `tests/unit/player.test.js` | départ, orientation, gel, erreurs, `normalizeAngle` |
+| `tests/unit/input.test.js` | `KEY_BINDINGS`, `actionForCode`, `computeIntent` |
+| `tests/unit/movement.test.js` | vitesses, rotation, bornage de `dt`, collisions, glissement, non-tunnel |
+| `tests/unit/loop.test.js` | ordre `update`/`render`, `dt`, `start` idempotent, `stop` |
+| `tests/unit/raycaster.test.js` | distances DDA, anti fish-eye, angles alignés, `projectColumn`, `fogFactor`, `mixColor` |
+| `tests/unit/i18n.test.js` | clés `fps.*` et `canvas.labelFps` |
+| `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
+| `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis, boutons FPS dans `/` |
+
+`fps-renderer.js` et le câblage clavier de `main.js` (canvas, DOM) se vérifient
+manuellement.
 
 ## Tests de la publication GitHub Pages
 - `tests/unit/pages-workflow.test.js` : analyse textuelle (sans parseur YAML) de
@@ -43,8 +67,9 @@ DOM se vérifient manuellement (voir plus bas).
   `/../package.json`, `/%2e%2e/...`, `/..%5c...`, `/%00`, utiliser `node:http`
   (`http.request({ path })`) avec le chemin brut.
 - **HEAD** : vérifier l'absence de corps, pas seulement le statut.
-- **Modules purs** : `src/maze/`, `maze-geometry.js` et `src/i18n/` doivent rester
-  importables sous Node ; un accès au DOM y casse les tests unitaires.
+- **Modules purs** : `src/maze/`, `src/game/`, `maze-geometry.js`, `raycaster.js` et
+  `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
+  `requestAnimationFrame` ou à `performance` y casse les tests unitaires.
 - **Fermeture du serveur** : oublier `server.close()` laisse le processus de test ouvert.
 - **Node 20 vs plus récent** : la CI tourne en Node 20 ; éviter les API plus récentes.
 - **Chemins absolus `/…`** : ils fonctionnent avec `npm start` (servi à la racine) mais
@@ -55,6 +80,15 @@ DOM se vérifient manuellement (voir plus bas).
 « Nouveau labyrinthe » change la graine et le dessin ; même graine + « Générer » deux fois
 -> même dessin ; taille 65 -> message d'erreur, ancien labyrinthe conservé ;
 redimensionnement -> même labyrinthe redessiné ; console sans erreur.
+
+Vue FPS : « Explorer en 3D » -> vue FPS, formulaire masqué, aide visible ; Z/↑ avance,
+S/↓ recule, ←/→ et A/E tournent, Q/D pas de côté, Maj accélère (en QWERTY : W S / A D /
+Q E) ; murs infranchissables, glissement le long des murs ; les flèches ne font pas
+défiler la page ; Ctrl+R / Ctrl+L fonctionnent ; Échap et le bouton « Revenir à la vue
+de dessus » reviennent à la vue de dessus (même labyrinthe) ; réentrée à la même
+position ; « Nouveau labyrinthe » puis « Explorer en 3D » -> départ réinitialisé ;
+Alt+Tab en marchant -> pas de touche collée ; redimensionnement en FPS -> image nette,
+sans déformation ; fluidité correcte en 64x64 ; console sans erreur.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir

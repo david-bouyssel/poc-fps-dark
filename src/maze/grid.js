@@ -38,3 +38,23 @@ export function toTileGrid(maze) {
 
   return { width: gridWidth, height: gridHeight, tiles };
 }
+
+/**
+ * Indique si la tuile (tx, ty) est un mur. Hors grille ou coordonnées non entières
+ * (NaN compris) -> true : le monde est fermé, tout ce qui sort de la grille est mur.
+ * Ne lève jamais d'exception et n'alloue rien (appelée en boucle chaude).
+ * @param {{ width: number, height: number, tiles: Uint8Array }} grid
+ * @param {number} tx
+ * @param {number} ty
+ * @returns {boolean}
+ */
+export function isWallTile(grid, tx, ty) {
+  if (grid === null || typeof grid !== 'object') return true;
+  const { width, height, tiles } = grid;
+  if (!Number.isInteger(tx) || !Number.isInteger(ty)) return true;
+  if (tx < 0 || ty < 0 || tx >= width || ty >= height) return true;
+  if (tiles === null || typeof tiles !== 'object') return true;
+  const index = ty * width + tx;
+  if (index >= tiles.length) return true;
+  return tiles[index] !== TILE.FLOOR;
+}

@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateMaze, WALL } from '../../src/maze/maze.js';
-import { toTileGrid, TILE } from '../../src/maze/grid.js';
+import { toTileGrid, TILE, isWallTile } from '../../src/maze/grid.js';
 
 const CASES = [
   [2, 2, 1],
@@ -107,3 +107,45 @@ for (const [w, h, seed] of CASES) {
     });
   });
 }
+
+// --- isWallTile (vue FPS, plan docs/design/vue-fps.md §3 et §6) ---
+
+describe('isWallTile', () => {
+  const maze = generateMaze({ width: 16, height: 16, seed: 2024 });
+  const grid = toTileGrid(maze);
+
+  test('cohérent avec tiles sur toute la grille 16x16', () => {
+    for (let ty = 0; ty < grid.height; ty++) {
+      for (let tx = 0; tx < grid.width; tx++) {
+        const expected = grid.tiles[ty * grid.width + tx] === TILE.WALL;
+        assert.equal(isWallTile(grid, tx, ty), expected, `(${tx},${ty})`);
+      }
+    }
+  });
+
+  test('hors grille -> true', () => {
+    const cases = [
+      [-1, 1], [1, -1], [grid.width, 1], [1, grid.height],
+      [grid.width + 5, grid.height + 5], [1e9, 1], [1, 1e9], [-1e9, -1e9],
+      [Infinity, 1], [1, -Infinity],
+    ];
+    for (const [tx, ty] of cases) {
+      assert.equal(isWallTile(grid, tx, ty), true, `(${tx},${ty})`);
+    }
+  });
+
+  test('coordonnées non entières ou NaN -> true (même sur une tuile sol)', () => {
+    assert.equal(isWallTile(grid, 1, 1), false, 'précondition : (1,1) sol');
+    for (const [tx, ty] of [[1.5, 1], [1, 1.5], [1.0001, 1], [NaN, 1], [1, NaN], [NaN, NaN]]) {
+      assert.equal(isWallTile(grid, tx, ty), true, `(${tx},${ty})`);
+    }
+  });
+
+  test('ne lève jamais et ne modifie pas la grille', () => {
+    const before = Uint8Array.from(grid.tiles);
+    for (const v of [-2, -1, 0, 1, 2.5, NaN, Infinity, 33, 34, 1e12]) {
+      assert.doesNotThrow(() => isWallTile(grid, v, v));
+    }
+    assert.deepEqual(grid.tiles, before);
+  });
+});

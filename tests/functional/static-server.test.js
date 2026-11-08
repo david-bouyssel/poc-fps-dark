@@ -122,3 +122,38 @@ test('en-têtes nosniff et no-store présents', async () => {
   assert.equal(res.headers.get('cache-control'), 'no-store');
   await res.arrayBuffer();
 });
+
+// --- Vue FPS (plan docs/design/vue-fps.md §6) ---
+
+const FPS_MODULES = [
+  ['/game/player.js', 'createPlayer'],
+  ['/game/input.js', 'actionForCode'],
+  ['/game/movement.js', 'stepPlayer'],
+  ['/game/loop.js', 'createGameLoop'],
+  ['/render/raycaster.js', 'castRays'],
+  ['/render/fps-renderer.js', 'drawFpsView'],
+];
+
+for (const [path, symbol] of FPS_MODULES) {
+  test(`GET ${path} -> 200 text/javascript`, async () => {
+    const res = await fetch(`${base}${path}`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /^text\/javascript; charset=utf-8/);
+    const body = await res.text();
+    assert.ok(body.includes(symbol), `${path} ne contient pas ${symbol}`);
+  });
+}
+
+test('GET / contient fps-enter-button, fps-exit-button, fps-help', async () => {
+  const res = await fetch(`${base}/`);
+  assert.equal(res.status, 200);
+  const body = await res.text();
+  for (const id of ['fps-enter-button', 'fps-exit-button', 'fps-help']) {
+    assert.match(body, new RegExp(`id=["']${id}["']`), id);
+  }
+  // en vue de dessus au chargement : sortie et aide masquées, entrée visible
+  assert.match(body, /<button[^>]*id=["']fps-exit-button["'][^>]*\shidden[\s>=]|<button[^>]*\shidden[^>]*id=["']fps-exit-button["']/);
+  assert.match(body, /<p[^>]*id=["']fps-help["'][^>]*\shidden[\s>=]|<p[^>]*\shidden[^>]*id=["']fps-help["']/);
+  const enter = body.match(/<button[^>]*id=["']fps-enter-button["'][^>]*>/)[0];
+  assert.ok(!/\shidden[\s>=]/.test(enter), 'bouton entrer masqué au chargement');
+});

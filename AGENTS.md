@@ -6,7 +6,9 @@ fichiers liés dans `docs/agents/`.
 ## Résumé du projet
 FPS « mignon » qui s'exécute dans le navigateur. Premier lot : génération et affichage
 (vue de dessus, canvas 2D, palette pastel) d'un labyrinthe parfait aléatoire,
-reproductible par graine. Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
+reproductible par graine. Deuxième lot : balade en vue à la première personne
+(raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches) dans le
+labyrinthe généré, avec retour à la vue de dessus. Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
 framework, sans aucune dépendance npm. Node >= 20 sert uniquement aux tests
 (`node --test`) et au serveur statique local. Aucun stockage. Application statique
 publiée sur GitHub Pages (<https://david-bouyssel.github.io/poc-fps-orchestration/>),

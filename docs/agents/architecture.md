@@ -10,18 +10,26 @@ package.json                     # scripts npm, "type": "module", aucune dépend
 src/                             # racine servie au navigateur (et seulement elle)
   index.html                     # page, sans texte en dur (attributs data-i18n)
   styles.css                     # mise en page + variables CSS pastel
-  main.js                        # câblage DOM : formulaire -> génération -> rendu
+  main.js                        # câblage DOM : formulaire -> génération -> rendu,
+                                 # bascule vue de dessus <-> FPS, clavier, boucle
   i18n/
     fr.js                        # ressources texte françaises (export nommé `fr`)
     i18n.js                      # t(key, params) + applyTranslations(root)
   maze/
     random.js                    # PRNG déterministe mulberry32
     maze.js                      # génération, accès aux murs, constantes
-    grid.js                      # conversion en grille de tuiles (futur raycasting)
+    grid.js                      # grille de tuiles (toTileGrid) + isWallTile
+  game/                          # logique pure du jeu (vue FPS)
+    player.js                    # createPlayer(grid), normalizeAngle, PLAYER_RADIUS
+    input.js                     # ACTION, KEY_BINDINGS (KeyboardEvent.code), computeIntent
+    movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
+    loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
   render/
-    palette.js                   # couleurs pastel (constantes)
+    palette.js                   # couleurs pastel (constantes, dont teintes FPS)
     maze-geometry.js             # labyrinthe -> segments de murs (pur)
-    canvas-renderer.js           # dessin sur CanvasRenderingContext2D
+    canvas-renderer.js           # dessin de la vue de dessus (canvas)
+    raycaster.js                 # raycasting DDA pur : castRays, projectColumn, fogFactor, mixColor
+    fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -38,13 +46,14 @@ tests/
 | Couche | Rôle | Règles |
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
-| `src/render/` | Dessin | Seul `canvas-renderer.js` touche au contexte canvas. `maze-geometry.js` et `palette.js` restent purs. |
+| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. |
+| `src/render/` | Dessin | Seuls `canvas-renderer.js` et `fps-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js` et `palette.js` restent purs. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/i18n/` | Ressources texte | Pur. `applyTranslations(root)` ne touche qu'au `root` reçu. |
-| `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global et tire une graine aléatoire (`crypto.getRandomValues`). |
+| `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global, tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange` et fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle. |
 | `scripts/` | Outillage Node | Serveur de dev générique ; ne connaît aucun fichier de `src/` hormis `/` -> `index.html`. |
 
-Sens des dépendances : `main.js` -> `render/`, `maze/`, `i18n/` ; `render/` -> `maze/` ;
-`maze/` -> rien d'extérieur. `scripts/` n'importe rien de `src/` (il sert des fichiers).
+Sens des dépendances : `main.js` -> `game/`, `render/`, `maze/`, `i18n/` ; `game/` ->
+`maze/` ; `render/` -> `maze/` ; `maze/` -> rien d'extérieur. `scripts/` n'importe rien de `src/` (il sert des fichiers).
 
 ## Modèle de données
 
@@ -57,7 +66,18 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
 - **Bits de mur** `WALL` : `N = 1`, `E = 2`, `S = 4`, `W = 8` (bit à 1 = mur présent ;
   `ALL_WALLS = 15`). Lecture via `hasWall(maze, x, y, wall)`.
 - **Grille de tuiles** (`toTileGrid(maze)`) : `(2w+1) x (2h+1)`, `TILE.FLOOR = 0`,
-  `TILE.WALL = 1`, index `ty * width + tx`. Contrat réservé au futur raycasting.
+  `TILE.WALL = 1`, index `ty * width + tx`. `isWallTile(grid, tx, ty)` : `true` si mur,
+  hors grille ou coordonnées non entières (monde fermé), sans exception.
+- **Repère FPS** : unité = 1 tuile ; angle en radians, `0` = est (`+x`), `PI/2` = sud
+  (`+y`), normalisé dans `[0, 2*PI)`. Centre de la cellule `(cx, cy)` :
+  `(2*cx + 1.5, 2*cy + 1.5)`.
+- **Player** (`createPlayer(grid)`, objet gelé) : `{ x, y, angle }`, départ en
+  `(1.5, 1.5)` (cellule (0, 0)), orienté est si la tuile `(2, 1)` est un sol, sinon sud.
+  Rayon de collision `PLAYER_RADIUS = 0.2`.
+- **Intent** (`computeIntent(pressedActions)`, objet gelé) : `move`, `strafe`, `turn`
+  (`-1|0|1`), `run` (booléen). Les actions opposées s'annulent.
+- **RayHit** (`castRays`) : `distance` perpendiculaire (anti fish-eye, `>= MIN_DISTANCE`),
+  `side` (`'x'|'y'`), `tileX`, `tileY`, `wallX` dans `[0, 1)`.
 - **Segments de murs** (`wallSegments(maze)`) : `{ x1, y1, x2, y2 }` en unités de cellule,
   sans doublon.
 
@@ -77,7 +97,28 @@ changement de l'un d'eux casse les graines déjà partagées.
 4. Saisie valide : `generateMaze` -> `drawMaze(canvas, maze)` -> mise à jour de la ligne
    d'information (`info.current`).
 5. Redimensionnement de la fenêtre : nouveau `drawMaze` du même labyrinthe (pas de
-   regénération).
+   regénération) ; rien à faire en vue FPS (chaque image s'adapte à la taille).
+6. Toute génération réussie calcule aussi `currentGrid = toTileGrid(maze)` et remet
+   `player` à `null` (départ réinitialisé).
+7. « Explorer en 3D » : `createPlayer(currentGrid)` si `player` est `null` (échec ->
+   `errors.generic`, on reste en vue de dessus), `viewMode = 'fps'`, formulaire et
+   bouton d'entrée masqués (`hidden`), bouton de sortie et aide affichés, `aria-label` du
+   canvas -> `canvas.labelFps`, ensemble des actions vidé, `gameLoop.start()`, focus sur
+   le bouton de sortie. Un seul canvas sert aux deux vues.
+8. En FPS, sur `window` (hors FPS : ignorés) ; `actionForCode(event.code)` (position
+   physique : AZERTY et QWERTY). `keydown` : ignoré avec Ctrl/Meta/Alt ; touche non
+   liée -> rien ; touche liée -> `preventDefault()`, puis `EXIT` (Échap) -> sortie,
+   sinon ajout de l'action dans un `Set` (valeurs d'`ACTION`). `keyup` : retrait de
+   l'action quels que soient les modificateurs, sans `preventDefault()`.
+9. Chaque image (`createGameLoop`, horodatage rAF) : `update(dt)` ->
+   `player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid)`
+   (`dt` borné à `MOVEMENT.maxDt`, collisions par axes séparés avec glissement), puis
+   `render()` -> `drawFpsView(canvas, currentGrid, player)`.
+10. Sortie (bouton ou Échap) : `gameLoop.stop()`, actions vidées, vue de dessus
+    restaurée (`drawMaze`, `aria-label` d'origine), focus sur le bouton d'entrée. La
+    position du joueur est conservée tant que le labyrinthe ne change pas.
+11. `blur` de la fenêtre ou `visibilitychange` (page cachée) : actions vidées (pas de
+    touche « collée ») ; la boucle continue.
 
 Aucune donnée ne quitte le navigateur ; le seul réseau est le chargement des fichiers
 statiques depuis leur origine (local ou GitHub Pages).

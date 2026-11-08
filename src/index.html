@@ -36,6 +36,12 @@
       <p id="maze-info" class="info" aria-live="polite"></p>
       <p id="maze-error" class="error" role="alert"></p>
 
+      <div class="view-controls">
+        <button id="fps-enter-button" type="button" class="button button-primary" data-i18n="fps.enter"></button>
+        <button id="fps-exit-button" type="button" class="button button-secondary" data-i18n="fps.exit" hidden></button>
+      </div>
+      <p id="fps-help" class="help" data-i18n="fps.help" hidden></p>
+
       <div id="maze-stage" class="stage">
         <canvas id="maze-canvas" role="img" data-i18n-aria-label="canvas.label"></canvas>
       </div>

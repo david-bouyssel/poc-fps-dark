@@ -15,8 +15,21 @@
   invalide, argument absent) ou `RangeError` (valeur hors bornes). Messages en anglais,
   destinés au développeur, citant le nom du paramètre fautif. L'UI n'affiche jamais
   `error.message` : elle affiche un texte de ressource.
-- **Pureté** : `src/maze/`, `src/render/maze-geometry.js` et `src/i18n/` n'accèdent ni au
-  DOM, ni à `window`, ni à `Math.random`, ni à `Date`.
+- **Pureté** : `src/maze/`, `src/game/`, `src/render/maze-geometry.js`,
+  `src/render/raycaster.js` et `src/i18n/` n'accèdent ni au DOM, ni à `window`, ni à
+  `document`, ni à `Math.random`, ni à `Date`. `src/game/` et `raycaster.js` n'accèdent
+  pas non plus à `performance` ni à `requestAnimationFrame` : le temps et la planification
+  des images sont injectés par `main.js` (`createGameLoop`).
+- **Objets du jeu** : `Player`, `Intent` et les constantes exportées (`ACTION`,
+  `KEY_BINDINGS`, `MOVEMENT`) sont gelés ; `stepPlayer` renvoie un nouveau joueur sans
+  modifier l'ancien.
+- **Clavier** : lire `KeyboardEvent.code` (position physique), jamais `event.key`.
+  Sur `keydown` : `preventDefault()` uniquement sur une touche liée et jamais avec
+  Ctrl/Meta/Alt (ne pas casser les raccourcis navigateur ni Tab). Sur `keyup` : toujours
+  retirer l'action de l'ensemble, quels que soient les modificateurs, sans
+  `preventDefault()` (pas de touche « collée »).
+- **Attribut `hidden`** : la règle CSS `[hidden] { display: none !important; }` garantit
+  qu'un élément masqué le reste malgré le `display` de sa classe.
 - **Sécurité UI** : valeurs dynamiques insérées via `textContent` uniquement, jamais
   `innerHTML`.
 - **Compatibilité** : n'utiliser que des API disponibles en Node 20 (pas

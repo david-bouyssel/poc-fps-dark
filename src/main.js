@@ -1,6 +1,12 @@
 import { generateMaze, MAZE_LIMITS } from './maze/maze.js';
 import { MAX_SEED } from './maze/random.js';
+import { toTileGrid } from './maze/grid.js';
+import { createPlayer } from './game/player.js';
+import { ACTION, actionForCode, computeIntent } from './game/input.js';
+import { stepPlayer } from './game/movement.js';
+import { createGameLoop } from './game/loop.js';
 import { drawMaze } from './render/canvas-renderer.js';
+import { drawFpsView } from './render/fps-renderer.js';
 import { applyTranslations, t } from './i18n/i18n.js';
 
 const DEFAULT_SIZE = 16;
@@ -14,10 +20,35 @@ const newMazeButton = document.getElementById('new-maze-button');
 const infoElement = document.getElementById('maze-info');
 const errorElement = document.getElementById('maze-error');
 const canvas = document.getElementById('maze-canvas');
+const fpsEnterButton = document.getElementById('fps-enter-button');
+const fpsExitButton = document.getElementById('fps-exit-button');
+const fpsHelp = document.getElementById('fps-help');
+
+const VIEW_TOP = 'top';
+const VIEW_FPS = 'fps';
 
 /** Labyrinthe actuellement affiché (conservé en cas d'erreur de saisie). */
 let currentMaze = null;
+/** Grille de tuiles du labyrinthe courant (vue FPS). */
+let currentGrid = null;
+/** Joueur courant ; null tant qu'aucune entrée en FPS depuis la dernière génération. */
+let player = null;
+/** @type {'top' | 'fps'} */
+let viewMode = VIEW_TOP;
+/** Actions (valeurs de ACTION) actuellement enfoncées. */
+const pressedActions = new Set();
 let resizeFrame = 0;
+
+const gameLoop = createGameLoop({
+  update(dt) {
+    player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
+  },
+  render() {
+    drawFpsView(canvas, currentGrid, player);
+  },
+  requestFrame: (callback) => requestAnimationFrame(callback),
+  cancelFrame: (id) => cancelAnimationFrame(id),
+});
 
 /**
  * Lit un entier positif ou nul depuis un champ texte.
@@ -51,7 +82,7 @@ function clearError() {
 }
 
 function render() {
-  if (currentMaze) {
+  if (viewMode === VIEW_TOP && currentMaze) {
     drawMaze(canvas, currentMaze);
   }
 }
@@ -89,6 +120,8 @@ function generateFromForm({ forceRandomSeed }) {
 
   seedInput.value = String(seed);
   currentMaze = maze;
+  currentGrid = toTileGrid(maze);
+  player = null;
   clearError();
   infoElement.textContent = t('info.current', {
     seed: maze.seed,
@@ -108,6 +141,88 @@ function onResize() {
   });
 }
 
+/** Passe en vue à la première personne (labyrinthe courant, sans regénération). */
+function enterFps() {
+  if (viewMode === VIEW_FPS || !currentGrid) {
+    return;
+  }
+  if (player === null) {
+    try {
+      player = createPlayer(currentGrid);
+    } catch {
+      showError('errors.generic');
+      return;
+    }
+  }
+  viewMode = VIEW_FPS;
+  form.hidden = true;
+  fpsEnterButton.hidden = true;
+  fpsExitButton.hidden = false;
+  fpsHelp.hidden = false;
+  canvas.setAttribute('aria-label', t('canvas.labelFps'));
+  pressedActions.clear();
+  gameLoop.start();
+  fpsEnterButton.blur();
+  fpsExitButton.focus();
+}
+
+/** Revient à la vue de dessus ; la position du joueur est conservée. */
+function exitFps() {
+  if (viewMode !== VIEW_FPS) {
+    return;
+  }
+  gameLoop.stop();
+  pressedActions.clear();
+  viewMode = VIEW_TOP;
+  form.hidden = false;
+  fpsEnterButton.hidden = false;
+  fpsExitButton.hidden = true;
+  fpsHelp.hidden = true;
+  canvas.setAttribute('aria-label', t('canvas.label'));
+  render();
+  fpsEnterButton.focus();
+}
+
+/**
+ * Traduit un appui clavier en action FPS (ignoré hors FPS ou avec Ctrl/Meta/Alt).
+ * @param {KeyboardEvent} event
+ * @returns {string | null} action liée, ou null si l'événement doit être ignoré
+ */
+function boundKeyDownAction(event) {
+  if (viewMode !== VIEW_FPS || event.ctrlKey || event.metaKey || event.altKey) {
+    return null;
+  }
+  return actionForCode(event.code);
+}
+
+function onKeyDown(event) {
+  const action = boundKeyDownAction(event);
+  if (action === null) {
+    return;
+  }
+  event.preventDefault();
+  if (action === ACTION.EXIT) {
+    exitFps();
+    return;
+  }
+  pressedActions.add(action);
+}
+
+/**
+ * Release always removes the action, whatever the modifiers (avoids stuck keys when
+ * Ctrl/Meta/Alt is pressed while walking). No preventDefault on release.
+ * @param {KeyboardEvent} event
+ */
+function onKeyUp(event) {
+  if (viewMode !== VIEW_FPS) {
+    return;
+  }
+  const action = actionForCode(event.code);
+  if (action !== null) {
+    pressedActions.delete(action);
+  }
+}
+
 function init() {
   applyTranslations(document);
   document.title = t('app.title');
@@ -123,6 +238,19 @@ function init() {
     generateFromForm({ forceRandomSeed: true });
   });
   window.addEventListener('resize', onResize);
+
+  fpsEnterButton.addEventListener('click', enterFps);
+  fpsExitButton.addEventListener('click', exitFps);
+  window.addEventListener('keydown', onKeyDown);
+  window.addEventListener('keyup', onKeyUp);
+  window.addEventListener('blur', () => {
+    pressedActions.clear();
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) {
+      pressedActions.clear();
+    }
+  });
 
   generateFromForm({ forceRandomSeed: true });
 }
