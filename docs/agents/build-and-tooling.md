@@ -33,6 +33,35 @@ Les ES modules ne fonctionnent pas en `file://` : il faut servir `src/` en HTTP.
 - Ajouter une extension servie : modifier la liste blanche `MIME_TYPES` de
   `static-server.mjs` (décision `lead-tech`).
 
+## Déploiement (GitHub Pages)
+Site publié : <https://david-bouyssel.github.io/poc-fps-orchestration/>.
+
+- Workflow : `.github/workflows/pages.yml` (« Publier sur GitHub Pages »). Déclencheurs :
+  push sur `main` et lancement manuel (`workflow_dispatch`). Aucun déclencheur
+  `pull_request`, `pull_request_target` ni `schedule`.
+- Job `build` : checkout, Node 20, `npm test`, `configure-pages`, puis
+  `upload-pages-artifact` avec `path: src`. Si `npm test` échoue, rien n'est publié.
+  Pas de `npm install` (aucune dépendance).
+- Job `deploy` (`needs: build`) : `deploy-pages` vers l'environnement `github-pages`.
+- **Seul `src/` est publié**, jamais la racine du dépôt. Tout fichier de `src/` est donc
+  public.
+- Permissions minimales : `contents: read` au niveau du workflow ; `pages: write` et
+  `id-token: write` seulement dans le job `deploy`. Aucun secret utilisé.
+- `concurrency` `pages` sans annulation : un déploiement en cours n'est jamais annulé,
+  le suivant attend.
+- Actions officielles `actions/*` épinglées en version majeure (`@vN`).
+- Prérequis (configuration du dépôt, faite une seule fois à la main) :
+  1. dépôt public (Settings > General > Danger Zone) ;
+  2. Settings > Pages > Build and deployment > Source = « GitHub Actions ».
+- Si Pages n'était pas activé au moment du push, le job `deploy` échoue : relancer le run
+  via `workflow_dispatch` (onglet Actions > « Publier sur GitHub Pages » > Run workflow).
+- Limites : GitHub Pages applique ses propres en-têtes, non configurables. Les en-têtes
+  `X-Content-Type-Options: nosniff` et `Cache-Control: no-store` sont propres au serveur
+  local. Le CDN met en cache environ 10 min : l'ancienne version peut rester visible
+  quelques minutes après un déploiement.
+- Sous-chemin : le site est servi sous `/poc-fps-orchestration/`. Tout chemin absolu
+  (`/main.js`, `url(/img.png)`) fonctionne en local mais casse en ligne.
+
 ## Particularités de l'environnement
 - Aucun droit administrateur requis : Node portable suffit.
 - Windows : les chemins sont résolus avec `path.resolve` et vérifiés par préfixe

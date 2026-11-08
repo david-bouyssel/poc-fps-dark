@@ -1,5 +1,7 @@
 # poc-orchestration
 
+Démo en ligne : <https://david-bouyssel.github.io/poc-fps-orchestration/>
+
 Preuve de concept d'un **workflow de développement orchestré par des agents IA**
 (GitHub Copilot CLI), indépendant de toute technologie applicative.
 
@@ -36,6 +38,7 @@ Le schéma complet (Mermaid) est dans
 | `scripts/sync-agents.mjs` | Synchro bidirectionnelle des agents (`--check` pour vérifier) |
 | `.githooks/pre-commit` | Synchro avant chaque commit |
 | `.github/workflows/check-agents-sync.yml` | CI : échoue si les agents divergent |
+| `.github/workflows/pages.yml` | CI : `npm test` puis publication de `src/` sur GitHub Pages |
 | `docs/agents/` | Gabarits à remplir : architecture, conventions, tests, build |
 | `docs/design/` | Plans de conception produits par le concepteur |
 

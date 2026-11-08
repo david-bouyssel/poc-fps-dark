@@ -26,6 +26,18 @@ DOM se vérifient manuellement (voir plus bas).
   `listen(0, '127.0.0.1')` (port éphémère) et `close()` dans `after`.
 - Rôles : seuls les agents `testeur` et `testeur-securite` écrivent dans `tests/`.
 
+## Tests de la publication GitHub Pages
+- `tests/unit/pages-workflow.test.js` : analyse textuelle (sans parseur YAML) de
+  `.github/workflows/pages.yml` : déclencheurs, permissions minimales, `concurrency`,
+  actions `actions/*@vN`, publication de `src` seul, `npm test` avant l'upload, absence
+  de secrets et de `npm install`, non-régression de `check-agents-sync.yml`.
+- `tests/unit/subpath-resolution.test.js` : vérifie que les références de `index.html`
+  et les imports de `src/**/*.js` se résolvent sous un sous-chemin
+  (`https://example.github.io/poc-fps-orchestration/`) vers des fichiers existants de
+  `src/`, et qu'aucun chemin absolu `/…` n'existe.
+- `tests/unit/security-static-scan.test.js` couvre déjà l'absence de réseau sortant et
+  les imports non relatifs : ne pas le dupliquer.
+
 ## Pièges connus
 - **Traversée de chemin** : `fetch` normalise les `..` avant l'envoi. Pour tester
   `/../package.json`, `/%2e%2e/...`, `/..%5c...`, `/%00`, utiliser `node:http`
@@ -35,9 +47,18 @@ DOM se vérifient manuellement (voir plus bas).
   importables sous Node ; un accès au DOM y casse les tests unitaires.
 - **Fermeture du serveur** : oublier `server.close()` laisse le processus de test ouvert.
 - **Node 20 vs plus récent** : la CI tourne en Node 20 ; éviter les API plus récentes.
+- **Chemins absolus `/…`** : ils fonctionnent avec `npm start` (servi à la racine) mais
+  cassent sur GitHub Pages (servi sous `/poc-fps-orchestration/`). Toujours `./` ou `../`.
 
 ## Vérification manuelle
 `npm start`, ouvrir `http://127.0.0.1:8080/` : labyrinthe affiché au chargement ;
 « Nouveau labyrinthe » change la graine et le dessin ; même graine + « Générer » deux fois
 -> même dessin ; taille 65 -> message d'erreur, ancien labyrinthe conservé ;
 redimensionnement -> même labyrinthe redessiné ; console sans erreur.
+
+## Vérification en ligne
+Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir
+<https://david-bouyssel.github.io/poc-fps-orchestration/> et dérouler la même liste que
+la vérification manuelle ci-dessus. Seule exception tolérée en console : un 404 sur
+`/favicon.ico`. Vérifier aussi que l'URL sans `/` final (`…/poc-fps-orchestration`)
+redirige vers l'URL avec `/`. Le CDN peut servir l'ancienne version quelques minutes.

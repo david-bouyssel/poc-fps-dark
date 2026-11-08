@@ -29,6 +29,9 @@ scripts/
 tests/
   unit/                          # tests unitaires node:test
   functional/                    # tests fonctionnels (serveur statique)
+.github/workflows/
+  check-agents-sync.yml          # CI : synchro des agents
+  pages.yml                      # CI : npm test puis publication de src/ sur GitHub Pages
 ```
 
 ### Couches et règles de dépendance
@@ -64,7 +67,8 @@ changement de l'un d'eux casse les graines déjà partagées.
 
 ## Flux de données
 
-1. Chargement de `index.html` (servi par `npm start`) -> `main.js` (module).
+1. Chargement de `index.html` (servi par `npm start` en local, ou par GitHub Pages sous
+   `/poc-fps-orchestration/`) -> `main.js` (module).
 2. `main.js` appelle `applyTranslations(document)`, renseigne `document.title`, tire une
    graine aléatoire et génère avec la taille par défaut (16 x 16).
 3. Clic « Générer » / « Nouveau labyrinthe » : `main.js` valide les champs (entiers,
@@ -76,4 +80,4 @@ changement de l'un d'eux casse les graines déjà partagées.
    regénération).
 
 Aucune donnée ne quitte le navigateur ; le seul réseau est le chargement des fichiers
-statiques depuis `127.0.0.1`.
+statiques depuis leur origine (local ou GitHub Pages).

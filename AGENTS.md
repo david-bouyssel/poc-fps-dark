@@ -8,8 +8,10 @@ FPS « mignon » qui s'exécute dans le navigateur. Premier lot : génération e
 (vue de dessus, canvas 2D, palette pastel) d'un labyrinthe parfait aléatoire,
 reproductible par graine. Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
 framework, sans aucune dépendance npm. Node >= 20 sert uniquement aux tests
-(`node --test`) et au serveur statique local. Aucun stockage, aucun réseau hors serveur
-local (`127.0.0.1`).
+(`node --test`) et au serveur statique local. Aucun stockage. Application statique
+publiée sur GitHub Pages (<https://david-bouyssel.github.io/poc-fps-orchestration/>),
+sans aucun appel réseau sortant depuis l'app. En local, servie par `npm start` sur
+`127.0.0.1`.
 
 ## Commandes
 | Action | Commande |
@@ -17,6 +19,7 @@ local (`127.0.0.1`).
 | Tests | `npm test` |
 | Build (pas de compilation : alias de `npm test`) | `npm run build` |
 | Lancement local (`http://127.0.0.1:8080/`, port via `PORT`) | `npm start` |
+| Déploiement GitHub Pages | automatique (workflow `pages.yml`, push sur `main`) |
 
 Aucun `npm install` requis (zéro dépendance).
 
@@ -44,6 +47,9 @@ Aucun `npm install` requis (zéro dépendance).
    nécessité claire. Aucune dépendance npm sans décision explicite.
 7. Code applicatif : `src/` et `scripts/`. Tests : `tests/unit/` et `tests/functional/`
    uniquement, jamais dans `src/` (tout `src/` est servi au navigateur).
+8. **`src/` est publié tel quel et publiquement** sur GitHub Pages, sous le sous-chemin
+   `/poc-fps-orchestration/` : tout fichier de `src/` est public. Les chemins (`src`,
+   `href`, imports, `url(`) restent relatifs (`./`, `../`), jamais avec un `/` initial.
 
 ## Orchestration
 Le workflow multi-agents déclenché par "new func" est décrit dans
