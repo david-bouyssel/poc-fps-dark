@@ -4,8 +4,21 @@ Ce fichier oriente tout agent IA travaillant sur ce dépôt. Pour les détails, 
 fichiers liés dans `docs/agents/`.
 
 ## Résumé du projet
-> À compléter : description du produit en 2-3 lignes (type d'application, stack, contraintes
-> majeures de stockage/réseau/sécurité).
+FPS « mignon » qui s'exécute dans le navigateur. Premier lot : génération et affichage
+(vue de dessus, canvas 2D, palette pastel) d'un labyrinthe parfait aléatoire,
+reproductible par graine. Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
+framework, sans aucune dépendance npm. Node >= 20 sert uniquement aux tests
+(`node --test`) et au serveur statique local. Aucun stockage, aucun réseau hors serveur
+local (`127.0.0.1`).
+
+## Commandes
+| Action | Commande |
+|---|---|
+| Tests | `npm test` |
+| Build (pas de compilation : alias de `npm test`) | `npm run build` |
+| Lancement local (`http://127.0.0.1:8080/`, port via `PORT`) | `npm start` |
+
+Aucun `npm install` requis (zéro dépendance).
 
 ## Documents détaillés
 - [`docs/agents/architecture.md`](docs/agents/architecture.md) — structure du code, modèle
@@ -21,14 +34,16 @@ fichiers liés dans `docs/agents/`.
    docs en français, sauf demande contraire.
 2. **Ne jamais** committer de secrets, clés de signature, ou fichiers de configuration
    propres à la machine.
-3. **Toujours** exécuter `<commande de tests>` (ou `<commande de build>`) après une
-   modification de code, avant de considérer une tâche terminée.
+3. **Toujours** exécuter `npm test` (ou `npm run build`) après une modification de code,
+   avant de considérer une tâche terminée.
 4. **Toute nouvelle fonctionnalité** doit être accompagnée de tests unitaires ; ajouter un
    test fonctionnel si un flux utilisateur change.
-5. **Ressources utilisateur** (textes) : toujours passer par les fichiers de ressources du
-   projet, jamais de texte en dur.
+5. **Ressources utilisateur** (textes) : toujours passer par `src/i18n/fr.js`, jamais de
+   texte en dur (ni dans `index.html`, ni dans le JS).
 6. Respecter l'architecture existante — ne pas introduire de nouvelle couche/pattern sans
-   nécessité claire.
+   nécessité claire. Aucune dépendance npm sans décision explicite.
+7. Code applicatif : `src/` et `scripts/`. Tests : `tests/unit/` et `tests/functional/`
+   uniquement, jamais dans `src/` (tout `src/` est servi au navigateur).
 
 ## Orchestration
 Le workflow multi-agents déclenché par "new func" est décrit dans
@@ -39,6 +54,7 @@ Le workflow multi-agents déclenché par "new func" est décrit dans
 | Besoin | Fichier |
 |---|---|
 | Comprendre l'architecture | `docs/agents/architecture.md` |
+| Conventions de code et de textes | `docs/agents/conventions.md` |
 | Ajouter/modifier un test | `docs/agents/testing.md` |
 | Problème de build/toolchain | `docs/agents/build-and-tooling.md` |
 | Plans de conception | `docs/design/` |
