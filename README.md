@@ -14,11 +14,22 @@ traverse toute la chaîne d'agents, de la conception au commit.
 
 ## Le jeu
 
-État actuel : génération et affichage d'un labyrinthe parfait aléatoire, reproductible
-par graine, en vue de dessus (canvas 2D, palette pastel). La vue FPS viendra ensuite.
+État actuel : génération d'un labyrinthe parfait aléatoire, reproductible par graine,
+affiché en vue de dessus (canvas 2D, palette pastel). Une fois généré, on peut
+l'explorer en vue FPS (raycasting, déplacement clavier façon Doom).
 
 - Stack : HTML + JavaScript ES modules vanilla, sans bundler ni dépendance npm.
 - Node >= 20 sert uniquement aux tests et au serveur local.
+
+Commandes en vue FPS (clavier uniquement, touches physiques : AZERTY et QWERTY) :
+
+| Action | Touches |
+|---|---|
+| Avancer / reculer | ↑ ↓ ou Z S |
+| Tourner | ← → ou A E |
+| Pas de côté | Q D |
+| Courir | Maj |
+| Quitter la vue FPS | Échap (ou le bouton « Revenir ») |
 
 | Action | Commande |
 |---|---|
