@@ -132,6 +132,8 @@ const FPS_MODULES = [
   ['/game/loop.js', 'createGameLoop'],
   ['/render/raycaster.js', 'castRays'],
   ['/render/fps-renderer.js', 'drawFpsView'],
+  // Textures des murs (plan docs/design/fps-wall-textures.md §6)
+  ['/render/wall-textures.js', 'generateWallTexture'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {

@@ -25,11 +25,12 @@ src/                             # racine servie au navigateur (et seulement ell
     movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
     loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
   render/
-    palette.js                   # couleurs pastel (constantes, dont teintes FPS)
+    palette.js                   # couleurs pastel (constantes, dont teintes FPS et textures)
     maze-geometry.js             # labyrinthe -> segments de murs (pur)
     canvas-renderer.js           # dessin de la vue de dessus (canvas)
     raycaster.js                 # raycasting DDA pur : castRays, projectColumn, fogFactor, mixColor
-    fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView
+    wall-textures.js             # textures procédurales des murs FPS (pur) : motifs RGBA, choix par tuile, mapping texel
+    fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView, cache de textures hors écran
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -47,7 +48,7 @@ tests/
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
 | `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. |
-| `src/render/` | Dessin | Seuls `canvas-renderer.js` et `fps-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js` et `palette.js` restent purs. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
+| `src/render/` | Dessin | Seuls `canvas-renderer.js` et `fps-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js` et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`), seul `fps-renderer.js` les convertit en canvas. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/i18n/` | Ressources texte | Pur. `applyTranslations(root)` ne touche qu'au `root` reçu. |
 | `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global, tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange` et fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle. |
 | `scripts/` | Outillage Node | Serveur de dev générique ; ne connaît aucun fichier de `src/` hormis `/` -> `index.html`. |
@@ -78,6 +79,11 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   (`-1|0|1`), `run` (booléen). Les actions opposées s'annulent.
 - **RayHit** (`castRays`) : `distance` perpendiculaire (anti fish-eye, `>= MIN_DISTANCE`),
   `side` (`'x'|'y'`), `tileX`, `tileY`, `wallX` dans `[0, 1)`.
+- **TextureData** (`generateWallTexture(kind, palette, size)`, objet gelé) : `width`,
+  `height` (`TEXTURE_SIZE = 32`), `data` (`Uint8ClampedArray` RGBA, alpha 255). Motifs
+  `WALL_TEXTURE` : `bricks`, `planks`, `dots`, `hearts` (poids 10/4/3/3). Motif d'une
+  tuile mur = `textureIndexForTile(tileX, tileY)` (hachage entier déterministe, sans
+  aléa) : mêmes coordonnées -> même motif, donc même graine -> mêmes textures.
 - **Segments de murs** (`wallSegments(maze)`) : `{ x1, y1, x2, y2 }` en unités de cellule,
   sans doublon.
 
