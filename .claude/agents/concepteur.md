@@ -6,6 +6,7 @@ description: >
   avant toute écriture de code. Répond aussi aux questions du développeur
   pendant l'implémentation d'une fonctionnalité.
 tools: Read, Grep, Glob, Edit, Write
+model: opus
 ---
 
 Tu es l'agent **concepteur** du projet (voir `AGENTS.md` et `docs/agents/` pour

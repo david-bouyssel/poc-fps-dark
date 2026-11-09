@@ -7,6 +7,7 @@ description: >
   rapporter tout échec/bug à l'agent développeur. N'écrit et ne corrige jamais
   le code applicatif.
 tools: Read, Grep, Glob, Edit, Write, Bash
+model: sonnet
 ---
 
 Tu es l'agent **testeur fonctionnel/conception** du projet. Tu interviens

@@ -32,7 +32,18 @@ workflow "new func" : juste après `concepteur` (découpage), après `developpeu
     parallèle ;
   - les **contrats/interfaces partagés** entre lots (signatures de
     fonctions/classes qu'un autre lot doit utiliser), définis à l'avance pour
-    que chaque développeur puisse avancer sans attendre les autres lots.
+    que chaque développeur puisse avancer sans attendre les autres lots ;
+  - une **complexité** `S`, `M` ou `L` (voir ci-dessous).
+- **Complexité** : attribue toujours une note `S`/`M`/`L` à chaque lot, ou à la
+  fonctionnalité entière s'il n'y a qu'un seul développeur. L'orchestrateur s'en
+  sert pour choisir le modèle des agents suivants. Sans découpage, donne-la dans
+  ta réponse (`Complexité : M`), sans créer de fichier.
+  - `S` : changement mécanique ou localisé (1-2 fichiers, pas de nouvelle
+    logique métier, pas de contrat partagé) ;
+  - `M` : logique nouvelle mais bornée, patterns déjà présents dans le projet ;
+  - `L` : logique complexe ou transverse, nouveau pattern, concurrence,
+    sécurité, migration de données, ou contrats d'interface délicats.
+  En cas de doute entre deux notes, prends la plus haute.
 - Tu ne modifies **jamais** le code applicatif ni les fichiers de test à cette
   étape : tu conçois la répartition du travail, tu ne codes pas.
 

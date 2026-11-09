@@ -1,6 +1,6 @@
 // Synchronise .github/agents/<n>.agent.md (Copilot) <-> .claude/agents/<n>.md (Claude Code).
-// Bidirectionnel : le fichier modifié (selon git) devient la source. Seule la ligne `tools:`
-// diffère entre les deux formats.
+// Bidirectionnel : le fichier modifié (selon git) devient la source. Seules la ligne `tools:`
+// et les lignes `model:`/`effort:` (non synchronisées) diffèrent entre les deux formats.
 // Usage : node scripts/sync-agents.mjs [--check]
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -34,10 +34,25 @@ const map = (names, table, label) =>
     return table[t];
   });
 
-const toClaude = (text) =>
-  nl(text).replace(TOOLS_RE, `tools: ${map(parseTools(text), TO_CLAUDE, "Copilot").join(", ")}`);
-const toCopilot = (text) =>
-  nl(text).replace(TOOLS_RE, `tools: [${map(parseTools(text), TO_COPILOT, "Claude").map((t) => `"${t}"`).join(", ")}]`);
+// `model:` et `effort:` sont propres à chaque outil (noms de modèles différents) : ils ne
+// sont jamais copiés d'un côté à l'autre. Chaque côté garde les siens, en fin de frontmatter.
+const FM_RE = /^---\n([\s\S]*?)\n---\n/;
+const OWN_RE = /^(?:model|effort):/;
+const ownLines = (text) => (nl(text).match(FM_RE)?.[1] ?? "").split("\n").filter((l) => OWN_RE.test(l));
+const withOwn = (converted, target) =>
+  converted.replace(FM_RE, (_, fm) => {
+    const shared = fm.split("\n").filter((l) => !OWN_RE.test(l));
+    return `---\n${[...shared, ...(target === null ? [] : ownLines(target))].join("\n")}\n---\n`;
+  });
+
+// `target` : contenu actuel du fichier de destination (null s'il n'existe pas).
+const toClaude = (text, target = null) =>
+  withOwn(nl(text).replace(TOOLS_RE, `tools: ${map(parseTools(text), TO_CLAUDE, "Copilot").join(", ")}`), target);
+const toCopilot = (text, target = null) =>
+  withOwn(
+    nl(text).replace(TOOLS_RE, `tools: [${map(parseTools(text), TO_COPILOT, "Claude").map((t) => `"${t}"`).join(", ")}]`),
+    target,
+  );
 
 const gitChanged = (file) => {
   try {
@@ -63,7 +78,7 @@ for (const n of names) {
   let source;
   if (hasGh && !hasCl) source = "gh";
   else if (!hasGh && hasCl) source = "cl";
-  else if (toCopilot(read(cl)) === nl(read(gh))) continue;
+  else if (toCopilot(read(cl), read(gh)) === nl(read(gh))) continue;
   else {
     const ghC = gitChanged(gh);
     const clC = gitChanged(cl);
@@ -79,8 +94,8 @@ for (const n of names) {
     console.error(`désynchronisé : ${n}`);
     continue;
   }
-  if (source === "gh") writeFileSync(cl, toClaude(read(gh)));
-  else writeFileSync(gh, toCopilot(read(cl)));
+  if (source === "gh") writeFileSync(cl, toClaude(read(gh), hasCl ? read(cl) : null));
+  else writeFileSync(gh, toCopilot(read(cl), hasGh ? read(gh) : null));
   console.log(`${n}: ${source === "gh" ? "Copilot -> Claude" : "Claude -> Copilot"}`);
 }
 

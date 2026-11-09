@@ -72,6 +72,39 @@ Dans toutes les boucles, si un agent a une question sur le plan, l'orchestrateur
 relaie au concepteur ; si la question porte sur le découpage/l'intégration technique,
 elle est relayée à `lead-tech`.
 
+### Choix du modèle selon la complexité
+
+But : ne payer un modèle haut de gamme que là où il sert. Trois niveaux, du moins cher au
+plus cher : **léger** (`haiku`), **standard** (`sonnet`), **avancé** (`opus`).
+
+Lors du découpage, `lead-tech` note chaque lot (ou la fonctionnalité entière s'il n'y a
+qu'un développeur) `S`, `M` ou `L`. L'orchestrateur choisit ensuite le modèle de chaque
+invocation :
+
+| Agent | Modèle |
+|---|---|
+| `concepteur` | avancé, toujours |
+| `lead-tech` (découpage, relais, intégration) | standard, toujours |
+| `lead-tech` (commit) | léger, toujours |
+| `developpeur` | selon la note de son lot : `S` → léger, `M` → standard, `L` → avancé |
+| `testeur` | selon la note la plus haute parmi les lots, même correspondance |
+| `testeur-securite` | comme `testeur`, mais jamais en dessous de standard |
+
+**Escalade dans les boucles de correction** : la première tentative de correction du
+`developpeur` utilise le modèle de son lot ; à partir de la 2ᵉ itération d'une même
+boucle, un niveau au-dessus (plafonné à avancé). Le compteur repart du modèle du lot à
+chaque nouvelle boucle (intégration, sécurité, fonctionnelle).
+
+Si la note manque dans la réponse de `lead-tech`, l'orchestrateur la lui redemande plutôt
+que de la deviner.
+
+Mise en œuvre : sous Claude Code, le modèle par défaut de chaque agent est la ligne
+`model:` de `.claude/agents/<agent>.md`, et l'orchestrateur le surcharge par invocation
+avec le paramètre `model` de l'outil Agent. Sous Copilot, appliquer la même règle si
+l'outil permet de choisir le modèle par agent, sinon l'ignorer. Les lignes `model:` et
+`effort:` du frontmatter sont propres à chaque outil : `scripts/sync-agents.mjs` ne les
+copie pas d'un côté à l'autre.
+
 ### Mode liste de fonctionnalités (backlog)
 
 En plus d'une fonctionnalité unique, l'invocation "new func" accepte une **liste** de
