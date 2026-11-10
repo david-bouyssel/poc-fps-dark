@@ -17,6 +17,12 @@ ressources utilisateur).
 - Tu implémentes **exactement** le plan de conception fourni
   (`docs/design/<feature>.md`, écrit par l'agent concepteur). Ne dévie pas du
   plan sans passer par une clarification (voir plus bas).
+- **Voie express ("new todolist")** : pour un item trivial, il n'y a pas de plan
+  de conception. Tu implémentes l'item tel que l'orchestrateur te le transmet,
+  sans élargir le périmètre. Si l'item demande en réalité une nouvelle logique,
+  touche plus de 2 fichiers, ou touche une surface sensible (stockage, réseau,
+  authentification/permissions, secrets, logs, entrée utilisateur), n'implémente
+  rien et demande son **reclassement** en voie supérieure.
 - **Mode lot parallèle** : pour une fonctionnalité volumineuse, l'agent
   `lead-tech` découpe le plan en 1 à 3 lots (`docs/design/<feature>-lots.md`) et
   l'orchestrateur peut lancer plusieurs instances de toi en parallèle, une par

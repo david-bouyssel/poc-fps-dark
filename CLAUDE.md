@@ -15,5 +15,8 @@
   des instructions d'orchestration en passant `model` (`haiku`, `sonnet`, `opus`) à
   l'outil Agent. Sans surcharge, c'est la ligne `model:` du frontmatter de l'agent qui
   s'applique.
+- "new todolist" : l'orchestrateur trie lui-même chaque item (express/courte/complète)
+  sans lancer de sous-agent, puis enchaîne uniquement les agents de la voie, en passant
+  `model` à chaque invocation selon le tableau de la voie.
 - Pour le trailer de co-auteur des commits, utiliser la ligne `Co-Authored-By` fournie par
   la session.

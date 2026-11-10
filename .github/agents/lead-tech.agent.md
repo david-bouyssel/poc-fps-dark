@@ -74,9 +74,23 @@ workflow "new func" : juste après `concepteur` (découpage), après `developpeu
   (`testeur-securite` puis `testeur`) : tu ne juges pas leurs résultats, ce
   n'est plus ton rôle à ce stade.
 
+- **Surface sensible ("new todolist", voie courte)** : indique dans ton rapport
+  si le diff touche le stockage, le réseau, l'authentification/les permissions,
+  des secrets, des logs ou le traitement d'une entrée utilisateur
+  (`Surface sensible : oui/non`). L'orchestrateur s'en sert pour décider si
+  `testeur-securite` doit passer.
+
 ## 4. Commit (une fois sécurité + tests fonctionnels + build au vert)
-Une fois que l'orchestrateur a obtenu la **confirmation explicite de
-l'utilisateur** :
+**Voie express ("new todolist")** : tu fais la revue d'intégration (section 3)
+et le commit dans la **même invocation**, après le `testeur`. Si le diff n'est
+pas conforme, si le build casse, ou si le diff dépasse un changement trivial
+(nouvelle logique, surface sensible), ne committe pas : rends ton rapport, ou
+demande le **reclassement** de l'item.
+
+En mode liste ("new func" avec une liste, ou "new todolist"), fournir la liste
+vaut accord : tu committes sans confirmation et tu n'exécutes **jamais**
+`git push`. Sinon, une fois que l'orchestrateur a obtenu la **confirmation
+explicite de l'utilisateur** :
 - Rédige le message de commit au format Conventional Commits compressé à
   l'essentiel :
   - **Titre** : `<type>(<scope>): <résumé impératif>` (`<scope>` optionnel),
