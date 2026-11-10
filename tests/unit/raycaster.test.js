@@ -224,17 +224,28 @@ describe('fogFactor', () => {
     assert.equal(fogFactor(0), 0);
   });
 
-  test('monotone croissant et plafonné à maxFog (défauts 8 et 0.6)', () => {
+  test('monotone croissant et plafonné à maxFog (défauts 10 et 0.3)', () => {
     let previous = -1;
     for (let distance = 0; distance <= 20; distance += 0.25) {
       const value = fogFactor(distance);
       assert.ok(value >= previous);
-      assert.ok(value >= 0 && value <= 0.6);
+      assert.ok(value >= 0 && value <= 0.3);
       previous = value;
     }
-    assert.ok(Math.abs(fogFactor(4) - 0.3) < EPSILON);
-    assert.equal(fogFactor(8), 0.6);
-    assert.equal(fogFactor(100), 0.6);
+    assert.ok(Math.abs(fogFactor(5) - 0.15) < EPSILON);
+    assert.ok(Math.abs(fogFactor(10) - 0.3) < EPSILON);
+    assert.ok(Math.abs(fogFactor(100) - 0.3) < EPSILON);
+  });
+
+  test('distance négative ou NaN -> 0', () => {
+    assert.equal(fogFactor(-3), 0);
+    assert.equal(fogFactor(NaN), 0);
+  });
+
+  test('colonne proche (distance < 1) : voile négligeable (<= 0.03)', () => {
+    for (const distance of [0.05, 0.5, 0.99]) {
+      assert.ok(fogFactor(distance) <= 0.03 + EPSILON, `distance ${distance}`);
+    }
   });
 
   test('options prises en compte', () => {
