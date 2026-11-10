@@ -16,9 +16,10 @@
   destinés au développeur, citant le nom du paramètre fautif. L'UI n'affiche jamais
   `error.message` : elle affiche un texte de ressource.
 - **Pureté** : `src/maze/`, `src/game/`, `src/render/maze-geometry.js`,
-  `src/render/raycaster.js`, `src/render/wall-textures.js` et `src/i18n/` n'accèdent ni
+  `src/render/raycaster.js`, `src/render/wall-textures.js`,
+  `src/render/surface-textures.js` et `src/i18n/` n'accèdent ni
   au DOM, ni à `window`, ni à `document`, ni à `Math.random`, ni à `Date`. `src/game/`,
-  `raycaster.js` et `wall-textures.js` (ni canvas, ni `ImageData`) n'accèdent
+  `raycaster.js`, `wall-textures.js` et `surface-textures.js` (ni canvas, ni `ImageData`) n'accèdent
   pas non plus à `performance` ni à `requestAnimationFrame` : le temps et la planification
   des images sont injectés par `main.js` (`createGameLoop`).
 - **Objets du jeu** : `Player`, `Intent` et les constantes exportées (`ACTION`,

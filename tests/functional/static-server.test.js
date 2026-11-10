@@ -134,6 +134,8 @@ const FPS_MODULES = [
   ['/render/fps-renderer.js', 'drawFpsView'],
   // Textures des murs (plan docs/design/fps-wall-textures.md §6)
   ['/render/wall-textures.js', 'generateWallTexture'],
+  // Textures sol/plafond (plan docs/design/fps-sol-plafond-textures.md §6)
+  ['/render/surface-textures.js', 'castSurfaces'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {

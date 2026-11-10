@@ -10,6 +10,12 @@ import {
   textureIndexForTile,
   textureSlice,
 } from './wall-textures.js';
+import {
+  SURFACE_TEXTURE,
+  castSurfaces,
+  generateSurfaceTexture,
+  surfaceBufferSize,
+} from './surface-textures.js';
 
 /** Largeur d'une colonne de rendu, en px CSS (un rayon par colonne). */
 const COLUMN_WIDTH = 2;
@@ -29,6 +35,15 @@ const TEXTURE_PALETTE_KEYS = Object.freeze([
   'textureDot',
   'textureHeart',
 ]);
+/** Clés de palette utilisées par les textures de sol et de plafond (clé du cache). */
+const SURFACE_PALETTE_KEYS = Object.freeze([
+  'floorBase',
+  'floorAlt',
+  'floorGrout',
+  'ceilingBase',
+  'ceilingLine',
+  'ceilingStar',
+]);
 /** Nombre maximal de palettes de textures en cache (au-delà, le cache est vidé). */
 const MAX_TEXTURE_CACHE_ENTRIES = 4;
 
@@ -41,13 +56,29 @@ const MAX_TEXTURE_CACHE_ENTRIES = 4;
 const textureCache = new Map();
 
 /**
+ * Cache module des textures de sol/plafond : clé = couleurs floor* et ceiling*, valeur =
+ * { floor, ceiling } (TextureData) ou null (échec mémorisé).
+ * @type {Map<string, { floor: object, ceiling: object } | null>}
+ */
+const surfaceTextureCache = new Map();
+
+/**
+ * Tampon sol/plafond (une seule entrée) : { width, height, ownerDocument, canvas,
+ * context, imageData }, ou { width, height, ownerDocument, failed: true }.
+ */
+let surfaceBuffer = null;
+
+/**
  * Dessine la vue FPS. Taille CSS = zone du parent (repli : taille actuelle du canvas),
  * gestion de devicePixelRatio. Ne réaffecte canvas.width/height que si la taille change
  * (réaffecter chaque image vide le contexte et coûte cher).
  * Un rayon par tranche de COLUMN_WIDTH = 2 px CSS (perf, aspect « pixel doux »).
- * Ordre : dégradé ciel (sky -> skyHorizon) moitié haute, sol (ground) moitié basse,
- * puis une colonne par rayon. Chemin texturé : motif procédural choisi par tuile
- * (textureIndexForTile), variante assombrie pour les faces 'y', colonne de texel
+ * Ordre : castRays d'abord (contrat @throws), puis sol et plafond, puis une colonne par
+ * rayon (murs dessinés par-dessus). Sol et plafond : textures procédurales (floor casting
+ * dans un tampon ImageData réduit, agrandi sans lissage sur tout le canvas). Repli sans
+ * exception ni log si le tampon ou les textures échouent : dégradé ciel
+ * (sky -> skyHorizon) moitié haute, sol (ground) moitié basse. Murs, chemin texturé :
+ * motif procédural choisi par tuile (textureIndexForTile), variante assombrie pour les faces 'y', colonne de texel
  * (textureColumn) rognée verticalement (textureSlice), dessinée sans lissage, puis voile
  * de brouillard (palette.fog, globalAlpha = fogFactor). Les textures sont générées une
  * seule fois dans des canvas hors écran (cache module borné).
@@ -97,6 +128,24 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   // Reset on every frame: resizing the canvas resets the context state.
   ctx.imageSmoothingEnabled = false;
 
+  // Rays first: an invalid grid or player throws before any drawing.
+  const columnCount = Math.max(1, Math.ceil(cssWidth / COLUMN_WIDTH));
+  const hits = castRays(grid, player, columnCount);
+
+  if (!drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight)) {
+    drawFlatSurfaces(ctx, palette, cssWidth, cssHeight);
+  }
+
+  // Walls: one ray per column, drawn over the floor and ceiling.
+  const textures = getWallTextures(canvas, palette);
+  if (textures) {
+    drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight);
+  } else {
+    drawFlatWalls(ctx, hits, palette, cssWidth, cssHeight);
+  }
+}
+
+function drawFlatSurfaces(ctx, palette, cssWidth, cssHeight) {
   // Sky gradient (upper half) and ground (lower half) cover the whole view.
   const horizon = cssHeight / 2;
   const skyGradient = ctx.createLinearGradient(0, 0, 0, horizon);
@@ -106,16 +155,85 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   ctx.fillRect(0, 0, cssWidth, horizon);
   ctx.fillStyle = palette.ground;
   ctx.fillRect(0, horizon, cssWidth, cssHeight - horizon);
+}
 
-  // Walls: one ray per column.
-  const columnCount = Math.max(1, Math.ceil(cssWidth / COLUMN_WIDTH));
-  const hits = castRays(grid, player, columnCount);
-  const textures = getWallTextures(canvas, palette);
-  if (textures) {
-    drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight);
-  } else {
-    drawFlatWalls(ctx, hits, palette, cssWidth, cssHeight);
+/** Dessine sol et plafond texturés. Renvoie false (sans lever) si le repli est requis. */
+function drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight) {
+  try {
+    const textures = getSurfaceTextures(palette);
+    if (!textures) {
+      return false;
+    }
+    const buffer = getSurfaceBuffer(canvas, cssWidth, cssHeight);
+    if (!buffer || buffer.failed) {
+      return false;
+    }
+    castSurfaces(buffer.imageData.data, buffer.width, buffer.height, player, textures, palette.fog);
+    buffer.context.putImageData(buffer.imageData, 0, 0);
+    ctx.drawImage(buffer.canvas, 0, 0, buffer.width, buffer.height, 0, 0, cssWidth, cssHeight);
+    return true;
+  } catch {
+    // Hostile colour or canvas failure: silent fallback to the gradient.
+    return false;
   }
+}
+
+function getSurfaceTextures(palette) {
+  const key = SURFACE_PALETTE_KEYS
+    .map((name) => (typeof palette[name] === 'string' ? palette[name] : ''))
+    .join(',');
+  if (surfaceTextureCache.has(key)) {
+    return surfaceTextureCache.get(key);
+  }
+  if (surfaceTextureCache.size >= MAX_TEXTURE_CACHE_ENTRIES) {
+    surfaceTextureCache.clear();
+  }
+  let textures = null;
+  try {
+    textures = Object.freeze({
+      floor: generateSurfaceTexture(SURFACE_TEXTURE.FLOOR, palette),
+      ceiling: generateSurfaceTexture(SURFACE_TEXTURE.CEILING, palette),
+    });
+  } catch {
+    textures = null;
+  }
+  surfaceTextureCache.set(key, textures);
+  return textures;
+}
+
+function getSurfaceBuffer(canvas, cssWidth, cssHeight) {
+  const ownerDocument = canvas.ownerDocument;
+  const { width, height } = surfaceBufferSize(cssWidth, cssHeight);
+  if (
+    surfaceBuffer &&
+    surfaceBuffer.width === width &&
+    surfaceBuffer.height === height &&
+    surfaceBuffer.ownerDocument === ownerDocument
+  ) {
+    return surfaceBuffer;
+  }
+  // Failure is memoised for this size until the size or document changes.
+  surfaceBuffer = { width, height, ownerDocument, failed: true };
+  try {
+    if (!ownerDocument || typeof ownerDocument.createElement !== 'function') {
+      return surfaceBuffer;
+    }
+    const element = ownerDocument.createElement('canvas');
+    if (!element || typeof element.getContext !== 'function') {
+      return surfaceBuffer;
+    }
+    element.width = width;
+    element.height = height;
+    const context = element.getContext('2d');
+    if (!context) {
+      return surfaceBuffer;
+    }
+    const imageData = context.createImageData(width, height);
+    surfaceBuffer = { width, height, ownerDocument, canvas: element, context, imageData };
+  } catch {
+    // keep the memoised failed entry
+  }
+  return surfaceBuffer;
 }
 
 function drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight) {
@@ -138,7 +256,7 @@ function drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHe
       ctx.fillRect(x, top, width, bottom - top);
     }
   }
-  // Otherwise the sky of the next frame would be drawn transparent.
+  // Otherwise the floor and ceiling of the next frame would be drawn transparent.
   ctx.globalAlpha = 1;
 }
 

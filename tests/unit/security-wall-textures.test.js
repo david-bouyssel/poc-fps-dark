@@ -19,6 +19,15 @@ import {
   textureColumn,
   textureSlice,
 } from '../../src/render/wall-textures.js';
+import {
+  SURFACE_TEXTURE,
+  SURFACE_SCALE,
+  MAX_SURFACE_PIXELS,
+  generateSurfaceTexture,
+  surfaceBufferSize,
+  surfaceRowDistance,
+  castSurfaces,
+} from '../../src/render/surface-textures.js';
 import { PALETTE } from '../../src/render/palette.js';
 import { drawFpsView } from '../../src/render/fps-renderer.js';
 import { room } from './fps-test-grids.js';
@@ -28,6 +37,7 @@ const srcDir = path.join(repoRoot, 'src');
 const wallTexturesPath = path.join(srcDir, 'render', 'wall-textures.js');
 const fpsRendererPath = path.join(srcDir, 'render', 'fps-renderer.js');
 const palettePath = path.join(srcDir, 'render', 'palette.js');
+const surfaceTexturesPath = path.join(srcDir, 'render', 'surface-textures.js');
 
 /** Retire commentaires bloc et ligne (approximation suffisante pour ce code). */
 function stripComments(code) {
@@ -110,10 +120,11 @@ describe('fps-renderer.js / palette.js : aucune ressource externe ni lecture de 
     assert.deepEqual(hits, [], hits.join('\n'));
   });
 
-  test('fps-renderer.js : seul createElement(\'canvas\') est créé, jamais attaché au DOM', () => {
+  test('fps-renderer.js : seul createElement(\'canvas\') est créé (murs + tampon sol/plafond), jamais attaché au DOM', () => {
     const code = stripComments(readFileSync(fpsRendererPath, 'utf8'));
     const created = [...code.matchAll(/createElement\(\s*([^)]*)\)/g)].map((m) => m[1].trim());
-    assert.deepEqual(created, ["'canvas'"]);
+    assert.ok(created.length >= 1 && created.length <= 2, `createElement: ${created.length}`);
+    assert.ok(created.every((tag) => tag === "'canvas'"), created.join(','));
     assert.doesNotMatch(code, /\b(appendChild|append|prepend|insertBefore|replaceChildren|body)\b/);
   });
 
@@ -380,15 +391,66 @@ describe('drawFpsView : repli sans exception et cache borné', () => {
   });
 
   test('couleurs de texture hostiles : repli en aplat silencieux, aucun canvas créé', () => {
+    // Murs hostiles : seul le tampon sol/plafond (valide) peut être créé, aucun canvas de mur.
     const hostile = ['red', '#fff', 'url(http://example.invalid/a.png)', '', '#b9a6e8;x'];
     for (const value of hostile) {
       const log = newLog();
       const canvas = fakeCanvas(log, fakeDocument(log));
       assert.doesNotThrow(() =>
         drawFpsView(canvas, grid, player, { palette: { textureBase: value, textureDot: `${value}${paletteCounter++}` } }));
-      assert.equal(log.drawImage.length, 0);
-      assert.equal(log.createElement.length, 0);
+      assert.ok(log.created.length <= 1, 'au plus le tampon sol/plafond');
+      assert.ok(log.drawImage.every(({ image }) => log.created.includes(image)));
+      assert.ok(log.drawImage.length <= 1, 'aucun drawImage de mur');
     }
+  });
+
+  test('couleurs sol/plafond hostiles : repli en dégradé silencieux, aucun canvas de sol', () => {
+    const keys = ['floorBase', 'floorAlt', 'floorGrout', 'ceilingBase', 'ceilingLine', 'ceilingStar'];
+    for (const key of keys) {
+      for (const value of ['red', '#fff', 'url(http://example.invalid/a.png)', '', '#b9a6e8;x', null, 12, {}]) {
+        const log = newLog();
+        const canvas = fakeCanvas(log, fakeDocument(log));
+        let gradients = 0;
+        const original = log.ctx.createLinearGradient;
+        log.ctx.createLinearGradient = (...a) => { gradients += 1; return original(...a); };
+        assert.doesNotThrow(() => drawFpsView(canvas, grid, player,
+          { palette: { [key]: value, textureHeart: `#${(paletteCounter++).toString(16).padStart(6, '0')}` } }));
+        assert.equal(gradients, 1, `${key}=${String(value)} : repli dégradé`);
+        assert.ok(log.drawImage.every(({ image }) => image.width === TEXTURE_SIZE), 'aucun drawImage du tampon');
+        assert.ok(log.drawImage.every(({ image }) => log.created.includes(image)));
+      }
+    }
+  });
+
+  test('tampon sol/plafond : drawImage borné, putImageData ; échecs du contexte sans exception', () => {
+    const log = newLog();
+    const canvas = fakeCanvas(log, fakeDocument(log));
+    drawFpsView(canvas, grid, player, { palette: uniquePalette() });
+    assert.ok(log.putImageData >= 1);
+    const first = log.drawImage[0];
+    assert.ok(log.created.includes(first.image));
+    const [sx, sy, sw, sh, dx, dy, dw, dh] = first.args;
+    assert.deepEqual([sx, sy, dx, dy], [0, 0, 0, 0]);
+    assert.ok(sw * sh <= MAX_SURFACE_PIXELS && sw >= 1 && sh >= 1);
+    assert.equal(dw, 160);
+    assert.equal(dh, 120);
+
+    const log2 = newLog();
+    const canvas2 = fakeCanvas(log2, fakeDocument(log2));
+    const doc = canvas2.ownerDocument;
+    const create = doc.createElement;
+    doc.createElement = (tag) => {
+      const el = create(tag);
+      const getContext = el.getContext;
+      el.getContext = () => {
+        const c = getContext();
+        c.createImageData = () => { throw new Error('boom'); };
+        c.putImageData = () => { throw new Error('boom'); };
+        return c;
+      };
+      return el;
+    };
+    assert.doesNotThrow(() => drawFpsView(canvas2, grid, player, { palette: uniquePalette() }));
   });
 
   test('chemin texturé : drawImage uniquement depuis les canvas hors écran créés, '
@@ -398,10 +460,14 @@ describe('drawFpsView : repli sans exception et cache borné', () => {
     drawFpsView(canvas, grid, player, { palette: uniquePalette() });
     assert.ok(log.drawImage.length > 0);
     assert.ok(log.createElement.every((tag) => tag === 'canvas'));
-    assert.equal(log.created.length, WALL_TEXTURE_KINDS.length * 2);
+    // 8 canvas de murs + 1 tampon sol/plafond.
+    assert.equal(log.created.length, WALL_TEXTURE_KINDS.length * 2 + 1);
     const created = new Set(log.created);
-    for (const { image, args } of log.drawImage) {
+    const surface = log.drawImage[0];
+    assert.equal(surface.args.length, 8, 'premier drawImage = tampon sol/plafond');
+    for (const { image, args } of log.drawImage.slice(1)) {
       assert.ok(created.has(image), 'source de drawImage = canvas texture local');
+      assert.notEqual(image, surface.image);
       const [sx, sy, sw, sh] = args;
       assert.ok(Number.isInteger(sx) && sx >= 0 && sx < TEXTURE_SIZE);
       assert.ok(sy >= 0 && sh > 0 && sy + sh <= TEXTURE_SIZE + 1e-9);
@@ -417,10 +483,12 @@ describe('drawFpsView : repli sans exception et cache borné', () => {
     const doc = fakeDocument(log);
     const first = uniquePalette();
     drawFpsView(fakeCanvas(log, doc), grid, player, { palette: first });
-    const perPalette = log.createElement.length;
-    assert.equal(perPalette, WALL_TEXTURE_KINDS.length * 2);
+    // Murs de la palette (8 canvas) + tampon sol/plafond unique (1), réutilisé ensuite.
+    const afterFirst = log.createElement.length;
+    assert.equal(afterFirst, WALL_TEXTURE_KINDS.length * 2 + 1);
+    const perPalette = WALL_TEXTURE_KINDS.length * 2;
     for (let i = 0; i < 20; i++) drawFpsView(fakeCanvas(log, doc), grid, player, { palette: first });
-    assert.equal(log.createElement.length, perPalette, 'aucune régénération par image');
+    assert.equal(log.createElement.length, afterFirst, 'aucune régénération par image');
 
     // 50 palettes distinctes : sans borne, le cache conserverait 50 x 8 canvas.
     for (let i = 0; i < 50; i++) {
@@ -430,5 +498,215 @@ describe('drawFpsView : repli sans exception et cache borné', () => {
     const before = log.createElement.length;
     drawFpsView(fakeCanvas(log, doc), grid, player, { palette: first });
     assert.equal(log.createElement.length - before, perPalette, 'cache borné : entrée évincée');
+  });
+});
+
+const SURFACE_PALETTE = {
+  floorBase: '#fde4ec', floorAlt: '#fad6e3', floorGrout: '#f2c6d6',
+  ceilingBase: '#e4f3fb', ceilingLine: '#cde5f4', ceilingStar: '#fff1c1',
+};
+const BAD_COLORS = [
+  undefined, null, 0, 12, true, {}, [], '', 'red', '#fff', '#fffffff', ' #fde4ec', '#fde4ec\n',
+  '#fde4ec; x', 'url(http://example.invalid/a.png)', '#gggggg', { toString: () => '#fde4ec' },
+  ['#fde4ec'], 1n, Symbol('c'), () => '#fde4ec',
+];
+
+describe('surface-textures.js : pureté statique', () => {
+  test('imports limités, aucun DOM / réseau / stockage / log / aléa / horloge / URL', () => {
+    const code = stripComments(readFileSync(surfaceTexturesPath, 'utf8'));
+    const imports = [...code.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
+    assert.deepEqual(imports.sort(), ['./raycaster.js', './wall-textures.js']);
+    assert.doesNotMatch(code, /\bimport\s*\(/);
+    const hits = scan(surfaceTexturesPath, [
+      [/\b(window|document|globalThis|self|navigator|location)\b/, 'global navigateur'],
+      [/\b(HTMLCanvasElement|OffscreenCanvas|ImageData|Image|createElement|getContext)\b/, 'canvas/DOM'],
+      [/\bMath\.random\b/, 'Math.random'],
+      [/\b(Date|performance|requestAnimationFrame|setTimeout|setInterval)\b/, 'horloge'],
+      [/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon|importScripts|Worker)\b/, 'réseau'],
+      [/\b(localStorage|sessionStorage|indexedDB|caches|cookie)\b/, 'stockage'],
+      [/\bconsole\./, 'log'],
+      [/\beval\s*\(|\bnew\s+Function\b/, 'exécution dynamique'],
+      [/https?:\/\/|['"`(](data|blob):/, 'URL'],
+    ]);
+    assert.deepEqual(hits, [], hits.join('\n'));
+  });
+
+  test('palette : clés sol/plafond #rrggbb strict', () => {
+    for (const key of Object.keys(SURFACE_PALETTE)) {
+      assert.match(PALETTE[key], /^#[0-9a-fA-F]{6}$/, key);
+    }
+  });
+});
+
+describe('generateSurfaceTexture : entrées hostiles', () => {
+  test('kind hostile -> RangeError', () => {
+    for (const kind of [...HOSTILE_VALUES, 'FLOOR', ' floor', 'walls']) {
+      assert.throws(() => generateSurfaceTexture(kind, SURFACE_PALETTE), RangeError);
+    }
+  });
+
+  test('size hostile -> RangeError, allocation max 256 x 256', () => {
+    for (const size of HOSTILE_VALUES) {
+      if (size === undefined) continue;
+      if (Number.isInteger(size) && size >= 8 && size <= 256 && size % 8 === 0) continue;
+      assert.throws(() => generateSurfaceTexture('floor', SURFACE_PALETTE, size), RangeError, String(size));
+    }
+    assert.equal(generateSurfaceTexture('ceiling', SURFACE_PALETTE, 256).data.length, 256 * 256 * 4);
+  });
+
+  test('palette / couleurs hostiles -> TypeError, sans pollution', () => {
+    for (const kind of Object.values(SURFACE_TEXTURE)) {
+      for (const palette of [undefined, null, 0, 'p', true, {}, Object.create(null)]) {
+        assert.throws(() => generateSurfaceTexture(kind, palette), TypeError);
+      }
+      for (const key of Object.keys(SURFACE_PALETTE)) {
+        const required = kind === 'floor' ? key.startsWith('floor') : key.startsWith('ceiling');
+        if (!required) continue;
+        for (const bad of BAD_COLORS) {
+          assert.throws(() => generateSurfaceTexture(kind, { ...SURFACE_PALETTE, [key]: bad }), TypeError, key);
+        }
+      }
+    }
+    assert.equal({}.floorBase, undefined);
+  });
+
+  test('sortie gelée, alpha 255, couleurs limitées à la palette', () => {
+    for (const [kind, keys] of [['floor', ['floorBase', 'floorAlt', 'floorGrout']],
+      ['ceiling', ['ceilingBase', 'ceilingLine', 'ceilingStar']]]) {
+      const tex = generateSurfaceTexture(kind, SURFACE_PALETTE);
+      assert.ok(Object.isFrozen(tex));
+      const allowed = new Set(keys.map((k) => SURFACE_PALETTE[k]));
+      for (let i = 0; i < tex.data.length; i += 4) {
+        assert.equal(tex.data[i + 3], 255);
+        const hex = `#${[0, 1, 2].map((c) => tex.data[i + c].toString(16).padStart(2, '0')).join('')}`;
+        assert.ok(allowed.has(hex), hex);
+      }
+    }
+  });
+});
+
+describe('surfaceBufferSize / surfaceRowDistance : bornes mémoire, jamais de levée', () => {
+  test('toute entrée -> entiers >= 1, width * height <= MAX_SURFACE_PIXELS', () => {
+    const values = [...HOSTILE_VALUES, 1e4, 1e6, 1e9, 1e300];
+    for (const w of values) {
+      for (const h of values) {
+        let size;
+        assert.doesNotThrow(() => { size = surfaceBufferSize(w, h); });
+        assert.ok(Number.isInteger(size.width) && size.width >= 1, `${String(w)}x${String(h)}`);
+        assert.ok(Number.isInteger(size.height) && size.height >= 1);
+        assert.ok(size.width * size.height <= MAX_SURFACE_PIXELS, `${String(w)}x${String(h)}`);
+      }
+    }
+    assert.deepEqual(surfaceBufferSize(160, 120), { width: 160 / SURFACE_SCALE, height: 120 / SURFACE_SCALE });
+    const huge = surfaceBufferSize(7680, 4320);
+    assert.ok(huge.width * huge.height <= MAX_SURFACE_PIXELS);
+  });
+
+  test('surfaceBufferSize : ratios extrêmes, Infinity, négatifs, 1 x N et N x 1', () => {
+    const extremes = [1, 2, 3, 1e3, 1e6, 1e9, 1e15, 1e300, Number.MAX_VALUE, Infinity, -Infinity, -5, 0, NaN];
+    for (const a of extremes) {
+      for (const b of extremes) {
+        for (const [w, h] of [[a, b], [b, a]]) {
+          const s = surfaceBufferSize(w, h);
+          assert.ok(Number.isInteger(s.width) && Number.isInteger(s.height), `${w}x${h}`);
+          assert.ok(s.width >= 1 && s.height >= 1, `${w}x${h}`);
+          assert.ok(s.width * s.height <= MAX_SURFACE_PIXELS, `${w}x${h}`);
+        }
+      }
+    }
+  });
+
+  test('surfaceRowDistance : fini et > 0 pour toute ligne valide', () => {
+    for (const height of [1, 2, 3, 60, 1080, 100000]) {
+      for (const row of [0, 1, Math.floor(height / 2), height - 1]) {
+        const d = surfaceRowDistance(row, height);
+        assert.ok(Number.isFinite(d) && d > 0, `${row}/${height}`);
+      }
+    }
+  });
+});
+
+describe('castSurfaces : entrées hostiles, écriture bornée', () => {
+  const tex = {
+    floor: generateSurfaceTexture('floor', SURFACE_PALETTE, 8),
+    ceiling: generateSurfaceTexture('ceiling', SURFACE_PALETTE, 8),
+  };
+  const ply = { x: 2.5, y: 2.5, angle: 0.3 };
+  const call = (over = {}) => {
+    const a = { w: 8, h: 6, target: null, player: ply, textures: tex, fog: '#aabbcc', fov: undefined, ...over };
+    const target = a.target === null ? new Uint8ClampedArray(a.w * a.h * 4) : a.target;
+    return castSurfaces(target, a.w, a.h, a.player, a.textures, a.fog, a.fov);
+  };
+
+  test('width / height / fov hostiles -> RangeError', () => {
+    for (const v of HOSTILE_VALUES) {
+      if (Number.isInteger(v) && v >= 1) continue;
+      assert.throws(() => castSurfaces(new Uint8ClampedArray(4), v, 1, ply, tex, '#aabbcc'), RangeError);
+      assert.throws(() => castSurfaces(new Uint8ClampedArray(4), 1, v, ply, tex, '#aabbcc'), RangeError);
+    }
+    for (const fov of [0, -1, Math.PI, 4, NaN, Infinity, '1', null, {}, 1n]) {
+      assert.throws(() => call({ fov }), RangeError, String(fov));
+    }
+  });
+
+  test('target mal formé / de mauvaise longueur -> TypeError', () => {
+    for (const target of [undefined, [], new Uint8Array(192), new Uint8ClampedArray(191),
+      new Uint8ClampedArray(193), new Uint8ClampedArray(0), {}, 'x']) {
+      assert.throws(() => call({ target }), TypeError);
+    }
+    assert.throws(() => castSurfaces(null, 8, 6, ply, tex, '#aabbcc'), TypeError);
+  });
+
+  test('player hostile -> TypeError', () => {
+    for (const p of [undefined, null, 0, 'p', {}, { x: NaN, y: 0, angle: 0 }, { x: 0, y: Infinity, angle: 0 },
+      { x: 0, y: 0, angle: NaN }, { x: '1', y: 0, angle: 0 }, { x: 0, y: 0 }, { x: 1n, y: 0, angle: 0 }]) {
+      assert.throws(() => call({ player: p }), TypeError);
+    }
+  });
+
+  test('textures hostiles (tailles, types, géantes déclarées) -> TypeError', () => {
+    const good = tex.floor;
+    const bad = [
+      undefined, null, 0, {}, { floor: good }, { ceiling: good }, { floor: null, ceiling: good },
+      { floor: good, ceiling: generateSurfaceTexture('ceiling', SURFACE_PALETTE, 16) },
+      { floor: { ...good, data: new Uint8Array(good.data.length) }, ceiling: tex.ceiling },
+      { floor: { ...good, data: new Uint8ClampedArray(3) }, ceiling: tex.ceiling },
+      { floor: { width: 1e9, height: 1e9, data: new Uint8ClampedArray(4) }, ceiling: tex.ceiling },
+      { floor: { width: 8, height: 4, data: new Uint8ClampedArray(128) }, ceiling: tex.ceiling },
+      { floor: { width: NaN, height: NaN, data: new Uint8ClampedArray(0) }, ceiling: tex.ceiling },
+      {
+        floor: { width: 0, height: 0, data: new Uint8ClampedArray(0) },
+        ceiling: { width: 0, height: 0, data: new Uint8ClampedArray(0) },
+      },
+    ];
+    for (const textures of bad) assert.throws(() => call({ textures }), TypeError);
+  });
+
+  test('fogColor hostile -> TypeError', () => {
+    for (const fog of BAD_COLORS) assert.throws(() => call({ fog }), TypeError, String(typeof fog));
+  });
+
+  test('succès : alpha 255, joueur / fov extrêmes sans levée, taille maximale bornée', () => {
+    const target = new Uint8ClampedArray(8 * 6 * 4);
+    call({ target });
+    for (let i = 3; i < target.length; i += 4) assert.equal(target[i], 255);
+    for (const p of [{ x: 1e15, y: -1e15, angle: 1e9 }, { x: -0, y: 0, angle: -1e300 },
+      { x: Number.MAX_VALUE, y: Number.MIN_VALUE, angle: Math.PI }]) {
+      for (const fov of [1e-9, 1, Math.PI - 1e-9]) {
+        assert.doesNotThrow(() => call({ player: p, fov }));
+      }
+    }
+    const { width, height } = surfaceBufferSize(1e6, 1e6);
+    const big = new Uint8ClampedArray(width * height * 4);
+    assert.ok(big.length <= MAX_SURFACE_PIXELS * 4);
+    assert.doesNotThrow(() => castSurfaces(big, width, height, ply, tex, '#000000'));
+    assert.equal(big[big.length - 1], 255);
+  });
+
+  test('ne modifie pas les textures', () => {
+    const before = [Uint8ClampedArray.from(tex.floor.data), Uint8ClampedArray.from(tex.ceiling.data)];
+    call();
+    assert.deepEqual(tex.floor.data, before[0]);
+    assert.deepEqual(tex.ceiling.data, before[1]);
   });
 });

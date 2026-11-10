@@ -21,4 +21,11 @@ export const PALETTE = Object.freeze({
   textureGroove: '#a08cd8', // rainure entre lames, joint de bord
   textureDot: '#bfead8', // pois menthe (= accent)
   textureHeart: '#f7c6d9', // cœurs rose bonbon
+  // Teintes des textures procédurales du sol et du plafond FPS (canvas uniquement).
+  floorBase: '#fde4ec', // carreau principal rose poudré (= ground)
+  floorAlt: '#fad6e3', // carreau alterné, à peine plus soutenu
+  floorGrout: '#f2c6d6', // joints entre carreaux
+  ceilingBase: '#e4f3fb', // panneau bleu ciel très pâle
+  ceilingLine: '#cde5f4', // bordure de panneau
+  ceilingStar: '#fff1c1', // petites étoiles jaune pâle
 });

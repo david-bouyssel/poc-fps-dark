@@ -19,7 +19,7 @@ DOM se vérifient manuellement (voir plus bas).
 ## Écrire un test
 - Emplacement : `tests/unit/` (logique pure : `src/maze/`, `src/game/`,
   `src/render/maze-geometry.js`, `src/render/raycaster.js`, `src/render/wall-textures.js`,
-  `src/i18n/`) et
+  `src/render/surface-textures.js`, `src/i18n/`) et
   `tests/functional/` (serveur statique, flux bout en bout côté Node, dont la balade FPS
   `fps-walkthrough.test.js`).
   Jamais dans `src/` : tout `src/` est servi au navigateur.
@@ -47,6 +47,7 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/loop.test.js` | ordre `update`/`render`, `dt`, `start` idempotent, `stop` |
 | `tests/unit/raycaster.test.js` | distances DDA, anti fish-eye, angles alignés, `projectColumn`, `fogFactor`, `mixColor` |
 | `tests/unit/wall-textures.test.js` | `generateWallTexture` (couleurs, déterminisme, joint de bord, erreurs), `shadeTexture`, `textureIndexForTile` (répartition, reproductibilité), `textureColumn`, `textureSlice`, clés `texture*` de `PALETTE` |
+| `tests/unit/surface-textures.test.js` | `generateSurfaceTexture` (couleurs, déterminisme, joints, erreurs), `surfaceBufferSize`, `surfaceRowDistance`, `castSurfaces` (remplissage, brouillard, mapping, translation entière, erreurs), clés `floor*` / `ceiling*` de `PALETTE` |
 | `tests/unit/i18n.test.js` | clés `fps.*` et `canvas.labelFps` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
 | `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis, boutons FPS dans `/` |
@@ -72,7 +73,7 @@ clavier de `main.js` (canvas, DOM) se vérifient manuellement.
   (`http.request({ path })`) avec le chemin brut.
 - **HEAD** : vérifier l'absence de corps, pas seulement le statut.
 - **Modules purs** : `src/maze/`, `src/game/`, `maze-geometry.js`, `raycaster.js`,
-  `wall-textures.js` et `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
+  `wall-textures.js`, `surface-textures.js` et `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
   `requestAnimationFrame` ou à `performance` y casse les tests unitaires.
 - **Fermeture du serveur** : oublier `server.close()` laisse le processus de test ouvert.
 - **Node 20 vs plus récent** : la CI tourne en Node 20 ; éviter les API plus récentes.
@@ -100,6 +101,12 @@ collé contre un mur, texture rognée sans étirement aberrant ni trou ; motifs 
 de flou) ; même graine regénérée -> mêmes textures aux mêmes endroits ;
 redimensionnement en FPS -> rendu toujours net ; fluidité correcte en 64 x 64 ; console
 sans erreur.
+
+Sol et plafond (vue FPS) : `npm start`, « Explorer en 3D » ; sol carrelé rose et plafond
+bleu pâle étoilé, sans trou ni décalage à la jonction avec les murs ; motif fixe dans le
+monde quand on avance ou tourne (il ne glisse pas avec la caméra) ; brouillard du sol
+raccordé à celui des murs au loin, moiré faible ; redimensionnement -> rendu net ;
+fluidité correcte en 64 x 64 et en plein écran ; console sans erreur.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir

@@ -9,7 +9,7 @@ FPS « mignon » qui s'exécute dans le navigateur. Premier lot : génération e
 reproductible par graine. Deuxième lot : balade en vue à la première personne
 (raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches) dans le
 labyrinthe généré, avec retour à la vue de dessus. Troisième lot : murs de la vue FPS
-texturés procéduralement (motifs pastel générés en code, sans fichier image). Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
+texturés procéduralement (motifs pastel générés en code, sans fichier image), ainsi que sol carrelé et plafond étoilé texturés (floor casting). Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
 framework, sans aucune dépendance npm. Node >= 20 sert uniquement aux tests
 (`node --test`) et au serveur statique local. Aucun stockage. Application statique
 publiée sur GitHub Pages (<https://david-bouyssel.github.io/poc-fps-orchestration/>),
