@@ -144,7 +144,7 @@ Dans ce mode, l'orchestrateur :
 Dès qu'un message utilisateur contient la phrase déclencheuse **"new todolist"**, suivie
 d'une liste d'items (une par ligne/puce dans le prompt, ou un fichier `.md` en liste à
 puces ou checklist `- [ ] ...`), l'orchestrateur intègre les items **un par un, dans
-l'ordre donné**. Chaque item suit la **voie la plus légère qui garantit la qualité** :
+l'ordre donné**, sauf si la liste passe en **mode parallèle** (section 5). Chaque item suit la **voie la plus légère qui garantit la qualité** :
 le pipeline n'est pas le même pour une faute de frappe et pour une fonctionnalité.
 
 Les règles du mode liste de "new func" s'appliquent telles quelles : un commit par item
@@ -220,10 +220,110 @@ L'escalade de modèle dans les boucles de correction s'applique dans les trois v
   du commit) et ne réutilise aucun détail de cet item pour les suivants.
 - Chaque invocation ne lance que les agents de la voie ; aucun agent « pour avis ».
 
-### 5. Récapitulatif final
+### 5. Mode parallèle (listes longues)
 
-Un tableau : item, voie (et reclassement éventuel), nombre d'itérations de correction,
-hash du commit. Puis le rappel que le push reste à faire par l'utilisateur.
+Quand la liste compte **au moins 4 items**, plusieurs items peuvent être développés en
+même temps, par **1 à X développeurs**. X vaut **3 par défaut** ; l'utilisateur peut le
+changer dans son message (`new todolist max-devs=5`). En dessous de 4 items, ou si
+l'outil ne sait pas lancer d'agents en parallèle, le traitement reste séquentiel.
+
+**Préparation** (après le tri) :
+1. `concepteur` rédige les plans (courts ou complets) de tous les items non express. Les
+   plans portent sur des fichiers distincts : les invocations peuvent tourner en
+   parallèle.
+2. `lead-tech` (standard) **planifie les vagues** dans
+   `docs/design/<liste>-vagues.md`, en une seule invocation. Ce document remplace le
+   découpage par item de la voie complète. Pour chaque item, il donne :
+   - un identifiant `T1`, `T2`… dans l'ordre de la liste ;
+   - le **périmètre de code** et le **périmètre de tests**, exclusifs : aucun fichier
+     partagé avec un autre item de la même vague ;
+   - la note `S`/`M`/`L` et, pour un item de voie complète, ses lots éventuels ;
+   - la vague de l'item.
+3. Règles des vagues :
+   - deux items qui touchent un même fichier, ou dont l'un dépend de l'autre, vont dans
+     des vagues différentes, dans l'ordre de la liste ;
+   - une vague compte au plus X développeurs en même temps, lots compris ;
+   - le fichier checklist de la liste n'appartient à aucun périmètre : seul `lead-tech`
+     le modifie, au commit.
+
+L'orchestrateur annonce les vagues en une ligne chacune (`Vague 1 : T1, T3, T4`), sans
+attendre de validation.
+
+**Déroulé d'une vague** :
+1. Un `developpeur` par item (ou par lot), tous lancés en parallèle. Chacun reçoit
+   l'identifiant de son item, le chemin de son plan, le chemin du fichier des vagues, et
+   ne touche que son périmètre de code.
+2. `lead-tech` fait **une intégration pour toute la vague** : conflits, build, revue par
+   item, et `Surface sensible : oui/non` pour chaque item. Son rapport range les
+   problèmes par identifiant d'item. Seuls les développeurs des items `KO` repartent en
+   correction.
+3. `testeur-securite` puis `testeur` : **une invocation par item**, en parallèle. Chaque
+   testeur ne reçoit qu'un seul item. Il écrit ses tests uniquement dans le périmètre de
+   tests de cet item et ne lance que ces tests (`<commande de tests ciblée>`). Un échec
+   hors de son périmètre n'est pas un bug de son item : il le signale sur une ligne
+   `Hors périmètre :`, et l'orchestrateur le transmet à `lead-tech`.
+4. `lead-tech` (léger) committe les items validés **un par un**, dans l'ordre de la
+   liste. Pour chaque commit, il ajoute uniquement les fichiers du périmètre de l'item
+   (`git add <fichiers>`, jamais `git add .`) et coche sa case. Avant le premier commit
+   de la vague, il lance la suite de tests **complète** : c'est elle qui détecte une
+   interaction entre items.
+5. La vague suivante ne démarre qu'une fois tous les items de la vague committés.
+
+**Échec dans une vague** : si un item épuise ses itérations, les autres items de la
+vague vont jusqu'au commit, sauf ceux qui en dépendent. Les fichiers de l'item en échec
+restent non committés. L'orchestrateur s'arrête avant la vague suivante et remonte le
+problème à l'utilisateur.
+
+**Rapports** : la première ligne de tout rapport d'un agent en mode parallèle est
+`T<n> OK` ou `T<n> KO`. Le rapport d'intégration de vague a une ligne par item.
+
+### 6. Suivi de la consommation
+
+L'orchestrateur suit la consommation de chaque invocation, en mode séquentiel comme en
+mode parallèle. Le mode parallèle ne consomme pas plus au total, mais il consomme plus
+vite : il épuise plus tôt un quota par fenêtre de temps.
+
+**Budget** : l'utilisateur peut le donner dans son message (`budget=2M`, en tokens).
+Sans budget, l'orchestrateur suit quand même la consommation et l'affiche, sans seuil
+d'arrêt.
+
+**Mesure** :
+- sous Claude Code, le résultat de chaque invocation de l'outil Agent donne son total de
+  tokens : l'orchestrateur l'additionne ;
+- si l'outil ne donne pas de compte, l'orchestrateur compte les invocations, pondérées
+  par niveau de modèle : léger 1, standard 3, avancé 5. Le budget s'exprime alors dans
+  cette unité.
+
+**Journal** : l'orchestrateur tient `.orchestration/suivi-<liste>.md` (ignoré par git).
+Une ligne par invocation : item, agent, modèle, consommation, cumul. Une ligne par item
+terminé : statut et hash du commit. Ce journal permet de reprendre une liste
+interrompue avec `reprendre todolist <liste>`.
+
+**Estimation** : avant de lancer une vague (ou un item en mode séquentiel),
+l'orchestrateur estime son coût : moyenne de la consommation des items déjà faits de
+même note, sinon S = 1, M = 3, L = 8 fois le coût moyen d'une invocation légère
+observée.
+
+**Seuils** (en part du budget consommé) :
+
+| Seuil | Action |
+|---|---|
+| 50 % | Une ligne à l'utilisateur : consommé, restant, items restants. |
+| 75 % | Plus de parallélisme : les vagues suivantes passent à 1 développeur. Plus d'escalade de modèle au-delà de standard dans les boucles de correction ; un item qui en aurait besoin est déclaré en échec. |
+| 90 % | Aucun nouvel item : l'orchestrateur termine et committe les items en cours, puis s'arrête. |
+
+Un item ou une vague dont l'estimation dépasse le budget restant n'est pas lancé :
+l'orchestrateur s'arrête et le signale.
+
+**Limite atteinte en cours de route** : si une invocation échoue pour quota ou limite de
+débit, l'orchestrateur ne la relance pas en boucle. Il note l'état dans le journal,
+s'arrête, et indique à l'utilisateur la commande de reprise.
+
+### 7. Récapitulatif final
+
+Un tableau : item, voie (et reclassement éventuel), vague en mode parallèle, nombre
+d'itérations de correction, consommation, hash du commit. Puis la consommation totale
+(et la part du budget), et le rappel que le push reste à faire par l'utilisateur.
 
 ### Schéma du workflow
 

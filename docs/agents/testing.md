@@ -4,6 +4,8 @@
 
 ## Lancer les tests
 - Tests unitaires : `<commande de tests>`
+- Tests d'une liste de fichiers seulement (mode parallèle de "new todolist") :
+  `<commande de tests ciblée>`
 - Tests fonctionnels / bout en bout : _à préciser_
 
 ## Écrire un test

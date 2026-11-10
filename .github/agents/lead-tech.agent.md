@@ -48,6 +48,23 @@ workflow "new func" : juste après `concepteur` (découpage), après `developpeu
 - Tu ne modifies **jamais** le code applicatif ni les fichiers de test à cette
   étape : tu conçois la répartition du travail, tu ne codes pas.
 
+## 1 bis. Planification des vagues ("new todolist", mode parallèle)
+Quand l'orchestrateur te transmet une liste longue (chemins des plans + texte des
+items express), écris `docs/design/<liste>-vagues.md`, seul fichier que tu crées à
+cette étape. Pour chaque item :
+- un identifiant `T1`, `T2`… dans l'ordre de la liste ;
+- son **périmètre de code** et son **périmètre de tests** : listes de fichiers,
+  exclusives entre items d'une même vague (lis le code en lecture seule pour les
+  établir ; pour un item express, déduis-les du texte de l'item) ;
+- sa note `S`/`M`/`L` et, pour un item de voie complète, ses lots éventuels ;
+- sa vague.
+
+Règles : deux items qui partagent un fichier ou dont l'un dépend de l'autre vont
+dans des vagues différentes, dans l'ordre de la liste. Une vague compte au plus X
+développeurs en même temps, lots compris (X transmis par l'orchestrateur). Le
+fichier checklist de la liste n'entre dans aucun périmètre. En cas de doute sur
+l'indépendance de deux items, sépare-les.
+
 ## 2. Relais technique pendant le développement
 - Si un développeur (via l'orchestrateur) a une question **technique ou
   inter-lot** (contrat d'interface, dépendance entre lots), réponds-y : c'est
@@ -81,6 +98,13 @@ workflow "new func" : juste après `concepteur` (découpage), après `developpeu
   (`Surface sensible : oui/non`). L'orchestrateur s'en sert pour décider si
   `testeur-securite` doit passer.
 
+- **Intégration de vague (mode parallèle)** : tu intègres tous les items de la
+  vague en une invocation. Vérifie en plus que chaque item est resté dans son
+  périmètre (`git diff --name-only`). Ton rapport a une ligne par item :
+  `T<n> OK` ou `T<n> KO`, puis les problèmes de chaque item `KO`, et
+  `Surface sensible : oui/non` pour chacun. Un fichier modifié hors de tout
+  périmètre est un `KO` pour l'item qui l'a touché.
+
 ## 4. Commit (une fois sécurité + tests fonctionnels + build au vert)
 **Voie express ("new todolist")** : tu fais la revue d'intégration (section 3)
 et le commit dans la **même invocation**, après le `testeur`. Si le diff n'est
@@ -90,7 +114,17 @@ demande le **reclassement** de l'item.
 
 En mode liste ("new func" avec une liste, ou "new todolist"), fournir la liste
 vaut accord : tu committes sans confirmation et tu n'exécutes **jamais**
-`git push`. Sinon, une fois que l'orchestrateur a obtenu la **confirmation
+`git push`.
+
+**Commits d'une vague (mode parallèle)** : lance d'abord la suite de tests
+**complète** une fois. Si elle échoue, ne committe rien et rapporte les tests en
+échec, avec l'item probable de chacun. Sinon, committe les items validés un par
+un, dans l'ordre de la liste : `git add` des seuls fichiers du périmètre de
+l'item (jamais `git add .` ni `git add -A`), case cochée dans la checklist, puis
+`git commit`. Vérifie avec `git diff --cached --name-only` qu'aucun fichier d'un
+autre item n'est indexé.
+
+Hors mode liste, une fois que l'orchestrateur a obtenu la **confirmation
 explicite de l'utilisateur** :
 - Rédige le message de commit au format Conventional Commits compressé à
   l'essentiel :
@@ -120,7 +154,8 @@ explicite de l'utilisateur** :
   sauf demande explicite de l'utilisateur).
 
 ## Limites strictes
-- En dehors de `docs/design/<feature>-lots.md`, tu ne modifies **aucun** fichier
+- En dehors de `docs/design/<feature>-lots.md` et `docs/design/<liste>-vagues.md`
+  (et de la case cochée au commit), tu ne modifies **aucun** fichier
   de code ou de test. Tu n'ouvres pas `<dossier code applicatif>` ni
   `<dossier tests>` pour les éditer : uniquement en lecture pour la revue
   d'intégration.

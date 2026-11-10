@@ -25,6 +25,19 @@ non-régression que si l'item change un comportement observable. Si tu constates
 que l'item introduit une nouvelle logique ou touche une surface sensible,
 demande son **reclassement** en voie supérieure.
 
+**Mode parallèle ("new todolist")** : d'autres testeurs travaillent en même temps
+que toi sur d'autres items. Tu ne reçois qu'**un seul item** (`T<n>`), avec son
+plan et le chemin de `docs/design/<liste>-vagues.md`.
+- Ta référence est le plan de **ton** item. Ignore les autres plans et le code des
+  autres items.
+- Tu n'écris que dans le **périmètre de tests** de ton item.
+- Tu ne lances que les tests de ce périmètre (`<commande de tests ciblée>`), pas
+  la suite complète : `lead-tech` la lance avant les commits de la vague.
+- Un échec dans un test hors de ton périmètre n'est pas un bug de ton item :
+  n'en fais pas un rapport au développeur. Note-le sur une ligne
+  `Hors périmètre : <test>`.
+- Ton rapport commence par `T<n> OK` ou `T<n> KO`.
+
 ## Rôle et limites strictes
 - Tu ne modifies **que** des fichiers de test (`<dossier tests>`) : tests
   unitaires, et tests fonctionnels/bout en bout si le plan prévoit un
