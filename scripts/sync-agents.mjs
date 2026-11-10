@@ -1,6 +1,6 @@
 // Synchronise .github/agents/<n>.agent.md (Copilot) <-> .claude/agents/<n>.md (Claude Code).
-// Bidirectionnel : le fichier modifié (selon git) devient la source. Seule la ligne `tools:`
-// diffère entre les deux formats.
+// Bidirectionnel : le fichier modifié (selon git) devient la source. Seules les lignes
+// `tools:`, `model:` et `effort:`/`reasoning-effort:` diffèrent entre les deux formats.
 // Usage : node scripts/sync-agents.mjs [--check]
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 import { join, dirname } from "node:path";
@@ -34,10 +34,42 @@ const map = (names, table, label) =>
     return table[t];
   });
 
+// Modèles : alias Claude Code <-> nom affiché par Copilot (liste des noms :
+// https://docs.github.com/en/copilot/reference/ai-models/supported-models).
+// Mettre à jour les noms Copilot à chaque nouvelle version de modèle.
+const MODEL_TO_COPILOT = { opus: "Claude Opus 5.5", sonnet: "Claude Sonnet 5.5", haiku: "Claude Haiku 5.5" };
+const MODEL_RE = /^model:.*$/m;
+const unquote = (s) => s.trim().replace(/^["']|["']$/g, "");
+// Accepte un alias (`opus`), un ID (`claude-opus-5-5`) ou un nom affiché (`Claude Opus 5.5`).
+const modelFamily = (value, label) => {
+  const family = Object.keys(MODEL_TO_COPILOT).find((f) => value.toLowerCase().includes(f));
+  if (!family) throw new Error(`modèle ${label} inconnu : "${value}"`);
+  return family;
+};
+const convertModel = (text, toCopilot) =>
+  text.replace(MODEL_RE, (line) => {
+    const value = unquote(line.replace(/^model:/, ""));
+    if (value === "inherit") return line;
+    const family = modelFamily(value, toCopilot ? "Claude" : "Copilot");
+    return toCopilot ? `model: "${MODEL_TO_COPILOT[family]}"` : `model: ${family}`;
+  });
+// Effort : `effort:` côté Claude Code, `reasoning-effort:` côté Copilot (même valeur).
+const convertEffort = (text, toCopilot) =>
+  toCopilot ? text.replace(/^effort:/m, "reasoning-effort:") : text.replace(/^reasoning-effort:/m, "effort:");
+
 const toClaude = (text) =>
-  nl(text).replace(TOOLS_RE, `tools: ${map(parseTools(text), TO_CLAUDE, "Copilot").join(", ")}`);
+  convertEffort(
+    convertModel(nl(text).replace(TOOLS_RE, `tools: ${map(parseTools(text), TO_CLAUDE, "Copilot").join(", ")}`), false),
+    false,
+  );
 const toCopilot = (text) =>
-  nl(text).replace(TOOLS_RE, `tools: [${map(parseTools(text), TO_COPILOT, "Claude").map((t) => `"${t}"`).join(", ")}]`);
+  convertEffort(
+    convertModel(
+      nl(text).replace(TOOLS_RE, `tools: [${map(parseTools(text), TO_COPILOT, "Claude").map((t) => `"${t}"`).join(", ")}]`),
+      true,
+    ),
+    true,
+  );
 
 const gitChanged = (file) => {
   try {

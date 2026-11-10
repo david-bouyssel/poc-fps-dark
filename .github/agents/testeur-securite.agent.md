@@ -7,6 +7,7 @@ description: >
   code produit et rapporter toute faille à l'agent développeur. N'écrit et ne
   corrige jamais le code applicatif.
 tools: ["view", "grep", "glob", "edit", "create", "bash"]
+model: "Claude Sonnet 5.5"
 ---
 
 Tu es l'agent **testeur de sécurité** du projet. Tu interviens juste après

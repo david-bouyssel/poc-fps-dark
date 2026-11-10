@@ -72,6 +72,45 @@ Dans toutes les boucles, si un agent a une question sur le plan, l'orchestrateur
 relaie au concepteur ; si la question porte sur le découpage/l'intégration technique,
 elle est relayée à `lead-tech`.
 
+### Choix du modèle selon la complexité
+
+But : ne payer un modèle haut de gamme que là où il sert. Trois niveaux, du moins cher au
+plus cher : **léger** (`haiku`), **standard** (`sonnet`), **avancé** (`opus`).
+
+Lors du découpage, `lead-tech` note chaque lot (ou la fonctionnalité entière s'il n'y a
+qu'un développeur) `S`, `M` ou `L`. L'orchestrateur choisit ensuite le modèle de chaque
+invocation :
+
+| Agent | Modèle |
+|---|---|
+| `concepteur` | avancé, toujours |
+| `lead-tech` (découpage, relais, intégration) | standard, toujours |
+| `lead-tech` (commit) | léger, toujours |
+| `developpeur` | selon la note de son lot : `S` → léger, `M` → standard, `L` → avancé |
+| `testeur` | selon la note la plus haute parmi les lots, même correspondance |
+| `testeur-securite` | comme `testeur`, mais jamais en dessous de standard |
+
+**Escalade dans les boucles de correction** : la première tentative de correction du
+`developpeur` utilise le modèle de son lot ; à partir de la 2ᵉ itération d'une même
+boucle, un niveau au-dessus (plafonné à avancé). Le compteur repart du modèle du lot à
+chaque nouvelle boucle (intégration, sécurité, fonctionnelle).
+
+Si la note manque dans la réponse de `lead-tech`, l'orchestrateur la lui redemande plutôt
+que de la deviner.
+
+Mise en œuvre : sous Claude Code, le modèle par défaut de chaque agent est la ligne
+`model:` de `.claude/agents/<agent>.md`, et l'orchestrateur le surcharge par invocation
+avec le paramètre `model` de l'outil Agent. Sous Copilot, le modèle par défaut est la
+ligne `model:` de `.github/agents/<agent>.agent.md`. Appliquer la même règle de
+surcharge si l'outil permet de choisir le modèle par invocation ; sinon, le modèle par
+défaut de l'agent s'applique.
+
+`scripts/sync-agents.mjs` convertit le modèle d'un format à l'autre : alias Claude Code
+(`opus`, `sonnet`, `haiku`) d'un côté, nom affiché par Copilot (`"Claude Opus 5.5"`…)
+de l'autre. De même, `effort:` côté Claude Code devient `reasoning-effort:` côté
+Copilot. Les noms Copilot sont dans la table `MODEL_TO_COPILOT` du script, à mettre à
+jour à chaque nouvelle version de modèle.
+
 ### Mode liste de fonctionnalités (backlog)
 
 En plus d'une fonctionnalité unique, l'invocation "new func" accepte une **liste** de
@@ -99,6 +138,92 @@ Dans ce mode, l'orchestrateur :
 - une fois toute la liste traitée (ou arrêtée sur erreur), résume les commits
   effectués et rappelle explicitement que le **push final** reste à faire par
   l'utilisateur.
+
+## Orchestration "new todolist"
+
+Dès qu'un message utilisateur contient la phrase déclencheuse **"new todolist"**, suivie
+d'une liste d'items (une par ligne/puce dans le prompt, ou un fichier `.md` en liste à
+puces ou checklist `- [ ] ...`), l'orchestrateur intègre les items **un par un, dans
+l'ordre donné**. Chaque item suit la **voie la plus légère qui garantit la qualité** :
+le pipeline n'est pas le même pour une faute de frappe et pour une fonctionnalité.
+
+Les règles du mode liste de "new func" s'appliquent telles quelles : un commit par item
+par `lead-tech`, **jamais de `git push`**, pas de confirmation avant chaque commit, case
+cochée dans le commit de l'item si la liste vient d'une checklist, arrêt de la liste si
+un item échoue au-delà de 3 itérations, récapitulatif final et rappel du push.
+
+### 1. Tri des items
+
+Avant de lancer le moindre agent, l'orchestrateur classe chaque item lui-même (sans
+sous-agent) et annonce le classement à l'utilisateur en une ligne par item, sans attendre
+de validation :
+
+| Voie | Critères |
+|---|---|
+| **express** | Aucune nouvelle logique : faute de frappe, texte, renommage, valeur de configuration, mise à jour de doc. 1-2 fichiers, demande sans ambiguïté, aucune surface sensible. |
+| **courte** | Logique nouvelle mais locale et bornée, qui suit un pattern déjà présent dans le projet. Un seul développeur, pas de décision d'architecture. |
+| **complète** | Tout le reste : nouvelle fonctionnalité, changement transverse, modèle de données, nouveau pattern, ou demande ambiguë. |
+
+**Surface sensible** : stockage de données, réseau, authentification/permissions,
+secrets, logs, traitement d'une entrée utilisateur. Un item qui y touche n'est jamais en
+voie express.
+
+En cas de doute entre deux voies, prendre la plus lourde. Un item trop vague pour être
+classé donne lieu à une question à l'utilisateur, posée au moment du tri pour tous les
+items concernés en une fois.
+
+### 2. Pipeline par voie
+
+| Étape | express | courte | complète |
+|---|---|---|---|
+| `concepteur` | non | plan court (modèle standard) | oui |
+| `lead-tech` découpage | non | non | oui |
+| `developpeur` | léger, d'après l'item | léger, d'après le plan court | selon la note `S`/`M`/`L` |
+| `lead-tech` intégration | fusionnée avec le commit | oui | oui |
+| `testeur-securite` | non | si surface sensible | oui |
+| `testeur` | léger, tests existants + test de non-régression si utile | léger, d'après le plan court | selon la note |
+| `lead-tech` commit | standard, revue + build + commit en une invocation | léger | léger |
+
+- **Voie express** : `developpeur` → `testeur` → `lead-tech`. Pas de document dans
+  `docs/design/`. `lead-tech` relit le diff, lance le build et committe dans la même
+  invocation ; s'il refuse le diff, il ne committe pas et son rapport repart au
+  `developpeur` (boucle de 3 itérations).
+- **Voie courte** : le plan court tient en 40 lignes au plus (résumé, fichiers touchés,
+  comportement attendu, cas de test). Le droit de challenge du concepteur reste entier.
+  C'est `lead-tech`, à l'intégration, qui dit si le diff touche une surface sensible et
+  donc si `testeur-securite` doit passer.
+- **Voie complète** : étapes 1 à 7 de "new func", avec les modèles de la section « Choix
+  du modèle selon la complexité ».
+
+L'escalade de modèle dans les boucles de correction s'applique dans les trois voies.
+
+### 3. Garde-fous qualité
+
+- Le build et la suite de tests tournent pour **chaque** item, quelle que soit la voie.
+- **Reclassement** : tout agent qui constate que l'item dépasse sa voie (logique plus
+  large que prévu, surface sensible découverte, ambiguïté) le signale. L'orchestrateur
+  passe l'item dans la voie supérieure et reprend à la première étape manquante, sans
+  refaire ce qui est déjà valide. On ne reclasse jamais vers une voie plus légère en
+  cours de route.
+- Un item en voie express ou courte qui épuise ses 3 itérations de correction est
+  reclassé une fois en voie supérieure avant d'être déclaré en échec.
+
+### 4. Économie de contexte
+
+- L'orchestrateur transmet aux agents des **chemins** (plan, fichiers, rapport), jamais
+  de contenu recopié. En voie express, le texte de l'item suffit.
+- Il demande à chaque agent un **rapport court** : verdict `OK`/`KO` sur la première
+  ligne, puis au plus 15 lignes (`fichier:ligne`, problème, correctif attendu). Pas de
+  récapitulatif du travail effectué.
+- En boucle de correction, seul le dernier rapport d'échec est transmis au `developpeur`.
+- Une fois un item committé, l'orchestrateur n'en garde qu'une ligne (item, voie, hash
+  du commit) et ne réutilise aucun détail de cet item pour les suivants.
+- Chaque invocation ne lance que les agents de la voie ; aucun agent « pour avis ».
+
+### 5. Récapitulatif final
+
+Un tableau : item, voie (et reclassement éventuel), nombre d'itérations de correction,
+hash du commit. Puis le rappel que le push reste à faire par l'utilisateur.
 
 ### Schéma du workflow
 
