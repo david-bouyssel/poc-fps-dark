@@ -24,6 +24,7 @@ src/                             # racine servie au navigateur (et seulement ell
     input.js                     # ACTION, KEY_BINDINGS (KeyboardEvent.code), computeIntent
     movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
     loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
+    fruits.js                    # fruits (pur) : espèces et points, placement par graine, ramassage, score
   render/
     palette.js                   # couleurs pastel (constantes, dont teintes FPS et textures)
     maze-geometry.js             # labyrinthe -> segments de murs (pur)
@@ -34,6 +35,8 @@ src/                             # racine servie au navigateur (et seulement ell
     fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView, cache de textures hors écran, tampon sol/plafond
     automap.js                   # automap (pur) : masque d'exploration, révélation par le champ de vision, mise en page mini/plein écran
     automap-renderer.js          # dessin de l'automap (canvas) : drawAutomap, par-dessus la vue FPS
+    sprites.js                   # projection des sprites au sol (pur) : projectSprites, isSpriteColumnVisible
+    fruit-sprites.js             # images RGBA des fruits (pur) : generateFruitSprite
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -53,7 +56,7 @@ tests/
 | `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. |
 | `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/i18n/` | Ressources texte | Pur. `applyTranslations(root)` ne touche qu'au `root` reçu. |
-| `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global, tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange` et fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle. |
+| `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global (dont le HUD de score, en `textContent` uniquement), tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange` et fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle. |
 | `scripts/` | Outillage Node | Serveur de dev générique ; ne connaît aucun fichier de `src/` hormis `/` -> `index.html`. |
 
 Sens des dépendances : `main.js` -> `game/`, `render/`, `maze/`, `i18n/` ; `game/` ->
@@ -99,6 +102,20 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   labyrinthe courant (remise à zéro à chaque génération, conservée en quittant le FPS).
   `ACTION.TOGGLE_MAP` (`KeyM` et `Semicolon`, M sur QWERTY et AZERTY) bascule
   `AUTOMAP_MODE.MINI` / `FULL` ; `drawAutomap` est appelé après `drawFpsView`.
+- **Fruits** (`placeFruits(maze)` -> `Fruit[]` gelés `{ id, kind, cellX, cellY, x, y }`) :
+  au plus un par cellule, au centre, jamais en (0, 0), nombre
+  `min(MAX_FRUITS, cellCount - 1, max(1, floor(cellCount * FRUIT_DENSITY)))`. PRNG dédié
+  (graine `maze.seed ^ FRUIT_SEED_SALT`) : le labyrinthe d'une graine ne change pas.
+  Espèces `FRUIT_TABLE` (fraise 10, cerise 25, pêche 50, fruit du dragon 100 pts : plus
+  rare = plus de points). **FruitState** (`createFruitState`, gelé) : `fruits` restants,
+  `score`, `collected`, `total`. `collectFruits(state, position)` est pur : ramassage à
+  distance `<= PICKUP_RADIUS` (0.5), même référence si rien n'est ramassé. L'état vit dans
+  `main.js` (mémoire seule), remis à zéro à chaque génération, conservé en quittant le FPS.
+- **Sprites** : `projectSprites(sprites, player, w, h)` reprend la caméra de `castRays`
+  et renvoie `{ kind, depth, screenX, size, left, right, top, bottom }` du plus loin au
+  plus proche ; `isSpriteColumnVisible(depth, hit)` assure l'occlusion par les murs.
+  `drawFpsView(..., { sprites })` dessine après les murs ; ordre : sol/plafond, murs,
+  sprites, automap. HUD en DOM (`#fps-hud`), masqué hors FPS et en carte plein écran.
 - **Segments de murs** (`wallSegments(maze)`) : `{ x1, y1, x2, y2 }` en unités de cellule,
   sans doublon.
 

@@ -16,6 +16,8 @@ import {
   generateSurfaceTexture,
   surfaceBufferSize,
 } from './surface-textures.js';
+import { isSpriteColumnVisible, projectSprites } from './sprites.js';
+import { FRUIT_SPRITE_KINDS, SPRITE_SIZE, generateFruitSprite } from './fruit-sprites.js';
 
 /** Largeur d'une colonne de rendu, en px CSS (un rayon par colonne). */
 const COLUMN_WIDTH = 2;
@@ -44,6 +46,16 @@ const SURFACE_PALETTE_KEYS = Object.freeze([
   'ceilingLine',
   'ceilingStar',
 ]);
+/** Clés de palette utilisées par les images de fruits (clé du cache). */
+const FRUIT_PALETTE_KEYS = Object.freeze([
+  'fruitStrawberry',
+  'fruitSeed',
+  'fruitCherry',
+  'fruitPeach',
+  'fruitDragon',
+  'fruitLeaf',
+  'fruitStem',
+]);
 /** Nombre maximal de palettes de textures en cache (au-delà, le cache est vidé). */
 const MAX_TEXTURE_CACHE_ENTRIES = 4;
 
@@ -61,6 +73,13 @@ const textureCache = new Map();
  * @type {Map<string, { floor: object, ceiling: object } | null>}
  */
 const surfaceTextureCache = new Map();
+
+/**
+ * Cache module des images de fruits : clé = couleurs fruit* de la palette effective,
+ * valeur = Map kind -> canvas hors écran, ou null (échec mémorisé : fruits non dessinés).
+ * @type {Map<string, Map<string, HTMLCanvasElement> | null>}
+ */
+const fruitSpriteCache = new Map();
 
 /**
  * Tampon sol/plafond (une seule entrée) : { width, height, ownerDocument, canvas,
@@ -85,10 +104,16 @@ let surfaceBuffer = null;
  * Repli sans exception si les textures ne peuvent pas être créées (pas de
  * canvas.ownerDocument, getContext nul) : aplat wallLight/wallDark mélangé vers fog via
  * fogFactor ; liseré plus sombre si wallX < 0.04 ou > 0.96 (joints doux de tuiles).
+ * Enfin, sprites billboard (options.sprites, fruits) après les murs : projectSprites,
+ * du plus loin au plus proche, occlusion par colonne (depth < hit.distance), bande de
+ * texels sans lissage, brouillard par globalAlpha = 1 - fogFactor(depth). Images
+ * générées une fois (cache module borné). Espèce inconnue, sprites mal formés ou échec
+ * de création : sprite ignoré, sans exception.
  * @param {HTMLCanvasElement} canvas
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @param {{ x: number, y: number, angle: number }} player
- * @param {{ palette?: object }} [options]
+ * @param {{ palette?: object, sprites?: ReadonlyArray<{ x: number, y: number, kind: string }> }} [options]
+ *        sprites : défaut []
  * @throws {TypeError} grid ou player mal formé (voir castRays)
  */
 export function drawFpsView(canvas, grid, player, options = {}) {
@@ -143,6 +168,104 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   } else {
     drawFlatWalls(ctx, hits, palette, cssWidth, cssHeight);
   }
+
+  // Sprites last: drawn over the walls, hidden column by column by the wall distances.
+  drawSprites(ctx, canvas, hits, player, options.sprites, palette, cssWidth, cssHeight);
+}
+
+/**
+ * Dessine les sprites (fruits) du plus loin au plus proche, colonne de rendu par colonne :
+ * une colonne n'est dessinée que si le sprite est devant le mur (isSpriteColumnVisible).
+ * Brouillard : globalAlpha = 1 - fogFactor(depth). Ne lève jamais : sprites mal formés,
+ * espèce inconnue ou images indisponibles -> rien dessiné pour le sprite concerné.
+ */
+function drawSprites(ctx, canvas, hits, player, sprites, palette, cssWidth, cssHeight) {
+  if (!Array.isArray(sprites) || sprites.length === 0) {
+    return;
+  }
+  try {
+    const images = getFruitSprites(canvas, palette);
+    if (!images) {
+      return;
+    }
+    const projected = projectSprites(sprites, player, cssWidth, cssHeight);
+    for (const sprite of projected) {
+      const image = images.get(sprite.kind);
+      if (!image) {
+        continue;
+      }
+      drawSprite(ctx, hits, sprite, image, cssWidth);
+    }
+  } catch {
+    // Malformed sprites or canvas failure: the frame stays without sprites.
+  } finally {
+    // Otherwise the floor and ceiling of the next frame would be drawn transparent.
+    ctx.globalAlpha = 1;
+  }
+}
+
+function drawSprite(ctx, hits, sprite, image, cssWidth) {
+  const { depth, left, right, top, bottom, size } = sprite;
+  if (!(size > 0) || !(bottom > top)) {
+    return;
+  }
+  const firstColumn = Math.max(0, Math.floor(left / COLUMN_WIDTH));
+  const lastColumn = Math.min(hits.length - 1, Math.ceil(right / COLUMN_WIDTH) - 1);
+  ctx.globalAlpha = 1 - fogFactor(depth);
+  for (let column = firstColumn; column <= lastColumn; column++) {
+    if (!isSpriteColumnVisible(depth, hits[column])) {
+      continue;
+    }
+    const columnLeft = column * COLUMN_WIDTH;
+    const startX = Math.max(columnLeft, left);
+    const endX = Math.min(columnLeft + COLUMN_WIDTH, cssWidth, right);
+    if (endX <= startX) {
+      continue;
+    }
+    const relative = ((startX + endX) / 2 - left) / size;
+    const texX = Math.min(SPRITE_SIZE - 1, Math.max(0, Math.floor(relative * SPRITE_SIZE)));
+    ctx.drawImage(image, texX, 0, 1, SPRITE_SIZE, startX, top, endX - startX, bottom - top);
+  }
+}
+
+/**
+ * Images de fruits pour la palette effective, créées paresseusement et mises en cache.
+ * Ne lève jamais : renvoie null (échec mémorisé) si les canvas ne peuvent être créés.
+ */
+function getFruitSprites(canvas, palette) {
+  const key = FRUIT_PALETTE_KEYS
+    .map((name) => (typeof palette[name] === 'string' ? palette[name] : ''))
+    .join(',');
+  if (fruitSpriteCache.has(key)) {
+    return fruitSpriteCache.get(key);
+  }
+  if (fruitSpriteCache.size >= MAX_TEXTURE_CACHE_ENTRIES) {
+    fruitSpriteCache.clear();
+  }
+  let images = null;
+  try {
+    images = createFruitSprites(canvas.ownerDocument, palette);
+  } catch {
+    // Invalid fruit colour or canvas failure: fruits are not drawn.
+    images = null;
+  }
+  fruitSpriteCache.set(key, images);
+  return images;
+}
+
+function createFruitSprites(ownerDocument, palette) {
+  if (!ownerDocument || typeof ownerDocument.createElement !== 'function') {
+    return null;
+  }
+  const images = new Map();
+  for (const kind of FRUIT_SPRITE_KINDS) {
+    const element = toCanvas(ownerDocument, generateFruitSprite(kind, palette, SPRITE_SIZE));
+    if (!element) {
+      return null;
+    }
+    images.set(kind, element);
+  }
+  return images;
 }
 
 function drawFlatSurfaces(ctx, palette, cssWidth, cssHeight) {

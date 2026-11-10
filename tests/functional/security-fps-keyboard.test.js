@@ -10,7 +10,12 @@ import assert from 'node:assert/strict';
 const ELEMENT_IDS = [
   'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'new-maze-button', 'maze-info',
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
+  'fps-hud', 'fps-score', 'fps-all-collected', 'fps-fruit-legend',
 ];
+/** Éléments masqués au chargement, comme dans src/index.html. */
+const HIDDEN_AT_LOAD = new Set(['fps-exit-button', 'fps-help', 'fps-hud', 'fps-all-collected']);
+/** Toute écriture HTML (innerHTML, outerHTML, insertAdjacentHTML) est journalisée ici. */
+const htmlWrites = [];
 
 /** Contexte 2D factice : toute méthode est un no-op, toute propriété est affectable. */
 function fakeContext() {
@@ -53,7 +58,7 @@ function makeElement(id) {
   const element = {
     ...host,
     id,
-    hidden: id === 'fps-exit-button' || id === 'fps-help',
+    hidden: HIDDEN_AT_LOAD.has(id),
     textContent: '',
     value: '',
     style: {},
@@ -67,7 +72,14 @@ function makeElement(id) {
     focus() { fakeDocument.activeElement = element; },
     blur() {},
     getContext() { return fakeContext(); },
+    insertAdjacentHTML(position, html) { htmlWrites.push(`${id}.insertAdjacentHTML`); },
   };
+  for (const prop of ['innerHTML', 'outerHTML']) {
+    Object.defineProperty(element, prop, {
+      get() { return ''; },
+      set() { htmlWrites.push(`${id}.${prop}`); },
+    });
+  }
   return element;
 }
 
@@ -156,6 +168,8 @@ describe('sécurité du câblage clavier de main.js (DOM factice)', () => {
     assert.deepEqual([...fakeDocument.listeners.keys()].sort(), ['visibilitychange']);
     assert.equal(elements.get('maze-error').textContent, '', 'aucune erreur au démarrage');
     assert.notEqual(elements.get('maze-info').textContent, '');
+    assert.equal(elements.get('fps-hud').hidden, true, 'HUD masqué en vue de dessus');
+    assert.notEqual(elements.get('fps-fruit-legend').textContent, '', 'légende construite');
   });
 
   test('vue de dessus : aucune touche (même liée) n\'est bloquée', () => {
@@ -172,6 +186,8 @@ describe('sécurité du câblage clavier de main.js (DOM factice)', () => {
     assert.equal(frames.size, 1);
     enterButton().dispatch('click', {}); // double clic : pas de seconde boucle
     assert.equal(frames.size, 1);
+    assert.equal(elements.get('fps-hud').hidden, false, 'HUD visible en FPS');
+    assert.match(elements.get('fps-score').textContent, /\d/, 'score affiché par textContent');
   });
 
   test('FPS : preventDefault sur keydown des touches liées sans modificateur', () => {
@@ -241,5 +257,10 @@ describe('sécurité du câblage clavier de main.js (DOM factice)', () => {
     for (const code of [...BOUND, 'Escape']) {
       assert.equal(press('keydown', code).defaultPrevented, false, `après sortie : keydown ${code}`);
     }
+    assert.equal(elements.get('fps-hud').hidden, true, 'HUD masqué après sortie');
+  });
+
+  test('HUD et textes : aucune écriture HTML (innerHTML/outerHTML/insertAdjacentHTML)', () => {
+    assert.deepEqual(htmlWrites, []);
   });
 });

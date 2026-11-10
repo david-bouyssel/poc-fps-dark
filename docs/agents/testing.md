@@ -50,7 +50,9 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/surface-textures.test.js` | `generateSurfaceTexture` (couleurs, déterminisme, joints, erreurs), `surfaceBufferSize`, `surfaceRowDistance`, `castSurfaces` (remplissage, brouillard, mapping, translation entière, erreurs), clés `floor*` / `ceiling*` de `PALETTE` |
 | `tests/unit/automap.test.js` | `createExploredMask`, `revealVisibleTiles` (voisines, couloir, murs, portée, idempotence, erreurs), `automapLayout` (mini, plein écran, petits canvas), clés `automap*` de `PALETTE` |
 | `tests/functional/fps-automap.test.js` | exploration le long du parcours BFS : tuiles traversées marquées, labyrinthe non entièrement révélé |
-| `tests/unit/i18n.test.js` | clés `fps.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
+| `tests/unit/fruits.test.js`, `tests/functional/fps-fruits.test.js` | table des espèces, placement reproductible, ramassage, score, parcours BFS ramassant tous les fruits |
+| `tests/unit/sprites.test.js`, `tests/unit/fruit-sprites.test.js` | projection (cohérence avec `castRays`, tri, exclusions), images de fruits, clés `fruit*` de `PALETTE` |
+| `tests/unit/i18n.test.js` | clés `fps.*`, `fruit.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
 | `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis, boutons FPS dans `/` |
 
@@ -75,7 +77,7 @@ clavier de `main.js` (canvas, DOM) se vérifient manuellement.
   (`http.request({ path })`) avec le chemin brut.
 - **HEAD** : vérifier l'absence de corps, pas seulement le statut.
 - **Modules purs** : `src/maze/`, `src/game/`, `maze-geometry.js`, `raycaster.js`,
-  `wall-textures.js`, `surface-textures.js`, `automap.js` et `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
+  `wall-textures.js`, `surface-textures.js`, `automap.js`, `sprites.js`, `fruit-sprites.js` et `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
   `requestAnimationFrame` ou à `performance` y casse les tests unitaires.
 - **Fermeture du serveur** : oublier `server.close()` laisse le processus de test ouvert.
 - **Node 20 vs plus récent** : la CI tourne en Node 20 ; éviter les API plus récentes.
@@ -117,6 +119,14 @@ bleu pâle étoilé, sans trou ni décalage à la jonction avec les murs ; motif
 monde quand on avance ou tourne (il ne glisse pas avec la caméra) ; brouillard du sol
 raccordé à celui des murs au loin, moiré faible ; redimensionnement -> rendu net ;
 fluidité correcte en 64 x 64 et en plein écran ; console sans erreur.
+
+Fruits et score (vue FPS) : fruits visibles au sol, toujours face caméra ; cachés derrière
+les murs, y compris partiellement à un angle ; pas de fruit en (0, 0) ; le fruit disparaît
+au passage et le score monte du bon nombre de points ; HUD en haut à droite, masqué en
+carte plein écran (M) ; message quand tout est ramassé ; Échap puis réentrée : état
+conservé ; « Nouveau labyrinthe » : score 0 ; même graine : mêmes fruits aux mêmes
+endroits ; pas de fruit en vue de dessus ni sur l'automap ; fluidité correcte en 64 x 64 ;
+console sans erreur.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir

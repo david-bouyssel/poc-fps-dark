@@ -99,3 +99,43 @@ test('vue FPS : index.html référence fps.enter, fps.exit, fps.help via data-i1
     assert.equal(typeof fr[key[1]], 'string', `clé inconnue dans index.html : ${key[1]}`);
   }
 });
+
+// --- Fruits et score (plan docs/design/fps-fruits-score.md §5) ---
+
+const EXPECTED_FRUITS = {
+  'fps.score': 'Score : {score} — Fruits : {collected} / {total}',
+  'fps.allCollected': 'Bravo, tu as ramassé tous les fruits !',
+  'fps.fruitPoints': '{name} : {points} pts',
+  'fps.legendSeparator': ' · ',
+  'fruit.strawberry': 'Fraise',
+  'fruit.cherry': 'Cerise',
+  'fruit.peach': 'Pêche',
+  'fruit.dragonfruit': 'Fruit du dragon',
+};
+
+test('fruits : clés fps.score, fps.allCollected, fps.fruitPoints, fruit.* avec les textes du plan', () => {
+  for (const [key, text] of Object.entries(EXPECTED_FRUITS)) {
+    assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
+    assert.ok(fr[key].length > 0, `clé vide : ${key}`);
+    assert.equal(fr[key], text, key);
+  }
+});
+
+test('fruits : une clé fruit.<kind> non vide par espèce de FRUIT_TABLE', async () => {
+  const { FRUIT_TABLE } = await import('../../src/game/fruits.js');
+  for (const { kind } of FRUIT_TABLE) {
+    assert.equal(typeof fr[`fruit.${kind}`], 'string', `fruit.${kind}`);
+    assert.ok(fr[`fruit.${kind}`].trim().length > 0, `fruit.${kind}`);
+  }
+});
+
+test('fruits : t remplace score, collected, total, name, points', () => {
+  assert.equal(t('fps.score', { score: 135, collected: 4, total: 8 }), 'Score : 135 — Fruits : 4 / 8');
+  assert.equal(t('fps.fruitPoints', { name: t('fruit.dragonfruit'), points: 100 }), 'Fruit du dragon : 100 pts');
+});
+
+test('fruits : index.html référence fps.allCollected via data-i18n', () => {
+  const htmlPath = fileURLToPath(new URL('../../src/index.html', import.meta.url));
+  const html = readFileSync(htmlPath, 'utf8');
+  assert.match(html, /data-i18n=["']fps\.allCollected["']/);
+});

@@ -33,4 +33,12 @@ export const PALETTE = Object.freeze({
   automapFloor: '#fde4ec', // rose poudré, sol vu
   automapWall: '#b9a6e8', // lavande, mur vu
   automapPlayer: '#e98bb0', // rose soutenu, joueur
+  // Teintes des sprites de fruits de la vue FPS (canvas uniquement).
+  fruitStrawberry: '#f49ab4', // fraise rose framboise
+  fruitSeed: '#fff3c4', // pépins crème
+  fruitCherry: '#e8708f', // cerise rose soutenu
+  fruitPeach: '#ffc6a5', // pêche
+  fruitDragon: '#f07cc8', // fruit du dragon magenta pastel
+  fruitLeaf: '#8fd6a8', // feuilles menthe
+  fruitStem: '#a07b6a', // tiges brun doux
 });

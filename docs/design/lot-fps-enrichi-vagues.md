@@ -76,7 +76,9 @@ Lots :
 - **T4-C, note M** : HUD, câblage, textes, docs.
   - Code : `src/main.js`, `src/index.html`, `src/styles.css`, `src/i18n/fr.js`, docs
     `docs/agents/architecture.md`, `docs/agents/testing.md`, `AGENTS.md`.
-  - Tests : `tests/unit/i18n.test.js`, `tests/functional/static-server.test.js`.
+  - Tests : `tests/unit/i18n.test.js`, `tests/functional/static-server.test.js`,
+    `tests/functional/security-fps-keyboard.test.js` (ajouter à la fixture DOM factice
+    `fps-hud`, `fps-score`, `fps-all-collected`, `fps-fruit-legend`).
 - Contrats : T4-A -> T4-C : `placeFruits`, `createFruitState`, `collectFruits`,
   `FRUIT_TABLE`, `pointsFor` (section 3 du plan). T4-B -> T4-C : option
   `drawFpsView(..., { sprites })` avec `sprites: ReadonlyArray<{ x, y, kind }>`.
