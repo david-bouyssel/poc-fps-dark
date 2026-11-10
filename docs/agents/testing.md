@@ -6,6 +6,8 @@ Runner natif `node:test` + `node:assert/strict`. Zéro dépendance.
 - Tous les tests (unitaires + fonctionnels) : `npm test`
 - Vérification complète : `npm run build` (alias de `npm test`, pas de compilation)
 - Un seul fichier : `node --test tests/unit/maze.test.js`
+- Tests d'une liste de fichiers seulement (mode parallèle de "new todolist") :
+  `node --test <fichier1> <fichier2> ...` (chemins explicites, pas de glob)
 
 `npm test` lance `node --test` **sans argument** : Node découvre automatiquement les
 fichiers `*.test.js` (motif par défaut, `node_modules` exclu). Ne pas ajouter de glob en

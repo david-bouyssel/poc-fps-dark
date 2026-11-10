@@ -55,7 +55,8 @@ Aucun `npm install` requis (zéro dépendance).
    `href`, imports, `url(`) restent relatifs (`./`, `../`), jamais avec un `/` initial.
 
 ## Orchestration
-Le workflow multi-agents déclenché par "new func" est décrit dans
+Les workflows multi-agents déclenchés par "new func" (une fonctionnalité ou une liste) et
+"new todolist" (liste d'items triés par voie express/courte/complète) sont décrits dans
 [`.github/copilot-instructions.md`](.github/copilot-instructions.md). Les rôles sont dans
 [`.github/agents/`](.github/agents/).
 
