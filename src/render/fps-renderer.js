@@ -371,6 +371,8 @@ function drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHe
     const texX = textureColumn(hit, player);
     const x = column * COLUMN_WIDTH;
     const width = Math.min(COLUMN_WIDTH, cssWidth - x);
+    // The fog veil of the previous column leaves globalAlpha below 1: reset it so the wall is opaque.
+    ctx.globalAlpha = 1;
     ctx.drawImage(image, texX, srcY, 1, srcHeight, x, top, width, bottom - top);
     const fog = fogFactor(hit.distance);
     if (fog > 0) {

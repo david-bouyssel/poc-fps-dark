@@ -55,6 +55,7 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/i18n.test.js` | clés `fps.*`, `fruit.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
 | `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis, boutons FPS dans `/` |
+| `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
 
 `fps-renderer.js` (cache de textures, `drawImage`, repli en aplat) et le câblage
 clavier de `main.js` (canvas, DOM) se vérifient manuellement.
