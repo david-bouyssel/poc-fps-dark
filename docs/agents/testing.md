@@ -57,8 +57,10 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis, boutons FPS dans `/` |
 | `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
 
-`fps-renderer.js` (cache de textures, `drawImage`, repli en aplat) et le câblage
-clavier de `main.js` (canvas, DOM) se vérifient manuellement.
+Dans `fps-renderer.js`, seul l'état `globalAlpha` du dessin des murs texturés est
+testé (faux contexte, `tests/unit/fps-renderer.test.js`). Le reste (cache de
+textures, rendu visuel, repli en aplat) et le câblage clavier de `main.js` (canvas,
+DOM) se vérifient manuellement.
 
 ## Tests de la publication GitHub Pages
 - `tests/unit/pages-workflow.test.js` : analyse textuelle (sans parseur YAML) de
