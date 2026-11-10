@@ -28,4 +28,9 @@ export const PALETTE = Object.freeze({
   ceilingBase: '#e4f3fb', // panneau bleu ciel très pâle
   ceilingLine: '#cde5f4', // bordure de panneau
   ceilingStar: '#fff1c1', // petites étoiles jaune pâle
+  // Teintes de l'automap de la vue FPS (canvas uniquement).
+  automapBackground: '#fff8ef', // crème, fond de la carte
+  automapFloor: '#fde4ec', // rose poudré, sol vu
+  automapWall: '#b9a6e8', // lavande, mur vu
+  automapPlayer: '#e98bb0', // rose soutenu, joueur
 });

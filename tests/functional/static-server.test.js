@@ -136,6 +136,9 @@ const FPS_MODULES = [
   ['/render/wall-textures.js', 'generateWallTexture'],
   // Textures sol/plafond (plan docs/design/fps-sol-plafond-textures.md §6)
   ['/render/surface-textures.js', 'castSurfaces'],
+  // Automap (plan docs/design/fps-automap.md §6)
+  ['/render/automap.js', 'revealVisibleTiles'],
+  ['/render/automap-renderer.js', 'drawAutomap'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {

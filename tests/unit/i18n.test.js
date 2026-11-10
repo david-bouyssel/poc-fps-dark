@@ -77,11 +77,12 @@ test('index.html : aucun texte alphabétique visible en dur', () => {
 const EXPECTED_FPS = {
   'fps.enter': 'Explorer en 3D',
   'fps.exit': 'Revenir à la vue de dessus',
-  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Quitter : Échap',
+  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Carte : M — Quitter : Échap',
   'canvas.labelFps': 'Vue à la première personne dans le labyrinthe',
+  'canvas.labelFpsMap': 'Carte des zones explorées du labyrinthe',
 };
 
-test('vue FPS : 4 nouvelles clés avec les textes du plan', () => {
+test('vue FPS : clés fps.* et libellés canvas avec les textes du plan', () => {
   for (const [key, text] of Object.entries(EXPECTED_FPS)) {
     assert.equal(fr[key], text, key);
     assert.equal(t(key), text, `t(${key})`);

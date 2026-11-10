@@ -7,6 +7,12 @@ import { stepPlayer } from './game/movement.js';
 import { createGameLoop } from './game/loop.js';
 import { drawMaze } from './render/canvas-renderer.js';
 import { drawFpsView } from './render/fps-renderer.js';
+import {
+  AUTOMAP_MODE,
+  createExploredMask,
+  revealVisibleTiles,
+} from './render/automap.js';
+import { drawAutomap } from './render/automap-renderer.js';
 import { applyTranslations, t } from './i18n/i18n.js';
 
 const DEFAULT_SIZE = 16;
@@ -35,6 +41,10 @@ let currentGrid = null;
 let player = null;
 /** @type {'top' | 'fps'} */
 let viewMode = VIEW_TOP;
+/** Masque des tuiles explorées du labyrinthe courant (mutable) ; null avant génération. */
+let explored = null;
+/** Mode d'affichage de la carte en FPS. */
+let mapMode = AUTOMAP_MODE.MINI;
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
 let resizeFrame = 0;
@@ -42,9 +52,11 @@ let resizeFrame = 0;
 const gameLoop = createGameLoop({
   update(dt) {
     player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
+    revealVisibleTiles(explored, currentGrid, player);
   },
   render() {
     drawFpsView(canvas, currentGrid, player);
+    drawAutomap(canvas, currentGrid, explored, player, mapMode);
   },
   requestFrame: (callback) => requestAnimationFrame(callback),
   cancelFrame: (id) => cancelAnimationFrame(id),
@@ -122,6 +134,7 @@ function generateFromForm({ forceRandomSeed }) {
   currentMaze = maze;
   currentGrid = toTileGrid(maze);
   player = null;
+  explored = createExploredMask(currentGrid);
   clearError();
   infoElement.textContent = t('info.current', {
     seed: maze.seed,
@@ -155,6 +168,7 @@ function enterFps() {
     }
   }
   viewMode = VIEW_FPS;
+  mapMode = AUTOMAP_MODE.MINI;
   form.hidden = true;
   fpsEnterButton.hidden = true;
   fpsExitButton.hidden = false;
@@ -174,6 +188,7 @@ function exitFps() {
   gameLoop.stop();
   pressedActions.clear();
   viewMode = VIEW_TOP;
+  mapMode = AUTOMAP_MODE.MINI;
   form.hidden = false;
   fpsEnterButton.hidden = false;
   fpsExitButton.hidden = true;
@@ -195,6 +210,13 @@ function boundKeyDownAction(event) {
   return actionForCode(event.code);
 }
 
+/** Bascule mini-carte / carte plein écran et met à jour le libellé ARIA du canvas. */
+function toggleMap() {
+  const full = mapMode === AUTOMAP_MODE.MINI;
+  mapMode = full ? AUTOMAP_MODE.FULL : AUTOMAP_MODE.MINI;
+  canvas.setAttribute('aria-label', t(full ? 'canvas.labelFpsMap' : 'canvas.labelFps'));
+}
+
 function onKeyDown(event) {
   const action = boundKeyDownAction(event);
   if (action === null) {
@@ -203,6 +225,12 @@ function onKeyDown(event) {
   event.preventDefault();
   if (action === ACTION.EXIT) {
     exitFps();
+    return;
+  }
+  if (action === ACTION.TOGGLE_MAP) {
+    if (!event.repeat) {
+      toggleMap();
+    }
     return;
   }
   pressedActions.add(action);

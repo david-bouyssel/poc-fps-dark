@@ -12,6 +12,7 @@ export const ACTION = Object.freeze({
   STRAFE_RIGHT: 'strafeRight',
   RUN: 'run',
   EXIT: 'exit',
+  TOGGLE_MAP: 'toggleMap',
 });
 
 /** Table gelée KeyboardEvent.code -> action. */
@@ -29,6 +30,8 @@ export const KEY_BINDINGS = Object.freeze({
   ShiftLeft: ACTION.RUN,
   ShiftRight: ACTION.RUN,
   Escape: ACTION.EXIT,
+  KeyM: ACTION.TOGGLE_MAP, // M on QWERTY
+  Semicolon: ACTION.TOGGLE_MAP, // M on AZERTY
 });
 
 /**

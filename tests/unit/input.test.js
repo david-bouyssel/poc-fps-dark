@@ -11,6 +11,7 @@ const EXPECTED_ACTION = {
   STRAFE_RIGHT: 'strafeRight',
   RUN: 'run',
   EXIT: 'exit',
+  TOGGLE_MAP: 'toggleMap',
 };
 
 const EXPECTED_BINDINGS = {
@@ -27,6 +28,8 @@ const EXPECTED_BINDINGS = {
   ShiftLeft: 'run',
   ShiftRight: 'run',
   Escape: 'exit',
+  KeyM: 'toggleMap',
+  Semicolon: 'toggleMap',
 };
 
 describe('ACTION et KEY_BINDINGS', () => {
@@ -91,6 +94,11 @@ describe('computeIntent', () => {
 
   test('exit ignoré', () => {
     assert.deepEqual({ ...intent(['exit']) }, { move: 0, strafe: 0, turn: 0, run: false });
+  });
+
+  test('toggleMap ignoré (intention nulle)', () => {
+    assert.deepEqual({ ...intent([ACTION.TOGGLE_MAP]) }, { move: 0, strafe: 0, turn: 0, run: false });
+    assert.deepEqual({ ...intent(['forward', ACTION.TOGGLE_MAP]) }, { move: 1, strafe: 0, turn: 0, run: false });
   });
 
   test('combinaison complète', () => {

@@ -32,6 +32,8 @@ src/                             # racine servie au navigateur (et seulement ell
     wall-textures.js             # textures procédurales des murs FPS (pur) : motifs RGBA, choix par tuile, mapping texel
     surface-textures.js          # textures procédurales du sol et du plafond FPS (pur) : motifs RGBA, floor casting, taille du tampon
     fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView, cache de textures hors écran, tampon sol/plafond
+    automap.js                   # automap (pur) : masque d'exploration, révélation par le champ de vision, mise en page mini/plein écran
+    automap-renderer.js          # dessin de l'automap (canvas) : drawAutomap, par-dessus la vue FPS
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -49,7 +51,7 @@ tests/
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
 | `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. |
-| `src/render/` | Dessin | Seuls `canvas-renderer.js` et `fps-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js` et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
+| `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/i18n/` | Ressources texte | Pur. `applyTranslations(root)` ne touche qu'au `root` reçu. |
 | `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global, tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange` et fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle. |
 | `scripts/` | Outillage Node | Serveur de dev générique ; ne connaît aucun fichier de `src/` hormis `/` -> `index.html`. |
@@ -91,6 +93,12 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   (`SURFACE_SCALE = 2`, au plus `MAX_SURFACE_PIXELS`), avec le même brouillard que les
   murs. `fps-renderer.js` dessine ce tampon (agrandi sans lissage) avant les murs ; repli
   sur le dégradé ciel / `ground` en cas d'échec.
+- **Masque d'exploration** (`createExploredMask(grid)`) : `Uint8Array` de
+  `width * height` de la grille de tuiles (`0` non vue, `1` vue). Seule structure
+  **mutable** : appartient à `main.js`, `revealVisibleTiles` la modifie sur place. Liée au
+  labyrinthe courant (remise à zéro à chaque génération, conservée en quittant le FPS).
+  `ACTION.TOGGLE_MAP` (`KeyM` et `Semicolon`, M sur QWERTY et AZERTY) bascule
+  `AUTOMAP_MODE.MINI` / `FULL` ; `drawAutomap` est appelé après `drawFpsView`.
 - **Segments de murs** (`wallSegments(maze)`) : `{ x1, y1, x2, y2 }` en unités de cellule,
   sans doublon.
 
