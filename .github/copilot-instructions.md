@@ -100,10 +100,16 @@ que de la deviner.
 
 Mise en œuvre : sous Claude Code, le modèle par défaut de chaque agent est la ligne
 `model:` de `.claude/agents/<agent>.md`, et l'orchestrateur le surcharge par invocation
-avec le paramètre `model` de l'outil Agent. Sous Copilot, appliquer la même règle si
-l'outil permet de choisir le modèle par agent, sinon l'ignorer. Les lignes `model:` et
-`effort:` du frontmatter sont propres à chaque outil : `scripts/sync-agents.mjs` ne les
-copie pas d'un côté à l'autre.
+avec le paramètre `model` de l'outil Agent. Sous Copilot, le modèle par défaut est la
+ligne `model:` de `.github/agents/<agent>.agent.md`. Appliquer la même règle de
+surcharge si l'outil permet de choisir le modèle par invocation ; sinon, le modèle par
+défaut de l'agent s'applique.
+
+`scripts/sync-agents.mjs` convertit le modèle d'un format à l'autre : alias Claude Code
+(`opus`, `sonnet`, `haiku`) d'un côté, nom affiché par Copilot (`"Claude Opus 5.5"`…)
+de l'autre. De même, `effort:` côté Claude Code devient `reasoning-effort:` côté
+Copilot. Les noms Copilot sont dans la table `MODEL_TO_COPILOT` du script, à mettre à
+jour à chaque nouvelle version de modèle.
 
 ### Mode liste de fonctionnalités (backlog)
 

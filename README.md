@@ -91,9 +91,11 @@ Dans une boucle de correction, le modèle monte d'un cran à partir de la 2ᵉ i
 Les agents s'échangent des chemins de fichiers plutôt que du contenu, et rendent des
 rapports courts.
 
-Sous Copilot, la même règle s'applique si l'outil permet de choisir le modèle par agent.
-Les lignes `model:` et `effort:` des agents restent propres à chaque outil et ne sont
-pas synchronisées.
+Sous Copilot, chaque agent a le même modèle par défaut, sous son nom Copilot. La synchro
+convertit la ligne `model:` d'un format à l'autre : `model: opus` côté Claude Code,
+`model: "Claude Opus 5.5"` côté Copilot. Elle convertit aussi `effort:` (Claude Code) en
+`reasoning-effort:` (Copilot). À chaque nouvelle version de modèle, mettre à jour la
+table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 
 ## Contenu du dépôt
 

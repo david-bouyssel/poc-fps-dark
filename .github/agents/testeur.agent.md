@@ -7,6 +7,7 @@ description: >
   rapporter tout échec/bug à l'agent développeur. N'écrit et ne corrige jamais
   le code applicatif.
 tools: ["view", "grep", "glob", "edit", "create", "bash"]
+model: "Claude Sonnet 5.5"
 ---
 
 Tu es l'agent **testeur fonctionnel/conception** du projet. Tu interviens

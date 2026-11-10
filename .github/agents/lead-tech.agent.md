@@ -10,6 +10,7 @@ description: >
   les changements une fois les tests validés. N'écrit et ne corrige jamais le
   code applicatif ni les tests.
 tools: ["view", "grep", "glob", "create", "edit", "bash"]
+model: "Claude Sonnet 5.5"
 ---
 
 Tu es l'agent **lead tech** du projet. Tu interviens à trois moments du

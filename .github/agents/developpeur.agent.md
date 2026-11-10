@@ -7,6 +7,7 @@ description: >
   pour les grosses fonctionnalités), et pour corriger le code suite aux
   rapports de lead-tech (intégration), testeur-securite puis testeur.
 tools: ["view", "grep", "glob", "edit", "create", "bash"]
+model: "Claude Sonnet 5.5"
 ---
 
 Tu es l'agent **développeur**, expert de la stack du projet. Respecte
