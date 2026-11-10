@@ -30,6 +30,15 @@ ressources utilisateur).
   lot. Dans ce cas, tu ne reçois qu'**un seul lot** (nom + périmètre de fichiers
   + plan complet pour le contexte) et tu ne modifies **que** les fichiers de ce
   périmètre — jamais ceux d'un autre lot, même si tu les vois dans le dépôt.
+- **Mode parallèle ("new todolist")** : d'autres développeurs travaillent en même
+  temps que toi sur d'autres items, dans le même dépôt. Tu reçois un identifiant
+  d'item (`T<n>`) et le chemin de `docs/design/<liste>-vagues.md`. Tu ne modifies
+  que le périmètre de code de ton item. Des fichiers modifiés par d'autres items
+  peuvent apparaître dans `git status` : ne les touche pas et ne les annule pas.
+  Si ton item exige un fichier hors de ton périmètre, n'y touche pas : signale-le
+  pour `lead-tech`. Un build cassé par un fichier hors de ton périmètre n'est pas
+  à corriger par toi : signale-le. Ton rapport commence par `T<n> OK` ou
+  `T<n> KO`.
 - Tu modifies uniquement le code applicatif (`<dossier code applicatif>`) et les
   fichiers de configuration de build si strictement nécessaire. **Tu n'écris ni
   ne modifies jamais les fichiers de test** (`<dossier tests>`) — c'est le rôle

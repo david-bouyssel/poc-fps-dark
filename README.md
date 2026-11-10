@@ -76,6 +76,41 @@ Garde-fous pour garder la qualité :
 Comme pour le backlog : un commit par item, rien n'est poussé. Un tableau récapitulatif
 s'affiche à la fin.
 
+#### Liste longue : développement en parallèle
+
+À partir de 4 items, plusieurs items avancent en même temps, avec **1 à X développeurs**
+(X = 3 par défaut) :
+
+```text
+new todolist max-devs=4 budget=2M
+- ...
+```
+
+- **`lead-tech`** range les items en **vagues** dans `docs/design/<liste>-vagues.md`.
+  Chaque item reçoit un identifiant (`T1`, `T2`…) et des fichiers de code et de tests
+  qui ne sont partagés avec aucun autre item de sa vague. Deux items qui dépendent
+  l'un de l'autre vont dans des vagues différentes.
+- Dans une vague, les développeurs travaillent en parallèle. `lead-tech` intègre la
+  vague en une fois.
+- Chaque testeur ne reçoit qu'**un seul item** : il n'écrit et ne lance que les tests
+  de cet item. Un échec ailleurs est signalé, mais pas mis sur le compte de son item.
+- `lead-tech` lance la suite de tests complète, puis committe les items un par un,
+  avec uniquement les fichiers de chaque item.
+
+#### Suivi de la consommation
+
+L'orchestrateur additionne les tokens de chaque appel d'agent et tient un journal dans
+`.orchestration/suivi-<liste>.md` (ignoré par git). Avec un `budget` :
+
+| Budget consommé | Effet |
+|---|---|
+| 50 % | Point d'étape |
+| 75 % | Plus de parallélisme, plus d'escalade vers `opus` dans les corrections |
+| 90 % | Les items en cours sont terminés, puis la liste s'arrête |
+
+Une liste interrompue (budget ou limite de débit) reprend avec
+`reprendre todolist <liste>`.
+
 ## Consommation de tokens
 
 Sous Claude Code, chaque appel d'agent utilise le modèle adapté à sa tâche :
@@ -124,6 +159,7 @@ table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
    ```
 
 3. Remplacer les placeholders : `<commande de build>`, `<commande de tests>`,
+   `<commande de tests ciblée>`,
    `<dossier code applicatif>`, `<dossier tests>`.
 4. Compléter `AGENTS.md` et les gabarits de `docs/agents/` avec les spécificités du
    projet.
