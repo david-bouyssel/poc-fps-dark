@@ -36,7 +36,7 @@ tri final revient à l'orchestrateur).
   l'automap. Atteindre la sortie = victoire. État de partie pur
   (`en cours | gagné | perdu`) dans `src/game/`, écran de fin (textes i18n) avec
   « Rejouer » (même labyrinthe) et « Nouveau labyrinthe ».
-- [ ] **Monstre : déplacement et capture** [complète] : module pur `src/game/monster.js`.
+- [x] **Monstre : déplacement et capture** [complète] : module pur `src/game/monster.js`.
   Apparition loin du joueur (cellule éloignée, PRNG dédié de graine `maze.seed ^ SALT`),
   délai de grâce au départ. Déplacement de cellule en cellule. Errance aléatoire ; passe
   en traque quand la distance de chemin au joueur est inférieure ou égale à un seuil,

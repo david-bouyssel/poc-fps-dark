@@ -59,6 +59,8 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale, cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
 | `tests/unit/game-state.test.js` | `createGameState`, `checkVictory`, `declareDefeat` (premier état final l'emporte, même référence), `isGameOver`, erreurs |
 | `tests/unit/exit-texture.test.js` | `generateExitTexture` (cadre, centre, 3 couleurs, déterminisme, erreurs), `isExitFace` (faces vues depuis la sortie, face opposée d'un mur partagé, exit absent) |
+| `tests/unit/monster.test.js` | `createMonster` (cellule, distance minimale, sortie évitée, déterminisme, repli, erreurs), `stepMonster` (grâce, bornage, déplacement, jamais sur un mur, errance, traque et hystérésis, événements `TURN`, pureté), `isCatching`, capture garantie, `monsterSprite` |
+| `tests/functional/fps-monster.test.js` | simulation de `update` : capture d'un joueur immobile (`LOST`), fuite en courant (`WON`), capture en marchant, victoire prioritaire, « Rejouer » déterministe |
 | `tests/functional/fps-exit.test.js` | parcours `shortestPath` jusqu'à la sortie avec `stepPlayer` : `PLAYING` avant la tuile de sortie, `WON` en y entrant, `declareDefeat` sans effet ensuite |
 
 Dans `fps-renderer.js`, seul l'état `globalAlpha` du dessin des murs texturés est
@@ -135,6 +137,11 @@ passe d'un bouton à l'autre ; « Rejouer » -> départ, même sortie, explorati
 « Nouveau labyrinthe » -> autre graine, on reste en FPS ; Échap sur l'écran de fin ->
 vue de dessus, puis « Explorer en 3D » -> manche neuve ; même graine -> même sortie ;
 console sans erreur.
+
+Monstre (à vérifier une fois son apparence livrée, il est invisible avant) : il ne bouge
+qu'en FPS, et pas pendant les 3 premières secondes ; il traque à l'approche et on le
+distance en courant ; le contact affiche l'écran « Attrapé ! » ; « Rejouer » redonne le
+même départ du monstre ; console sans erreur.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir

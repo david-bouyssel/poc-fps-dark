@@ -10,8 +10,10 @@ import {
   GAME_STATUS,
   checkVictory,
   createGameState,
+  declareDefeat,
   isGameOver,
 } from './game/game-state.js';
+import { createMonster, isCatching, monsterSprite, stepMonster } from './game/monster.js';
 import { drawMaze } from './render/canvas-renderer.js';
 import { drawFpsView } from './render/fps-renderer.js';
 import {
@@ -56,6 +58,8 @@ let currentExit = null;
 let gameState = null;
 /** Joueur courant ; null tant qu'aucune entrée en FPS depuis la dernière génération. */
 let player = null;
+/** Monstre de la manche courante ; null hors manche. */
+let monster = null;
 /** @type {'top' | 'fps'} */
 let viewMode = VIEW_TOP;
 /** Masque des tuiles explorées du labyrinthe courant (mutable) ; null avant génération. */
@@ -73,8 +77,16 @@ const gameLoop = createGameLoop({
     }
     player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
     revealVisibleTiles(explored, currentGrid, player);
-    // Frame order (contract for the future monster): stepPlayer, then checkVictory.
+    // Frame order: stepPlayer, checkVictory, then the monster only if the round goes on
+    // (reaching the exit at the moment of contact is a victory).
     gameState = checkVictory(gameState, player, currentExit);
+    if (!isGameOver(gameState)) {
+      const step = stepMonster(monster, player, dt, currentGrid);
+      monster = step.monster;
+      if (isCatching(monster, player)) {
+        gameState = declareDefeat(gameState);
+      }
+    }
     if (isGameOver(gameState)) {
       endRound();
     }
@@ -119,7 +131,10 @@ function clearError() {
 
 /** Dessine une image FPS (vue 3D puis automap) de la manche courante. */
 function drawFpsFrame() {
-  drawFpsView(canvas, currentGrid, player, { exit: currentExit });
+  drawFpsView(canvas, currentGrid, player, {
+    exit: currentExit,
+    sprites: [monsterSprite(monster)],
+  });
   drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
 }
 
@@ -178,6 +193,7 @@ function generateFromForm({ forceRandomSeed }) {
   currentExit = exit;
   gameState = createGameState();
   player = null;
+  monster = null;
   explored = createExploredMask(currentGrid);
   hideEndScreen();
   clearError();
@@ -202,19 +218,22 @@ function onResize() {
 
 /**
  * Démarre une manche neuve sur le labyrinthe courant (même sortie) : joueur au départ,
- * exploration remise à zéro, partie en cours, écran de fin masqué. Point d'accroche du
- * futur monstre.
- * @returns {boolean} false si le joueur n'a pas pu être créé (erreur affichée)
+ * monstre à son départ (déterministe par graine), exploration remise à zéro, partie en
+ * cours, écran de fin masqué.
+ * @returns {boolean} false si le joueur ou le monstre n'a pas pu être créé (erreur affichée)
  */
 function startRound() {
   let nextPlayer;
+  let nextMonster;
   try {
     nextPlayer = createPlayer(currentGrid);
+    nextMonster = createMonster(currentGrid, currentMaze.seed, { exit: currentExit });
   } catch {
     showError('errors.generic');
     return false;
   }
   player = nextPlayer;
+  monster = nextMonster;
   explored = createExploredMask(currentGrid);
   gameState = createGameState();
   pressedActions.clear();

@@ -192,6 +192,8 @@ const EXIT_MODULES = [
   ['/game/exit.js', 'findExit'],
   ['/game/game-state.js', 'checkVictory'],
   ['/render/exit-texture.js', 'generateExitTexture'],
+  // Monstre (plan docs/design/dark-monstre.md §6)
+  ['/game/monster.js', 'stepMonster'],
 ];
 
 for (const [path, symbol] of EXIT_MODULES) {
