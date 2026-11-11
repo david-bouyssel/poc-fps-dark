@@ -1,6 +1,6 @@
 // Tests de non-régression du rendu des murs texturés (docs/design/fix-murs-invisibles.md) :
 // chaque tranche de mur est dessinée à globalAlpha = 1 (la fuite du voile de brouillard
-// de la colonne précédente ne doit plus l'atténuer), le voile reste dans ]0, 0.3], et son
+// de la colonne précédente ne doit plus l'atténuer), le voile reste dans ]0, 1], et son
 // ordre par colonne est préservé. Canvas et contexte factices instrumentés : lecture de
 // globalAlpha au moment de chaque appel, pas seulement en fin de frame.
 import { test, describe } from 'node:test';
@@ -14,8 +14,8 @@ import { room } from './fps-test-grids.js';
 /** Taille CSS de la vue : container factice 160 x 120 (pas de devicePixelRatio sous Node). */
 const VIEW_WIDTH = 160;
 const VIEW_HEIGHT = 120;
-/** Voile de brouillard : plafond de DEFAULT_MAX_FOG (plan : ]0, 0.3]). */
-const MAX_FOG_ALPHA = 0.3;
+/** Voile de brouillard : plafond de DEFAULT_MAX_FOG (thème sombre : noir total, ]0, 1]). */
+const MAX_FOG_ALPHA = 1;
 
 /**
  * Contexte 2D factice : journalise, dans une séquence unique et dans l'ordre d'appel,
@@ -108,7 +108,7 @@ describe('drawFpsView : murs texturés opaques, voile de brouillard seul atténu
     }
   });
 
-  test('voile de brouillard : fillRect à palette.fog avec 0 < globalAlpha <= 0.3', () => {
+  test('voile de brouillard : fillRect à palette.fog avec 0 < globalAlpha <= 1', () => {
     const env = makeEnv();
     const palette = uniquePalette();
     drawFpsView(env.canvas, grid, player, { palette });

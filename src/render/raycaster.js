@@ -8,8 +8,8 @@ export const FOV = Math.PI / 3;
 /** Distance minimale renvoyée, en tuiles : évite les divisions par ~0. */
 export const MIN_DISTANCE = 0.05;
 
-const DEFAULT_FOG_DISTANCE = 10;
-const DEFAULT_MAX_FOG = 0.3;
+const DEFAULT_FOG_DISTANCE = 6;
+const DEFAULT_MAX_FOG = 1;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
 /**
@@ -159,7 +159,7 @@ export function projectColumn(distance, viewHeight) {
  * 0 près du joueur, croissant linéairement avec la distance jusqu'à fogDistance.
  * Distance négative ou NaN -> 0.
  * @param {number} distance
- * @param {{ fogDistance?: number, maxFog?: number }} [options] défauts 10 et 0.3
+ * @param {{ fogDistance?: number, maxFog?: number }} [options] défauts 6 et 1
  * @returns {number}
  * @throws {RangeError} fogDistance non > 0 ou maxFog hors [0, 1]
  */

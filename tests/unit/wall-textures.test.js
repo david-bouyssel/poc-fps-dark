@@ -52,11 +52,11 @@ function sameBytes(a, b) {
 
 // ---------------------------------------------------------------------------
 describe('constantes', () => {
-  test('TEXTURE_SIZE 32, 4 motifs dans l\'ordre, poids 10/4/3/3, SIDE_SHADE 0.1', () => {
+  test('TEXTURE_SIZE 32, 4 motifs dans l\'ordre, poids 10/4/3/3, SIDE_SHADE 0.25', () => {
     assert.equal(TEXTURE_SIZE, 32);
     assert.deepEqual([...WALL_TEXTURE_KINDS], ['bricks', 'planks', 'dots', 'hearts']);
     assert.deepEqual([...WALL_TEXTURE_WEIGHTS], [10, 4, 3, 3]);
-    assert.equal(SIDE_SHADE, 0.1);
+    assert.equal(SIDE_SHADE, 0.25);
   });
 });
 
@@ -423,9 +423,9 @@ describe('PALETTE', () => {
         wallLight: PALETTE.wallLight, wallDark: PALETTE.wallDark, fog: PALETTE.fog,
       },
       {
-        background: '#fff8ef', floor: '#fde4ec', wall: '#b9a6e8', accent: '#bfead8',
-        sky: '#dff1fb', skyHorizon: '#fff8ef', ground: '#fde4ec',
-        wallLight: '#b9a6e8', wallDark: '#a693dc', fog: '#fff8ef',
+        background: '#120e16', floor: '#1c1620', wall: '#4a4650', accent: '#8a2f3f',
+        sky: '#0a0810', skyHorizon: '#17101c', ground: '#1c1620',
+        wallLight: '#4a4650', wallDark: '#37343c', fog: '#000000',
       },
     );
   });

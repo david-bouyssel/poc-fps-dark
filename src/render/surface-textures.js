@@ -20,7 +20,7 @@ const MAX_SIZE = 256;
 /** Couleurs de palette requises par surface. */
 const REQUIRED_COLORS = Object.freeze({
   [SURFACE_TEXTURE.FLOOR]: Object.freeze(['floorBase', 'floorAlt', 'floorGrout']),
-  [SURFACE_TEXTURE.CEILING]: Object.freeze(['ceilingBase', 'ceilingLine', 'ceilingStar']),
+  [SURFACE_TEXTURE.CEILING]: Object.freeze(['ceilingBase', 'ceilingLine']),
 });
 
 /**
@@ -86,22 +86,12 @@ const PATTERNS = Object.freeze({
       return (Math.floor(x / half) + Math.floor(y / half)) % 2 === 0 ? 'floorBase' : 'floorAlt';
     };
   },
-  // Panneau avec bordure ligne 0 / colonne 0 et deux étoiles en « + » en quinconce.
-  [SURFACE_TEXTURE.CEILING]: (size) => {
-    const stars = [[size / 4, size / 4], [(size * 3) / 4, (size * 3) / 4]];
-    return (x, y) => {
-      if (x === 0 || y === 0) {
-        return 'ceilingLine';
-      }
-      for (const [cx, cy] of stars) {
-        const dx = Math.abs(x - cx);
-        const dy = Math.abs(y - cy);
-        if (dx + dy <= 1) {
-          return 'ceilingStar';
-        }
-      }
-      return 'ceilingBase';
-    };
+  // Panneau sombre avec bordure ligne 0 / colonne 0, sans motif d'étoiles.
+  [SURFACE_TEXTURE.CEILING]: () => (x, y) => {
+    if (x === 0 || y === 0) {
+      return 'ceilingLine';
+    }
+    return 'ceilingBase';
   },
 });
 

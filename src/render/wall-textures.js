@@ -25,7 +25,7 @@ export const WALL_TEXTURE_KINDS = Object.freeze([
 export const WALL_TEXTURE_WEIGHTS = Object.freeze([10, 4, 3, 3]);
 
 /** Assombrissement des faces 'y' (vers le noir), proche de l'écart wallLight/wallDark. */
-export const SIDE_SHADE = 0.1;
+export const SIDE_SHADE = 0.25;
 
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const MIN_SIZE = 8;
@@ -41,18 +41,6 @@ const REQUIRED_COLORS = Object.freeze({
   [WALL_TEXTURE.HEARTS]: Object.freeze(['textureBase', 'textureHeart', 'textureGroove']),
 });
 
-/** Masque pixel art d'un cœur, 7 x 6, symétrique gauche/droite. */
-const HEART_MASK = Object.freeze([
-  '.##.##.',
-  '#######',
-  '#######',
-  '.#####.',
-  '..###..',
-  '...#...',
-]);
-const HEART_WIDTH = 7;
-const HEART_HEIGHT = 6;
-
 /**
  * @typedef {Object} TextureData  objet gelé (le contenu de data reste un tableau typé)
  * @property {number} width
@@ -61,10 +49,11 @@ const HEART_HEIGHT = 6;
  */
 
 /**
- * Génère un motif pastel. Déterministe : mêmes entrées -> mêmes octets.
+ * Génère un motif de mur sombre. Déterministe : mêmes entrées -> mêmes octets.
  * Chaque pixel prend exactement une des couleurs du motif (pas d'anticrénelage),
  * pour un rendu « pixel doux » et des tests simples.
- * Tous les motifs sauf les briques ont un joint de bord textureGroove en colonne 0.
+ * Tous les motifs sauf les briques ont un joint de bord textureGroove en colonne 0
+ * (les briques sombres, HEARTS, l'ont aussi).
  * @param {string} kind valeur de WALL_TEXTURE
  * @param {object} palette doit contenir les clés texture* utilisées par le motif
  * @param {number} [size=TEXTURE_SIZE] entier, multiple de 8, dans [8, 256]
@@ -133,70 +122,43 @@ const PATTERNS = Object.freeze({
       return Math.floor(x / plankWidth) % 2 === 0 ? 'textureBase' : 'texturePlankAlt';
     };
   },
+  // Pierre : assises de size / 4, blocs de size / 2 décalés d'une assise à l'autre,
+  // joints textureGroove ; un bloc sur trois est teinté de rouille (textureDot).
   [WALL_TEXTURE.DOTS]: (size) => {
-    const cell = size / 2;
-    const radius = Math.max(0.75, (size * 3) / 32);
-    const centers = staggeredCenters(size, cell);
+    const rowHeight = size / 4;
+    const blockWidth = size / 2;
     return (x, y) => {
-      if (x === 0) {
+      if (x === 0 || y % rowHeight === 0) {
         return 'textureGroove';
       }
-      for (const [cx, cy] of centers) {
-        const dx = wrappedDelta(x + 0.5, cx, size);
-        const dy = wrappedDelta(y + 0.5, cy, size);
-        if (dx * dx + dy * dy <= radius * radius) {
-          return 'textureDot';
-        }
+      const row = Math.floor(y / rowHeight);
+      const shifted = (x + (row % 2 === 1 ? blockWidth / 2 : 0)) % size;
+      if (shifted % blockWidth === 0) {
+        return 'textureGroove';
       }
-      return 'textureBase';
+      const block = Math.floor(shifted / blockWidth);
+      return (row + block) % 3 === 0 ? 'textureDot' : 'textureBase';
     };
   },
+  // Briques sombres : mêmes proportions que BRICKS, alternance textureBase / textureHeart,
+  // joints textureGroove, plus un joint de bord en colonne 0.
   [WALL_TEXTURE.HEARTS]: (size) => {
-    const cell = size / 2;
-    // Mask bitmap tiled with wrap-around so hearts stay seamless on every size.
-    const isHeart = new Uint8Array(size * size);
-    for (const [cx, cy] of staggeredCenters(size, cell)) {
-      const left = Math.floor(cx) - Math.floor(HEART_WIDTH / 2);
-      const top = Math.floor(cy) - Math.floor(HEART_HEIGHT / 2);
-      for (let my = 0; my < HEART_HEIGHT; my++) {
-        for (let mx = 0; mx < HEART_WIDTH; mx++) {
-          if (HEART_MASK[my][mx] === '#') {
-            const px = mod(left + mx, size);
-            const py = mod(top + my, size);
-            isHeart[py * size + px] = 1;
-          }
-        }
-      }
-    }
+    const rowHeight = size / 4;
+    const brickWidth = size / 2;
     return (x, y) => {
-      if (x === 0) {
+      if (x === 0 || y % rowHeight === rowHeight - 1) {
         return 'textureGroove';
       }
-      return isHeart[y * size + x] === 1 ? 'textureHeart' : 'textureBase';
+      const row = Math.floor(y / rowHeight);
+      const shifted = (x + (row % 2 === 1 ? brickWidth / 2 : 0)) % size;
+      if (shifted % brickWidth === 0) {
+        return 'textureGroove';
+      }
+      const brick = Math.floor(shifted / brickWidth);
+      return (row + brick) % 2 === 0 ? 'textureBase' : 'textureHeart';
     };
   },
 });
-
-/** Centres en quinconce : 2 x 2 cellules, rangée impaire décalée d'une demi-cellule. */
-function staggeredCenters(size, cell) {
-  const centers = [];
-  for (let row = 0; row < size / cell; row++) {
-    for (let col = 0; col < size / cell; col++) {
-      const cx = col * cell + cell / 2 + (row % 2 === 1 ? cell / 2 : 0);
-      centers.push([cx % size, row * cell + cell / 2]);
-    }
-  }
-  return centers;
-}
-
-function wrappedDelta(a, b, size) {
-  const delta = Math.abs(a - b) % size;
-  return Math.min(delta, size - delta);
-}
-
-function mod(value, size) {
-  return ((value % size) + size) % size;
-}
 
 function parseHex(color) {
   const value = Number.parseInt(color.slice(1), 16);

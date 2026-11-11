@@ -25,7 +25,7 @@ tri final revient à l'orchestrateur).
   associés. **Garder** `src/render/sprites.js` (`projectSprites`,
   `isSpriteColumnVisible`) et généraliser `drawSprites` de `fps-renderer.js` (carte
   d'images par `kind`, `worldSize` par sprite) pour le futur monstre.
-- [ ] **Thème sombre** [courte] : `src/render/palette.js`, `wall-textures.js`,
+- [x] **Thème sombre** [courte] : `src/render/palette.js`, `wall-textures.js`,
   `surface-textures.js`, `styles.css`, vue de dessus. Murs sombres (pierre, briques
   noircies), plafond sombre sans étoiles, sol sombre, brouillard vers le noir (portée de
   vue réduite), automap et vue de dessus assorties. Textes de l'interface lisibles

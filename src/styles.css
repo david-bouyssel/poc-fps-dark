@@ -1,17 +1,17 @@
-/* Palette pastel : mêmes teintes que src/render/palette.js */
+/* Palette sombre : mêmes teintes que src/render/palette.js */
 :root {
-  --color-background: #fff8ef; /* crème */
-  --color-floor: #fde4ec; /* rose poudré */
-  --color-wall: #b9a6e8; /* lavande */
-  --color-accent: #bfead8; /* menthe */
+  --color-background: #120e16; /* nuit violacée */
+  --color-floor: #1c1620; /* sol sombre */
+  --color-wall: #4a4650; /* pierre grise */
+  --color-accent: #8a2f3f; /* rouge sang sec */
 
-  --color-page: #fdf3f7;
-  --color-text: #5b4b75;
-  --color-muted: #8c7ba8;
-  --color-error: #c2557a;
-  --color-error-bg: #ffe6ee;
+  --color-page: #0d0a11;
+  --color-text: #e6dff0;
+  --color-muted: #a89cb8;
+  --color-error: #ff8fa6;
+  --color-error-bg: #2e0f18;
   --radius: 16px;
-  --shadow: 0 6px 20px rgba(150, 120, 190, 0.18);
+  --shadow: 0 6px 20px rgba(0, 0, 0, 0.6);
 }
 
 /* The hidden attribute must win over display rules of classes (.controls is flex). */
@@ -54,7 +54,7 @@ body {
 .app-header h1 {
   margin: 0;
   font-size: clamp(1.8rem, 5vw, 2.6rem);
-  color: var(--color-wall);
+  color: var(--color-text);
   letter-spacing: 0.02em;
 }
 
@@ -92,9 +92,9 @@ body {
   width: 7rem;
   max-width: 100%;
   padding: 8px 12px;
-  border: 2px solid var(--color-floor);
+  border: 2px solid var(--color-wall);
   border-radius: 999px;
-  background: #fff;
+  background: var(--color-page);
   color: var(--color-text);
   font: inherit;
 }
@@ -106,7 +106,7 @@ body {
 .field input:focus-visible {
   outline: none;
   border-color: var(--color-wall);
-  box-shadow: 0 0 0 3px rgba(185, 166, 232, 0.35);
+  box-shadow: 0 0 0 3px rgba(138, 47, 63, 0.45);
 }
 
 .buttons {
@@ -142,7 +142,7 @@ body {
 
 .button-primary {
   background: var(--color-wall);
-  color: #fff;
+  color: var(--color-text);
 }
 
 .button-secondary {
@@ -207,7 +207,7 @@ body {
   max-width: 60%;
   padding: 8px 14px;
   border-radius: var(--radius);
-  background: rgba(255, 248, 239, 0.85);
+  background: rgba(18, 14, 22, 0.85);
   color: var(--color-text);
   text-align: right;
   pointer-events: none;

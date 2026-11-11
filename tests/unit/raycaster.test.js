@@ -224,17 +224,17 @@ describe('fogFactor', () => {
     assert.equal(fogFactor(0), 0);
   });
 
-  test('monotone croissant et plafonné à maxFog (défauts 10 et 0.3)', () => {
+  test('monotone croissant et plafonné à maxFog (défauts 6 et 1 : noir total à 6)', () => {
     let previous = -1;
     for (let distance = 0; distance <= 20; distance += 0.25) {
       const value = fogFactor(distance);
       assert.ok(value >= previous);
-      assert.ok(value >= 0 && value <= 0.3);
+      assert.ok(value >= 0 && value <= 1);
       previous = value;
     }
-    assert.ok(Math.abs(fogFactor(5) - 0.15) < EPSILON);
-    assert.ok(Math.abs(fogFactor(10) - 0.3) < EPSILON);
-    assert.ok(Math.abs(fogFactor(100) - 0.3) < EPSILON);
+    assert.ok(Math.abs(fogFactor(3) - 0.5) < EPSILON);
+    assert.ok(Math.abs(fogFactor(6) - 1) < EPSILON);
+    assert.ok(Math.abs(fogFactor(100) - 1) < EPSILON);
   });
 
   test('distance négative ou NaN -> 0', () => {
@@ -242,9 +242,9 @@ describe('fogFactor', () => {
     assert.equal(fogFactor(NaN), 0);
   });
 
-  test('colonne proche (distance < 1) : voile négligeable (<= 0.03)', () => {
+  test('colonne proche (distance < 1) : voile faible (<= 1 / 6)', () => {
     for (const distance of [0.05, 0.5, 0.99]) {
-      assert.ok(fogFactor(distance) <= 0.03 + EPSILON, `distance ${distance}`);
+      assert.ok(fogFactor(distance) <= 0.99 / 6 + EPSILON, `distance ${distance}`);
     }
   });
 

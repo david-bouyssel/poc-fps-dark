@@ -16,7 +16,7 @@ import { PALETTE } from '../../src/render/palette.js';
 
 const HEX = /^#[0-9a-f]{6}$/;
 const FLOOR_KEYS = ['floorBase', 'floorAlt', 'floorGrout'];
-const CEILING_KEYS = ['ceilingBase', 'ceilingLine', 'ceilingStar'];
+const CEILING_KEYS = ['ceilingBase', 'ceilingLine'];
 
 function hexToRgb(hex) {
   const n = Number.parseInt(hex.slice(1), 16);
@@ -115,12 +115,12 @@ describe('generateSurfaceTexture', () => {
     }
   });
 
-  test('palette surchargée : nouvelle couleur présente, ancienne absente', () => {
-    const star = '#123456';
-    const t = generateSurfaceTexture(SURFACE_TEXTURE.CEILING, { ...PALETTE, ceilingStar: star });
+  test('plafond sans étoiles : deux couleurs seulement, clé ceilingStar retirée', () => {
+    assert.equal(Object.hasOwn(PALETTE, 'ceilingStar'), false);
+    const t = generateSurfaceTexture(SURFACE_TEXTURE.CEILING, { ...PALETTE, ceilingLine: '#123456' });
     const keys = pixelKeys(t);
-    assert.ok(keys.has(rgbKey(star)));
-    assert.ok(!keys.has(rgbKey(PALETTE.ceilingStar)));
+    assert.ok(keys.has(rgbKey('#123456')));
+    assert.equal(keys.size, 2);
   });
 
   test('size valides : 8, 16, 64', () => {
@@ -151,7 +151,7 @@ describe('generateSurfaceTexture', () => {
     assert.throws(() => generateSurfaceTexture('floor', { ...PALETTE, floorBase: 'red' }), TypeError);
     assert.throws(() => generateSurfaceTexture('floor', { ...PALETTE, floorAlt: '#fff' }), TypeError);
     assert.throws(() => generateSurfaceTexture('ceiling', { ...PALETTE, ceilingBase: 'red' }), TypeError);
-    assert.throws(() => generateSurfaceTexture('ceiling', { ...PALETTE, ceilingStar: '#fff' }), TypeError);
+    assert.throws(() => generateSurfaceTexture('ceiling', { ...PALETTE, ceilingLine: '#fff' }), TypeError);
   });
 });
 

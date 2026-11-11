@@ -405,7 +405,7 @@ describe('drawFpsView : repli sans exception et cache borné', () => {
   });
 
   test('couleurs sol/plafond hostiles : repli en dégradé silencieux, aucun canvas de sol', () => {
-    const keys = ['floorBase', 'floorAlt', 'floorGrout', 'ceilingBase', 'ceilingLine', 'ceilingStar'];
+    const keys = ['floorBase', 'floorAlt', 'floorGrout', 'ceilingBase', 'ceilingLine'];
     for (const key of keys) {
       for (const value of ['red', '#fff', 'url(http://example.invalid/a.png)', '', '#b9a6e8;x', null, 12, {}]) {
         const log = newLog();
@@ -503,7 +503,7 @@ describe('drawFpsView : repli sans exception et cache borné', () => {
 
 const SURFACE_PALETTE = {
   floorBase: '#fde4ec', floorAlt: '#fad6e3', floorGrout: '#f2c6d6',
-  ceilingBase: '#e4f3fb', ceilingLine: '#cde5f4', ceilingStar: '#fff1c1',
+  ceilingBase: '#e4f3fb', ceilingLine: '#cde5f4',
 };
 const BAD_COLORS = [
   undefined, null, 0, 12, true, {}, [], '', 'red', '#fff', '#fffffff', ' #fde4ec', '#fde4ec\n',
@@ -572,7 +572,7 @@ describe('generateSurfaceTexture : entrées hostiles', () => {
 
   test('sortie gelée, alpha 255, couleurs limitées à la palette', () => {
     for (const [kind, keys] of [['floor', ['floorBase', 'floorAlt', 'floorGrout']],
-      ['ceiling', ['ceilingBase', 'ceilingLine', 'ceilingStar']]]) {
+      ['ceiling', ['ceilingBase', 'ceilingLine']]]) {
       const tex = generateSurfaceTexture(kind, SURFACE_PALETTE);
       assert.ok(Object.isFrozen(tex));
       const allowed = new Set(keys.map((k) => SURFACE_PALETTE[k]));

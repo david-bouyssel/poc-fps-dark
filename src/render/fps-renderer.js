@@ -44,7 +44,6 @@ const SURFACE_PALETTE_KEYS = Object.freeze([
   'floorGrout',
   'ceilingBase',
   'ceilingLine',
-  'ceilingStar',
 ]);
 /** Clés de palette utilisées par les images de fruits (clé du cache). */
 const FRUIT_PALETTE_KEYS = Object.freeze([
