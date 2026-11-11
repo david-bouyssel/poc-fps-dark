@@ -22,6 +22,13 @@ import {
   revealVisibleTiles,
 } from './render/automap.js';
 import { drawAutomap } from './render/automap-renderer.js';
+import {
+  MONSTER_FRAME_COUNT,
+  MONSTER_FRAME_KINDS,
+  generateMonsterSprite,
+  monsterFrame,
+  monsterFrameSprite,
+} from './render/monster-sprite.js';
 import { applyTranslations, t } from './i18n/i18n.js';
 
 const DEFAULT_SIZE = 16;
@@ -60,6 +67,10 @@ let gameState = null;
 let player = null;
 /** Monstre de la manche courante ; null hors manche. */
 let monster = null;
+/** Horloge d'animation de la mâchoire (s) : avance dans update(), remise à 0 par startRound(). */
+let monsterClock = 0;
+/** Images de la mâchoire : Map kind -> canvas hors écran (vide si la création a échoué). */
+let monsterImages = new Map();
 /** @type {'top' | 'fps'} */
 let viewMode = VIEW_TOP;
 /** Masque des tuiles explorées du labyrinthe courant (mutable) ; null avant génération. */
@@ -75,6 +86,7 @@ const gameLoop = createGameLoop({
     if (isGameOver(gameState)) {
       return;
     }
+    monsterClock += dt;
     player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
     revealVisibleTiles(explored, currentGrid, player);
     // Frame order: stepPlayer, checkVictory, then the monster only if the round goes on
@@ -129,11 +141,38 @@ function clearError() {
   errorElement.textContent = '';
 }
 
+/**
+ * Images de la mâchoire du monstre (une par MONSTER_FRAME_KINDS), hors écran. Une image qui
+ * ne peut être créée est omise : le monstre est alors invisible sur cette image, sans erreur.
+ * @returns {Map<string, HTMLCanvasElement>}
+ */
+function buildMonsterImages() {
+  const images = new Map();
+  for (let frame = 0; frame < MONSTER_FRAME_COUNT; frame += 1) {
+    try {
+      const sprite = generateMonsterSprite(frame);
+      const element = document.createElement('canvas');
+      element.width = sprite.width;
+      element.height = sprite.height;
+      const context = element.getContext('2d');
+      const imageData = context.createImageData(sprite.width, sprite.height);
+      imageData.data.set(sprite.data);
+      context.putImageData(imageData, 0, 0);
+      images.set(MONSTER_FRAME_KINDS[frame], element);
+    } catch {
+      // No canvas support: this frame is simply not drawn.
+    }
+  }
+  return images;
+}
+
 /** Dessine une image FPS (vue 3D puis automap) de la manche courante. */
 function drawFpsFrame() {
+  const frame = monsterFrame(monsterClock, monster.mode, monster.graceRemaining);
   drawFpsView(canvas, currentGrid, player, {
     exit: currentExit,
-    sprites: [monsterSprite(monster)],
+    sprites: [monsterFrameSprite(monsterSprite(monster), frame)],
+    spriteImages: monsterImages,
   });
   drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
 }
@@ -234,6 +273,7 @@ function startRound() {
   }
   player = nextPlayer;
   monster = nextMonster;
+  monsterClock = 0;
   explored = createExploredMask(currentGrid);
   gameState = createGameState();
   pressedActions.clear();
@@ -387,6 +427,7 @@ function init() {
 
   widthInput.value = String(DEFAULT_SIZE);
   heightInput.value = String(DEFAULT_SIZE);
+  monsterImages = buildMonsterImages();
 
   form.addEventListener('submit', (event) => {
     event.preventDefault();

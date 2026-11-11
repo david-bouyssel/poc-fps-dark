@@ -46,7 +46,7 @@ tri final revient à l'orchestrateur).
   (cap cardinal différent du précédent) pour le son. Contact (distance inférieure ou
   égale à un rayon) = défaite. Remise à zéro à chaque génération et à « Rejouer ». Hors
   vue FPS, le monstre est figé.
-- [ ] **Apparence du monstre** [courte] : sprite procédural RGBA (pur, sur le modèle de
+- [x] **Apparence du monstre** [courte] : sprite procédural RGBA (pur, sur le modèle de
   l'ancien `fruit-sprites.js`) : grosse tête effrayante, yeux luisants, bouche immense
   pleine de dents pointues ; animation simple (mâchoire qui claque, 2 à 3 images). Rendu
   en FPS via `projectSprites` avec occlusion par les murs. Jamais affiché en vue de

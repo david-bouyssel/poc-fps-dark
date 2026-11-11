@@ -141,6 +141,8 @@ const FPS_MODULES = [
   ['/render/automap-renderer.js', 'drawAutomap'],
   // Sprites billboard (plan docs/design/fps-fruits-score.md §3, généralisé par dark-retrait-fruits.md)
   ['/render/sprites.js', 'projectSprites'],
+  // Apparence du monstre (plan docs/design/dark-monstre-apparence.md)
+  ['/render/monster-sprite.js', 'generateMonsterSprite'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {

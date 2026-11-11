@@ -53,7 +53,7 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/sprites.test.js` | projection (cohérence avec `castRays`, tri, exclusions), `worldSize` par sprite |
 | `tests/unit/i18n.test.js` | clés `fps.*` (dont `fps.goal`), `end.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
-| `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis (dont sortie et état de partie), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
+| `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis (dont sortie, état de partie et `render/monster-sprite.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
 | `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
 | `tests/unit/pathfinding.test.js` | `tileDistances`, `pathDistance`, `shortestPath` (couloir, pièce séparée, chemin contigu, déterminisme, gel, erreurs), `cellToTile`, `tileAt` |
 | `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale, cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
@@ -62,6 +62,8 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/monster.test.js` | `createMonster` (cellule, distance minimale, sortie évitée, déterminisme, repli, erreurs), `stepMonster` (grâce, bornage, déplacement, jamais sur un mur, errance, traque et hystérésis, événements `TURN`, pureté), `isCatching`, capture garantie, `monsterSprite` |
 | `tests/functional/fps-monster.test.js` | simulation de `update` : capture d'un joueur immobile (`LOST`), fuite en courant (`WON`), capture en marchant, victoire prioritaire, « Rejouer » déterministe |
 | `tests/functional/fps-exit.test.js` | parcours `shortestPath` jusqu'à la sortie avec `stepPlayer` : `PLAYING` avant la tuile de sortie, `WON` en y entrant, `declareDefeat` sans effet ensuite |
+| `tests/unit/monster-sprite.test.js` | `generateMonsterSprite` (3 images distinctes, déterminisme, alpha 0/255, centre opaque, yeux et dents présents, bouche plus ouverte en image 2, erreurs), `monsterFrame` (cycle 0, 1, 2, 1, périodes 0.8 s en errance et 0.4 s en traque, grâce -> image 0, erreurs), `monsterFrameSprite` (kind `monster-k`, `worldSize`, gel, erreurs), constantes égales à celles de `game/monster.js` |
+| `tests/functional/fps-monster-appearance.test.js` | sans DOM (faux canvas) : monstre derrière un mur non dessiné par `drawFpsView`, image dessinée = image de `monsterFrame`, grâce -> `monster-0`, aucun monstre dans `drawAutomap` ni `drawMaze` (source de `main.js`) |
 
 Dans `fps-renderer.js`, seul l'état `globalAlpha` du dessin des murs texturés est
 testé (faux contexte, `tests/unit/fps-renderer.test.js`). Le reste (cache de
@@ -86,7 +88,7 @@ DOM) se vérifient manuellement.
   (`http.request({ path })`) avec le chemin brut.
 - **HEAD** : vérifier l'absence de corps, pas seulement le statut.
 - **Modules purs** : `src/maze/`, `src/game/`, `maze-geometry.js`, `raycaster.js`,
-  `wall-textures.js`, `surface-textures.js`, `automap.js`, `sprites.js` et `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
+  `wall-textures.js`, `surface-textures.js`, `automap.js`, `sprites.js`, `monster-sprite.js` et `src/i18n/` doivent rester importables sous Node ; un accès au DOM, à
   `requestAnimationFrame` ou à `performance` y casse les tests unitaires.
 - **Fermeture du serveur** : oublier `server.close()` laisse le processus de test ouvert.
 - **Node 20 vs plus récent** : la CI tourne en Node 20 ; éviter les API plus récentes.
