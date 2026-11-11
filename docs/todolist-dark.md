@@ -19,7 +19,7 @@ tri final revient à l'orchestrateur).
   `https://david-bouyssel.github.io/poc-fps-dark/`, résumé du projet réécrit (version
   sombre, monstre, sortie, sans fruits). Adapter les tests qui citent le sous-chemin
   (`tests/unit/pages-workflow*`, `subpath-resolution*`).
-- [ ] **Retrait des fruits et du score** [courte] : supprimer `src/game/fruits.js`,
+- [x] **Retrait des fruits et du score** [courte] : supprimer `src/game/fruits.js`,
   `src/render/fruit-sprites.js`, le HUD `#fps-hud` (score, légende), les clés
   `fruit.*`/score de `fr.js`, `tests/functional/fps-fruits*` et les tests unitaires
   associés. **Garder** `src/render/sprites.js` (`projectSprites`,

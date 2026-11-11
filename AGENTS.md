@@ -5,15 +5,14 @@ fichiers liés dans `docs/agents/`.
 
 ## Résumé du projet
 FPS « sombre » qui s'exécute dans le navigateur (version sombre en cours de livraison :
-les items suivants de la todolist ajoutent le monstre et la sortie, et retirent les
-fruits et le score). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
+les items suivants de la todolist ajoutent le monstre et la sortie). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
 d'un labyrinthe parfait aléatoire, reproductible par graine. Balade en vue à la première
 personne (raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches)
 dans le labyrinthe généré, avec retour à la vue de dessus. Murs de la vue FPS texturés
 procéduralement (motifs générés en code, sans fichier image), sol carrelé et plafond
 étoilé texturés (floor casting). Automap en vue FPS (mini-carte en bas à gauche, carte
 plein écran avec la touche M, zones explorées seulement). Objectif visé : trouver la
-sortie d'un labyrinthe traqué par un monstre, sans fruits ni score. Stack : HTML +
+sortie d'un labyrinthe traqué par un monstre. Stack : HTML +
 JavaScript ES modules vanilla, sans bundler, sans framework, sans aucune dépendance npm.
 Node >= 20 sert uniquement aux tests (`node --test`) et au serveur statique local. Aucun
 stockage. Application statique publiée sur GitHub Pages

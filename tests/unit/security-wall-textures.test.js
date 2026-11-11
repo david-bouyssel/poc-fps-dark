@@ -712,13 +712,12 @@ describe('castSurfaces : entrées hostiles, écriture bornée', () => {
 });
 
 // ---------------------------------------------------------------------------
-// T4 : fruits, score et sprites (testeur-securite). Logique pure (src/game/fruits.js),
-// projection (src/render/sprites.js), images (src/render/fruit-sprites.js) et
-// intégration au rendu (drawFpsView options.sprites).
+// Sprites billboard (testeur-securite, après retrait des fruits en T2) : projection
+// (src/render/sprites.js) et intégration au rendu (drawFpsView options.sprites et
+// options.spriteImages). Aucun contenu métier : kinds génériques, images fournies par
+// l'appelant.
 // ---------------------------------------------------------------------------
-const fruitsPath = path.join(srcDir, 'game', 'fruits.js');
 const spritesPath = path.join(srcDir, 'render', 'sprites.js');
-const fruitSpritesPath = path.join(srcDir, 'render', 'fruit-sprites.js');
 const mainPath = path.join(srcDir, 'main.js');
 
 const PURITY_PATTERNS = [
@@ -733,68 +732,23 @@ const PURITY_PATTERNS = [
   [/https?:\/\/|['"`(](data|blob):/, 'URL'],
 ];
 
-const {
-  FRUIT_TABLE, FRUIT_KIND, MAX_FRUITS,
-  placeFruits, createFruitState, collectFruits, pointsFor, fruitCount,
-} = await import('../../src/game/fruits.js');
 const { projectSprites, isSpriteColumnVisible } = await import('../../src/render/sprites.js');
-const { FRUIT_SPRITE_KINDS, SPRITE_SIZE, generateFruitSprite } = await import('../../src/render/fruit-sprites.js');
 const { MIN_DISTANCE } = await import('../../src/render/raycaster.js');
-const { MAZE_LIMITS } = await import('../../src/maze/maze.js');
-const { MAX_SEED } = await import('../../src/maze/random.js');
-
-function assertTyped(fn, label) {
-  try {
-    fn();
-  } catch (error) {
-    assert.ok(error instanceof TypeError || error instanceof RangeError, `${label} : ${String(error)}`);
-    return true;
-  }
-  return false;
-}
-
-/** Exécute fn avec Math.random et Date.now / new Date piégés (levée si appelés). */
-function withoutClockOrRandom(fn) {
-  const random = Math.random;
-  const RealDate = globalThis.Date;
-  Math.random = () => { throw new Error('Math.random interdit'); };
-  globalThis.Date = new Proxy(RealDate, {
-    construct() { throw new Error('new Date interdit'); },
-    apply() { throw new Error('Date() interdit'); },
-    get(target, prop) {
-      if (prop === 'now') return () => { throw new Error('Date.now interdit'); };
-      return Reflect.get(target, prop);
-    },
-  });
-  try {
-    return fn();
-  } finally {
-    Math.random = random;
-    globalThis.Date = RealDate;
-  }
-}
 
 const isFiniteNumbers = (obj) => Object.values(obj).every((v) => typeof v !== 'number' || Number.isFinite(v));
 
-describe('T4 : pureté statique de fruits.js, sprites.js, fruit-sprites.js', () => {
-  test('imports limités, aucun DOM / aléa / horloge / réseau / stockage / log / eval / URL', () => {
-    const expected = new Map([
-      [fruitsPath, ['../maze/maze.js', '../maze/random.js']],
-      [spritesPath, ['./raycaster.js']],
-      [fruitSpritesPath, ['./raycaster.js']],
-    ]);
-    for (const [file, imports] of expected) {
-      const code = stripComments(readFileSync(file, 'utf8'));
-      const found = [...code.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((m) => m[1]).sort();
-      assert.deepEqual(found, imports, path.basename(file));
-      assert.doesNotMatch(code, /\bimport\s*\(/, `${path.basename(file)} : import dynamique`);
-      const hits = scan(file, PURITY_PATTERNS);
-      assert.deepEqual(hits, [], hits.join('\n'));
-    }
+describe('sprites : pureté statique de sprites.js, rendu sans import de game/', () => {
+  test('sprites.js : import limité à ./raycaster.js, aucun DOM / aléa / horloge / réseau / stockage / log / eval / URL', () => {
+    const code = stripComments(readFileSync(spritesPath, 'utf8'));
+    const found = [...code.matchAll(/\bfrom\s+['"]([^'"]+)['"]/g)].map((m) => m[1]).sort();
+    assert.deepEqual(found, ['./raycaster.js']);
+    assert.doesNotMatch(code, /\bimport\s*\(/, 'import dynamique');
+    const hits = scan(spritesPath, PURITY_PATTERNS);
+    assert.deepEqual(hits, [], hits.join('\n'));
   });
 
   test('le rendu n\'importe jamais src/game/ ; main.js n\'écrit jamais de HTML', () => {
-    for (const file of [fpsRendererPath, spritesPath, fruitSpritesPath]) {
+    for (const file of [fpsRendererPath, spritesPath]) {
       assert.doesNotMatch(stripComments(readFileSync(file, 'utf8')), /from\s+['"][^'"]*\/game\//, path.basename(file));
     }
     const hits = scan(mainPath, [
@@ -807,176 +761,11 @@ describe('T4 : pureté statique de fruits.js, sprites.js, fruit-sprites.js', () 
     assert.deepEqual(hits, [], hits.join('\n'));
   });
 
-  test('constantes de jeu gelées (score non modifiable par un autre module)', () => {
-    assert.ok(Object.isFrozen(FRUIT_TABLE) && FRUIT_TABLE.every(Object.isFrozen));
-    assert.ok(Object.isFrozen(FRUIT_KIND) && Object.isFrozen(FRUIT_SPRITE_KINDS));
-    assert.deepEqual([...FRUIT_SPRITE_KINDS], FRUIT_TABLE.map((e) => e.kind));
-    for (const { points, weight } of FRUIT_TABLE) {
-      assert.ok(Number.isSafeInteger(points) && points > 0);
-      assert.ok(Number.isSafeInteger(weight) && weight > 0);
-    }
-  });
-
-  test('palette : clés fruit* au format #rrggbb strict', () => {
-    for (const key of ['fruitStrawberry', 'fruitSeed', 'fruitCherry', 'fruitPeach', 'fruitDragon', 'fruitLeaf', 'fruitStem']) {
-      assert.match(PALETTE[key], /^#[0-9a-f]{6}$/i, key);
-    }
+  test('palette : aucune clé fruit* résiduelle (retrait T2)', () => {
+    assert.deepEqual(Object.keys(PALETTE).filter((k) => /^fruit/i.test(k)), []);
   });
 });
-
-describe('T4 : placeFruits / fruitCount, entrées hostiles et bornes', () => {
-  test('labyrinthe hostile -> TypeError / RangeError uniquement', () => {
-    const hostileMazes = [
-      undefined, null, 0, 'maze', [], () => 0, {},
-      { width: 8, height: 8 }, { width: '8', height: 8, seed: 1 },
-      { width: 1, height: 8, seed: 1 }, { width: 8, height: 65, seed: 1 },
-      { width: 8.5, height: 8, seed: 1 }, { width: NaN, height: 8, seed: 1 },
-      { width: Infinity, height: Infinity, seed: 1 }, { width: 2 ** 31, height: 2 ** 31, seed: 1 },
-      { width: 8, height: 8, seed: -1 }, { width: 8, height: 8, seed: MAX_SEED + 1 },
-      { width: 8, height: 8, seed: 1.5 }, { width: 8, height: 8, seed: NaN },
-      { width: 8, height: 8, seed: 1n }, { width: { valueOf: () => 8 }, height: 8, seed: 1 },
-      JSON.parse('{"__proto__": {"width": 8, "height": 8, "seed": 1}}'),
-    ];
-    for (const maze of hostileMazes) {
-      assert.ok(assertTyped(() => placeFruits(maze), String(maze)), `doit lever : ${String(maze)}`);
-    }
-    assert.ok(assertTyped(() => placeFruits({ get width() { throw new TypeError('x'); } }), 'getter'));
-    assert.equal({}.width, undefined, 'aucune pollution de prototype');
-  });
-
-  test('graines et tailles limites : sortie gelée, bornée, cellules distinctes dans la grille', () => {
-    const sizes = [[2, 2], [2, 64], [64, 2], [64, 64], [MAZE_LIMITS.maxSize, MAZE_LIMITS.minSize]];
-    for (const [width, height] of sizes) {
-      for (const seed of [0, 1, 0x7FFFFFFF, 0x80000000, 0x9E3779B9, MAX_SEED]) {
-        const fruits = placeFruits({ width, height, seed });
-        assert.ok(Object.isFrozen(fruits) && fruits.every(Object.isFrozen));
-        assert.ok(fruits.length >= 1 && fruits.length <= MAX_FRUITS);
-        assert.ok(fruits.length <= width * height - 1);
-        const cells = new Set();
-        fruits.forEach((f, i) => {
-          assert.equal(f.id, i);
-          assert.ok(Number.isInteger(f.cellX) && f.cellX >= 0 && f.cellX < width);
-          assert.ok(Number.isInteger(f.cellY) && f.cellY >= 0 && f.cellY < height);
-          assert.ok(!(f.cellX === 0 && f.cellY === 0), 'jamais sur la case de départ');
-          assert.ok(FRUIT_SPRITE_KINDS.includes(f.kind));
-          assert.ok(Number.isFinite(f.x) && Number.isFinite(f.y));
-          cells.add(f.cellY * width + f.cellX);
-        });
-        assert.equal(cells.size, fruits.length, 'aucune cellule en double');
-      }
-    }
-  });
-
-  test('déterministe, sans Math.random ni Date ; coût CPU borné (64 x 64)', () => {
-    const maze = { width: 64, height: 64, seed: 123456789 };
-    const a = withoutClockOrRandom(() => placeFruits(maze));
-    const b = withoutClockOrRandom(() => placeFruits({ ...maze }));
-    assert.deepEqual(a, b);
-    const started = process.hrtime.bigint();
-    for (let i = 0; i < 200; i++) placeFruits({ width: 64, height: 64, seed: i });
-    const ms = Number(process.hrtime.bigint() - started) / 1e6;
-    assert.ok(ms < 2000, `200 placements 64x64 en ${ms} ms`);
-  });
-
-  test('fruitCount : entrée hostile -> erreur typée, sortie dans [0, MAX_FRUITS]', () => {
-    for (const v of HOSTILE_VALUES) {
-      try {
-        const n = fruitCount(v);
-        assert.ok(Number.isInteger(n) && n >= 0 && n <= MAX_FRUITS, String(v));
-      } catch (error) {
-        assert.ok(error instanceof RangeError || error instanceof TypeError, String(error));
-      }
-    }
-    assert.ok(fruitCount(Number.MAX_SAFE_INTEGER) <= MAX_FRUITS);
-  });
-});
-
-describe('T4 : pointsFor / createFruitState / collectFruits, état corrompu et score', () => {
-  test('pointsFor : clés de prototype et non-chaînes -> RangeError', () => {
-    const kinds = [...HOSTILE_VALUES.filter((v) => typeof v !== 'symbol'), 'STRAWBERRY', 'peach '];
-    for (const kind of kinds) {
-      assert.throws(() => pointsFor(kind), RangeError, String(kind));
-    }
-    assert.throws(() => pointsFor(Symbol('s')), (e) => e instanceof RangeError || e instanceof TypeError);
-  });
-
-  test('createFruitState : entrée hostile -> TypeError ; copie gelée, score initial 0', () => {
-    for (const v of [undefined, null, 0, 'abc', {}, { length: 3 }, new Uint8Array(3)]) {
-      assert.throws(() => createFruitState(v), TypeError, String(v));
-    }
-    const input = [...placeFruits({ width: 8, height: 8, seed: 1 })];
-    const state = createFruitState(input);
-    input.length = 0;
-    assert.ok(Object.isFrozen(state) && Object.isFrozen(state.fruits));
-    assert.equal(state.score, 0);
-    assert.equal(state.collected, 0);
-    assert.equal(state.fruits.length, state.total);
-    assert.ok(state.total > 0, 'mutation de l\'entrée sans effet sur l\'état');
-  });
-
-  test('collectFruits : état / position / rayon hostiles -> erreur typée, entrée intacte', () => {
-    const state = createFruitState(placeFruits({ width: 8, height: 8, seed: 7 }));
-    const ok = { x: 1.5, y: 1.5 };
-    const badStates = [
-      undefined, null, 0, 'x', {}, { fruits: 'abc', score: 0, collected: 0, total: 0 },
-      { ...state, score: NaN }, { ...state, score: Infinity }, { ...state, score: '0' },
-      { ...state, collected: undefined }, { ...state, total: -Infinity },
-      { ...state, fruits: [null] }, { ...state, fruits: [{ x: 1.5, y: 1.5, kind: '__proto__' }] },
-      { ...state, fruits: [{ x: 1.5, y: 1.5, kind: 'toString' }] },
-    ];
-    badStates.forEach((s, i) => {
-      assert.ok(assertTyped(() => collectFruits(s, ok, 1e9), `état #${i}`), `doit lever : état #${i}`);
-    });
-    for (const p of [undefined, null, 'x', {}, { x: NaN, y: 1 }, { x: 1, y: Infinity }, { x: '1', y: 1 }, [1, 1]]) {
-      assert.throws(() => collectFruits(state, p), TypeError, JSON.stringify(p));
-    }
-    for (const r of [NaN, Infinity, -Infinity, '1', null, {}]) {
-      assert.throws(() => collectFruits(state, ok, r), TypeError, String(r));
-    }
-    assert.equal(state.score, 0);
-    assert.equal(state.fruits.length, state.total);
-  });
-
-  test('joueur hors grille / rayon négatif : rien de ramassé, même référence', () => {
-    const state = createFruitState(placeFruits({ width: 16, height: 16, seed: 42 }));
-    for (const position of [{ x: -1e6, y: -1e6 }, { x: 1e300, y: 1e300 }, { x: -0, y: 0 }, { x: Number.MAX_VALUE, y: 0 }]) {
-      assert.equal(collectFruits(state, position), state, JSON.stringify(position));
-    }
-    assert.equal(collectFruits(state, state.fruits[0], -1), state, 'rayon négatif');
-  });
-
-  test('score : seul pointsFor l\'augmente, borné par la somme des fruits, sans débordement', () => {
-    const fruits = placeFruits({ width: 64, height: 64, seed: MAX_SEED });
-    const max = fruits.reduce((sum, f) => sum + pointsFor(f.kind), 0);
-    assert.ok(max <= MAX_FRUITS * Math.max(...FRUIT_TABLE.map((e) => e.points)));
-    let state = createFruitState(fruits);
-    // Le joueur passe sur chaque fruit, trois fois : aucun double comptage.
-    for (let pass = 0; pass < 3; pass++) {
-      for (const f of fruits) {
-        const next = collectFruits(state, { x: f.x, y: f.y });
-        assert.ok(next.score >= state.score && Object.isFrozen(next));
-        state = next;
-      }
-    }
-    assert.equal(state.score, max);
-    assert.equal(state.collected, state.total);
-    assert.ok(Number.isSafeInteger(state.score));
-    const all = collectFruits(createFruitState(fruits), { x: 0, y: 0 }, Number.MAX_VALUE);
-    assert.equal(all.score, max, 'rayon géant : chaque fruit compté une seule fois');
-    assert.equal(collectFruits(all, { x: 0, y: 0 }, Number.MAX_VALUE), all);
-  });
-
-  test('position avec champs supplémentaires / prototype : sans effet sur le score', () => {
-    const fruits = placeFruits({ width: 8, height: 8, seed: 3 });
-    const f = fruits[0];
-    const sneaky = Object.assign(Object.create({ score: 1e9, points: 1e9 }),
-      { x: f.x, y: f.y, score: 1e9, kind: 'dragonfruit' });
-    const next = collectFruits(createFruitState(fruits), sneaky);
-    assert.equal(next.score, pointsFor(f.kind));
-  });
-});
-
-describe('T4 : projectSprites / isSpriteColumnVisible', () => {
+describe('projectSprites / isSpriteColumnVisible', () => {
   const cam = { x: 2.5, y: 2.5, angle: 0 };
 
   test('player / vue / options / liste hostiles -> erreur typée', () => {
@@ -1047,111 +836,34 @@ describe('T4 : projectSprites / isSpriteColumnVisible', () => {
   });
 });
 
-describe('T4 : generateFruitSprite, tailles limites et entrées hostiles', () => {
-  test('size hostile -> RangeError ; allocation max 256 x 256', () => {
-    for (const size of [7, 257, 0, -8, 8.5, NaN, Infinity, '32', null, 2 ** 31, Number.MAX_SAFE_INTEGER, 1n]) {
-      assert.throws(() => generateFruitSprite('peach', PALETTE, size), RangeError, String(size));
-    }
-    for (const size of [8, 256]) {
-      for (const kind of FRUIT_SPRITE_KINDS) {
-        const s = generateFruitSprite(kind, PALETTE, size);
-        assert.equal(s.data.length, size * size * 4);
-        assert.ok(Object.isFrozen(s));
-      }
-    }
-  });
+describe('drawFpsView : options.sprites / spriteImages hostiles (kind générique)', () => {
+  const SPRITE_IMAGE = Object.freeze({ width: 8, height: 8 });
+  const spriteImages = new Map([['monster', SPRITE_IMAGE]]);
+  const front = { x: 3.8, y: 2.9, kind: 'monster' };
 
-  test('kind hostile -> RangeError ; palette hostile -> TypeError, sans pollution', () => {
-    for (const kind of ['__proto__', 'constructor', 'toString', 'hasOwnProperty', '', 'Peach', null, undefined, 1, {}]) {
-      assert.throws(() => generateFruitSprite(kind, PALETTE), RangeError, String(kind));
-    }
-    for (const palette of [null, undefined, 'x', 0]) {
-      assert.throws(() => generateFruitSprite('peach', palette), TypeError);
-    }
-    for (const value of BAD_COLORS) {
-      assert.throws(() => generateFruitSprite('peach', { ...PALETTE, fruitPeach: value }), TypeError, String(value));
-    }
-    assert.equal({}.fruitPeach, undefined);
-  });
-
-  test('déterministe, sans aléa ni horloge, alpha 0 ou 255 uniquement', () => {
-    for (const kind of FRUIT_SPRITE_KINDS) {
-      const a = withoutClockOrRandom(() => generateFruitSprite(kind, PALETTE));
-      const b = generateFruitSprite(kind, PALETTE);
-      assert.deepEqual(a.data, b.data);
-      let transparent = 0;
-      for (let i = 3; i < a.data.length; i += 4) {
-        assert.ok(a.data[i] === 0 || a.data[i] === 255);
-        if (a.data[i] === 0) transparent += 1;
-      }
-      assert.ok(transparent > 0, 'fond transparent');
-    }
-  });
-});
-
-describe('T4 : drawFpsView avec sprites hostiles', () => {
-  let fruitCounter = 0;
-  /** Palette unique (murs + fruits) : chaque test crée ses propres canvas. */
-  function freshPalette() {
-    fruitCounter += 1;
-    const leaf = `#${(0x400000 + fruitCounter).toString(16).padStart(6, '0')}`;
-    return { textureHeart: `#${(paletteCounter++).toString(16).padStart(6, '0')}`, fruitLeaf: leaf };
-  }
-
-  /** Document factice : retient les pixels de chaque canvas (fruits = pixels transparents). */
-  function spriteDocument(log, opts = {}) {
-    const doc = fakeDocument(log, opts);
-    const create = doc.createElement;
-    doc.createElement = (tag) => {
-      const el = create(tag);
-      const getContext = el.getContext;
-      el.getContext = () => {
-        const c = getContext();
-        if (!c) return c;
-        const createImageData = c.createImageData;
-        c.createImageData = (w, h) => {
-          const img = createImageData(w, h);
-          el.pixels = img.data;
-          return img;
-        };
-        return c;
-      };
-      return el;
-    };
-    return doc;
-  }
-
-  function isFruitImage(image) {
-    if (!image || !image.pixels) return false;
-    for (let i = 3; i < image.pixels.length; i += 4) if (image.pixels[i] === 0) return true;
-    return false;
-  }
-
-  function instrumentedDraw(sprites, { palette = freshPalette(), docOpts } = {}) {
+  /** Dessine une frame et retient les drawImage de l'image de sprite, avec leur globalAlpha. */
+  function instrumentedDraw(sprites, { images = spriteImages, palette = uniquePalette(), docOpts } = {}) {
     const log = newLog();
-    const canvas = fakeCanvas(log, spriteDocument(log, docOpts));
+    const canvas = fakeCanvas(log, fakeDocument(log, docOpts));
     const alphas = [];
-    const draw = log.ctx.drawImage;
+    const original = log.ctx.drawImage;
     log.ctx.drawImage = (image, ...args) => {
       alphas.push(log.ctx.globalAlpha);
-      draw(image, ...args);
+      original(image, ...args);
     };
-    assert.doesNotThrow(() => drawFpsView(canvas, grid, player, { palette, sprites }));
-    const fruitDraws = log.drawImage.map((d, i) => ({ ...d, alpha: alphas[i] }))
-      .filter((d) => isFruitImage(d.image));
-    return { log, fruitDraws };
+    assert.doesNotThrow(() => drawFpsView(canvas, grid, player, { palette, sprites, spriteImages: images }));
+    const spriteDraws = log.drawImage.map((d, i) => ({ ...d, alpha: alphas[i] }))
+      .filter((d) => d.image === SPRITE_IMAGE);
+    return { log, spriteDraws };
   }
 
-  const front = { x: 3.8, y: 2.9, kind: 'peach' };
-
-  test('sprite valide : canvas local, rectangle source borné, alpha dans [0, 1] puis restauré', () => {
-    const { log, fruitDraws } = instrumentedDraw([front]);
-    assert.ok(fruitDraws.length > 0, 'le fruit devant est dessiné');
-    for (const { image, args, alpha } of fruitDraws) {
-      assert.ok(log.created.includes(image));
+  test('sprite valide : bande source bornée à l\'image fournie, alpha dans [0, 1] puis restauré', () => {
+    const { log, spriteDraws } = instrumentedDraw([front]);
+    assert.ok(spriteDraws.length > 0, 'le sprite devant est dessiné');
+    for (const { args, alpha } of spriteDraws) {
       const [sx, sy, sw, sh, dx, , dw, dh] = args;
-      assert.ok(Number.isInteger(sx) && sx >= 0 && sx < SPRITE_SIZE);
-      assert.deepEqual([sy, sw, sh], [0, 1, SPRITE_SIZE]);
+      assert.ok(Number.isInteger(sx) && sx >= 0 && sx < SPRITE_IMAGE.width);
+      assert.deepEqual([sy, sw, sh], [0, 1, SPRITE_IMAGE.height]);
       for (const v of args) assert.ok(Number.isFinite(v));
       assert.ok(dx >= 0 && dx + dw <= 160 + 1e-9 && dw > 0 && dh > 0);
       assert.ok(alpha >= 0 && alpha <= 1);
@@ -1160,37 +872,83 @@ describe('T4 : drawFpsView avec sprites hostiles', () => {
     assert.equal(log.ctx.imageSmoothingEnabled, false);
   });
 
-  test('options.sprites hostile (type, éléments, kind) : aucune exception, aucun fruit, alpha 1', () => {
+  test('options.sprites hostile (type, éléments, kind, worldSize) : aucune exception, aucun sprite dessiné, alpha 1', () => {
     const hostile = [
-      null, undefined, 'abc', 42, {}, { length: 2 }, [null], [undefined], [42], ['peach'],
-      [{ x: NaN, y: 2.5, kind: 'peach' }], [{ x: 3, y: Infinity, kind: 'peach' }],
+      null, 'abc', 42, {}, { length: 2 }, [null], [undefined], [42], ['monster'],
+      [{ x: NaN, y: 2.5, kind: 'monster' }], [{ x: 3, y: Infinity, kind: 'monster' }],
       [{ x: 3.8, y: 2.9, kind: 42 }], [{ x: 3.8, y: 2.9 }],
-      [front, null],
       [{ x: 3.8, y: 2.9, kind: '__proto__' }], [{ x: 3.8, y: 2.9, kind: 'constructor' }],
       [{ x: 3.8, y: 2.9, kind: 'banana' }],
-      [{ x: player.x, y: player.y, kind: 'peach' }],
-      [{ x: player.x - Math.cos(player.angle), y: player.y - Math.sin(player.angle), kind: 'peach' }],
-      [{ x: 1e300, y: 1e300, kind: 'peach' }],
+      [{ x: 3.8, y: 2.9, kind: 'monster', worldSize: -1 }],
+      [{ x: 3.8, y: 2.9, kind: 'monster', worldSize: 0 }],
+      [{ x: 3.8, y: 2.9, kind: 'monster', worldSize: NaN }],
+      [{ x: 3.8, y: 2.9, kind: 'monster', worldSize: 'abc' }],
+      [{ x: player.x, y: player.y, kind: 'monster' }],
+      [{ x: player.x - Math.cos(player.angle), y: player.y - Math.sin(player.angle), kind: 'monster' }],
+      [{ x: 1e300, y: 1e300, kind: 'monster' }],
     ];
     hostile.forEach((sprites, i) => {
-      const { log, fruitDraws } = instrumentedDraw(sprites);
-      assert.equal(fruitDraws.length, 0, `cas #${i}`);
+      const { log, spriteDraws } = instrumentedDraw(sprites);
+      assert.equal(spriteDraws.length, 0, `cas #${i}`);
       assert.equal(log.ctx.globalAlpha, 1, `globalAlpha restauré : cas #${i}`);
     });
   });
 
-  test('sprite à MIN_DISTANCE : taille géante rognée, valeurs finies', () => {
+  test('sprite mal formé à côté d\'un sprite valide : seul le valide est dessiné', () => {
+    const alone = instrumentedDraw([front]).spriteDraws.length;
+    assert.ok(alone > 0);
+    for (const bad of [null, { x: NaN, y: 2.9, kind: 'monster' }, { x: 3.8, y: 2.9, kind: 'banana' }]) {
+      assert.equal(instrumentedDraw([front, bad]).spriteDraws.length, alone, JSON.stringify(bad));
+    }
+  });
+
+  test('spriteImages hostile (non-Map, valeurs vides ou sans dimensions) : aucune exception, aucun sprite', () => {
+    const images = [
+      null, 'abc', {}, [['monster', SPRITE_IMAGE]],
+      new Map([['monster', null]]), new Map([['monster', undefined]]),
+      new Map([['monster', { width: 0, height: 8 }]]), new Map([['monster', { width: 8 }]]),
+    ];
+    for (const map of images) {
+      const { log, spriteDraws } = instrumentedDraw([front], { images: map });
+      assert.equal(spriteDraws.length, 0, String(map));
+      assert.equal(log.ctx.globalAlpha, 1);
+    }
+  });
+
+  test('sans sprites : spriteImages jamais consultée, aucun sprite dessiné', () => {
+    class SpyMap extends Map {
+      get(key) { this.calls = (this.calls ?? 0) + 1; return super.get(key); }
+    }
+    const spy = new SpyMap([['monster', SPRITE_IMAGE]]);
+    for (const sprites of [[], undefined]) {
+      const { spriteDraws } = instrumentedDraw(sprites, { images: spy });
+      assert.equal(spriteDraws.length, 0);
+    }
+    assert.equal(spy.calls ?? 0, 0, 'aucun get sans sprites');
+  });
+
+  test('le renderer ne crée aucun canvas pour les sprites : même nombre de canvas avec ou sans sprites', () => {
+    const countWith = (sprites, images) => {
+      const log = newLog();
+      drawFpsView(fakeCanvas(log, fakeDocument(log)), grid, player,
+        { palette: uniquePalette(), sprites, spriteImages: images });
+      return log.createElement.length;
+    };
+    assert.equal(countWith([front], spriteImages), countWith([], undefined));
+  });
+
+  test('sprite à MIN_DISTANCE : taille géante rognée, valeurs finies, alpha restauré', () => {
     const k = MIN_DISTANCE * 1.01;
-    const near = { x: player.x + Math.cos(player.angle) * k, y: player.y + Math.sin(player.angle) * k, kind: 'cherry' };
-    const { log, fruitDraws } = instrumentedDraw([near]);
-    for (const { args } of fruitDraws) for (const v of args) assert.ok(Number.isFinite(v));
-    assert.ok(fruitDraws.length <= 80, 'au plus une bande par colonne de rendu');
+    const near = { x: player.x + Math.cos(player.angle) * k, y: player.y + Math.sin(player.angle) * k, kind: 'monster' };
+    const { log, spriteDraws } = instrumentedDraw([near]);
+    for (const { args } of spriteDraws) for (const v of args) assert.ok(Number.isFinite(v));
+    assert.ok(spriteDraws.length <= 80, 'au plus une bande par colonne de rendu');
     assert.equal(log.ctx.globalAlpha, 1);
   });
 
   test('liste énorme : sans exception, coût borné, alpha restauré', () => {
     const sprites = [];
-    for (let i = 0; i < 20000; i++) sprites.push({ x: 1.5 + (i % 4), y: 1.5 + ((i >> 2) % 4), kind: FRUIT_SPRITE_KINDS[i % 4] });
+    for (let i = 0; i < 20000; i++) sprites.push({ x: 1.5 + (i % 4), y: 1.5 + ((i >> 2) % 4), kind: i % 2 ? 'monster' : 'absent' });
     const started = process.hrtime.bigint();
     const { log } = instrumentedDraw(sprites);
     const ms = Number(process.hrtime.bigint() - started) / 1e6;
@@ -1199,43 +957,20 @@ describe('T4 : drawFpsView avec sprites hostiles', () => {
   });
 
   test('échec canvas (createElement qui lève, getContext nul, drawImage qui lève) : sans exception', () => {
+    // Échec des textures de murs (canvas hors écran) : les sprites ne dépendent que de leur image.
     for (const docOpts of [{ throwOnCreate: true }, { nullContext: true }]) {
-      const { log, fruitDraws } = instrumentedDraw([front], { docOpts });
-      assert.equal(fruitDraws.length, 0);
+      const { log, spriteDraws } = instrumentedDraw([front], { docOpts });
+      assert.ok(spriteDraws.length > 0, 'sprite dessiné malgré l\'échec des textures de murs');
       assert.equal(log.ctx.globalAlpha, 1);
     }
     const log = newLog();
-    const canvas = fakeCanvas(log, spriteDocument(log));
-    log.ctx.drawImage = (image) => {
-      if (isFruitImage(image)) { log.ctx.globalAlpha = 0.3; throw new Error('boom'); }
+    const canvas = fakeCanvas(log, fakeDocument(log));
+    const original = log.ctx.drawImage;
+    log.ctx.drawImage = (image, ...args) => {
+      if (image === SPRITE_IMAGE) { log.ctx.globalAlpha = 0.3; throw new Error('boom'); }
+      original(image, ...args);
     };
-    assert.doesNotThrow(() => drawFpsView(canvas, grid, player, { palette: freshPalette(), sprites: [front] }));
+    assert.doesNotThrow(() => drawFpsView(canvas, grid, player, { palette: uniquePalette(), sprites: [front], spriteImages }));
     assert.equal(log.ctx.globalAlpha, 1, 'globalAlpha restauré même après une levée');
-  });
-
-  test('couleurs de fruit hostiles : aucun fruit, aucune exception', () => {
-    for (const value of ['red', '#fff', 'url(http://example.invalid/a.png)', '', '#b9a6e8;x', null, 12]) {
-      const palette = { ...freshPalette(), fruitPeach: value };
-      const { log, fruitDraws } = instrumentedDraw([front], { palette });
-      assert.equal(fruitDraws.length, 0, String(value));
-      assert.equal(log.ctx.globalAlpha, 1);
-    }
-  });
-
-  test('cache des images de fruits : une génération par palette, nombre d\'entrées borné', () => {
-    const log = newLog();
-    const doc = spriteDocument(log);
-    const palette = freshPalette();
-    const fruitsCreated = () => log.created.filter(isFruitImage).length;
-    drawFpsView(fakeCanvas(log, doc), grid, player, { palette, sprites: [front] });
-    assert.equal(fruitsCreated(), FRUIT_SPRITE_KINDS.length);
-    for (let i = 0; i < 20; i++) drawFpsView(fakeCanvas(log, doc), grid, player, { palette, sprites: [front] });
-    assert.equal(fruitsCreated(), FRUIT_SPRITE_KINDS.length, 'aucune régénération par image');
-    for (let i = 0; i < 30; i++) {
-      drawFpsView(fakeCanvas(log, doc), grid, player, { palette: freshPalette(), sprites: [front] });
-    }
-    const before = fruitsCreated();
-    drawFpsView(fakeCanvas(log, doc), grid, player, { palette, sprites: [front] });
-    assert.equal(fruitsCreated() - before, FRUIT_SPRITE_KINDS.length, 'entrée évincée : cache borné');
   });
 });

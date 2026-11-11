@@ -13,12 +13,6 @@ import {
   revealVisibleTiles,
 } from './render/automap.js';
 import { drawAutomap } from './render/automap-renderer.js';
-import {
-  FRUIT_TABLE,
-  collectFruits,
-  createFruitState,
-  placeFruits,
-} from './game/fruits.js';
 import { applyTranslations, t } from './i18n/i18n.js';
 
 const DEFAULT_SIZE = 16;
@@ -35,10 +29,6 @@ const canvas = document.getElementById('maze-canvas');
 const fpsEnterButton = document.getElementById('fps-enter-button');
 const fpsExitButton = document.getElementById('fps-exit-button');
 const fpsHelp = document.getElementById('fps-help');
-const fpsHud = document.getElementById('fps-hud');
-const fpsScore = document.getElementById('fps-score');
-const fpsAllCollected = document.getElementById('fps-all-collected');
-const fpsFruitLegend = document.getElementById('fps-fruit-legend');
 
 const VIEW_TOP = 'top';
 const VIEW_FPS = 'fps';
@@ -55,8 +45,6 @@ let viewMode = VIEW_TOP;
 let explored = null;
 /** Mode d'affichage de la carte en FPS. */
 let mapMode = AUTOMAP_MODE.MINI;
-/** Fruits restants et score du labyrinthe courant ; null avant génération. */
-let fruitState = null;
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
 let resizeFrame = 0;
@@ -65,14 +53,9 @@ const gameLoop = createGameLoop({
   update(dt) {
     player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
     revealVisibleTiles(explored, currentGrid, player);
-    const next = collectFruits(fruitState, player);
-    if (next !== fruitState) {
-      fruitState = next;
-      updateHud();
-    }
   },
   render() {
-    drawFpsView(canvas, currentGrid, player, { sprites: fruitState.fruits });
+    drawFpsView(canvas, currentGrid, player);
     drawAutomap(canvas, currentGrid, explored, player, mapMode);
   },
   requestFrame: (callback) => requestAnimationFrame(callback),
@@ -110,36 +93,6 @@ function clearError() {
   errorElement.textContent = '';
 }
 
-/** Met à jour le texte du score (appelé seulement quand l'état change). */
-function updateScoreText() {
-  if (fruitState === null) {
-    return;
-  }
-  fpsScore.textContent = t('fps.score', {
-    score: fruitState.score,
-    collected: fruitState.collected,
-    total: fruitState.total,
-  });
-  fpsAllCollected.hidden = fruitState.collected !== fruitState.total;
-}
-
-/** Affiche le HUD seulement en FPS et hors carte plein écran. */
-function updateHudVisibility() {
-  fpsHud.hidden = viewMode !== VIEW_FPS || mapMode === AUTOMAP_MODE.FULL;
-}
-
-function updateHud() {
-  updateScoreText();
-  updateHudVisibility();
-}
-
-/** Construit une fois la légende « espèce : points » à partir de FRUIT_TABLE. */
-function buildFruitLegend() {
-  fpsFruitLegend.textContent = FRUIT_TABLE.map((entry) =>
-    t('fps.fruitPoints', { name: t(`fruit.${entry.kind}`), points: entry.points }),
-  ).join(t('fps.legendSeparator'));
-}
-
 function render() {
   if (viewMode === VIEW_TOP && currentMaze) {
     drawMaze(canvas, currentMaze);
@@ -170,10 +123,8 @@ function generateFromForm({ forceRandomSeed }) {
   }
 
   let maze;
-  let fruits;
   try {
     maze = generateMaze({ width, height, seed });
-    fruits = placeFruits(maze);
   } catch {
     showError('errors.generic');
     return;
@@ -184,8 +135,6 @@ function generateFromForm({ forceRandomSeed }) {
   currentGrid = toTileGrid(maze);
   player = null;
   explored = createExploredMask(currentGrid);
-  fruitState = createFruitState(fruits);
-  updateHud();
   clearError();
   infoElement.textContent = t('info.current', {
     seed: maze.seed,
@@ -224,7 +173,6 @@ function enterFps() {
   fpsEnterButton.hidden = true;
   fpsExitButton.hidden = false;
   fpsHelp.hidden = false;
-  updateHud();
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
   pressedActions.clear();
   gameLoop.start();
@@ -245,7 +193,6 @@ function exitFps() {
   fpsEnterButton.hidden = false;
   fpsExitButton.hidden = true;
   fpsHelp.hidden = true;
-  updateHud();
   canvas.setAttribute('aria-label', t('canvas.label'));
   render();
   fpsEnterButton.focus();
@@ -268,7 +215,6 @@ function toggleMap() {
   const full = mapMode === AUTOMAP_MODE.MINI;
   mapMode = full ? AUTOMAP_MODE.FULL : AUTOMAP_MODE.MINI;
   canvas.setAttribute('aria-label', t(full ? 'canvas.labelFpsMap' : 'canvas.labelFps'));
-  updateHudVisibility();
 }
 
 function onKeyDown(event) {
@@ -307,7 +253,6 @@ function onKeyUp(event) {
 
 function init() {
   applyTranslations(document);
-  buildFruitLegend();
   document.title = t('app.title');
 
   widthInput.value = String(DEFAULT_SIZE);

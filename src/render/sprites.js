@@ -16,6 +16,7 @@ export const DEFAULT_SPRITE_WORLD_SIZE = 0.35;
  * @property {number} right
  * @property {number} top
  * @property {number} bottom   coordonnées non bornées à l'écran (le renderer rogne)
+ * @property {number} worldSize taille monde effective du sprite, en tuiles
  */
 
 /**
@@ -27,14 +28,17 @@ export const DEFAULT_SPRITE_WORLD_SIZE = 0.35;
  * screenX = (cameraX + 1) / 2 * viewWidth, size = viewHeight * worldSize / depth,
  * bottom = viewHeight/2 + viewHeight / (2 * depth) (le sprite repose au sol),
  * top = bottom - size, left/right = screenX -/+ size/2.
- * @param {ReadonlyArray<{ x: number, y: number, kind: string }>} sprites
+ * Taille monde par sprite : sprite.worldSize s'il est fourni, sinon options.worldSize,
+ * sinon DEFAULT_SPRITE_WORLD_SIZE.
+ * @param {ReadonlyArray<{ x: number, y: number, kind: string, worldSize?: number }>} sprites
  * @param {{ x: number, y: number, angle: number }} player
  * @param {number} viewWidth  px CSS > 0
  * @param {number} viewHeight px CSS > 0
  * @param {{ fov?: number, worldSize?: number }} [options] worldSize défaut 0.35 tuile
  * @returns {ProjectedSprite[]} trié du plus loin au plus proche (ordre du peintre)
  * @throws {TypeError} sprites, sprite ou player mal formé
- * @throws {RangeError} viewWidth, viewHeight, fov ou worldSize invalide
+ * @throws {RangeError} viewWidth, viewHeight, fov, options.worldSize ou sprite.worldSize
+ *                      (si fourni) invalide
  */
 export function projectSprites(sprites, player, viewWidth, viewHeight, options = {}) {
   if (!Array.isArray(sprites)) {
@@ -78,6 +82,11 @@ export function projectSprites(sprites, player, viewWidth, viewHeight, options =
       || typeof sprite.kind !== 'string') {
       throw new TypeError('each sprite must be { x, y, kind } with finite x/y and string kind');
     }
+    const spriteWorldSize = sprite.worldSize === undefined ? worldSize : sprite.worldSize;
+    if (typeof spriteWorldSize !== 'number' || !Number.isFinite(spriteWorldSize)
+      || !(spriteWorldSize > 0)) {
+      throw new RangeError('sprite.worldSize must be a finite number > 0 when provided');
+    }
     const dx = sprite.x - player.x;
     const dy = sprite.y - player.y;
     const depth = dx * dirX + dy * dirY;
@@ -87,7 +96,7 @@ export function projectSprites(sprites, player, viewWidth, viewHeight, options =
     const lateral = dx * rightX + dy * rightY;
     const cameraX = lateral / (depth * planeScale);
     const screenX = ((cameraX + 1) / 2) * viewWidth;
-    const size = (viewHeight * worldSize) / depth;
+    const size = (viewHeight * spriteWorldSize) / depth;
     const left = screenX - size / 2;
     const right = screenX + size / 2;
     if (right <= 0 || left >= viewWidth) {
@@ -95,7 +104,9 @@ export function projectSprites(sprites, player, viewWidth, viewHeight, options =
     }
     const bottom = horizon + viewHeight / (2 * depth);
     const top = bottom - size;
-    projected.push({ kind: sprite.kind, depth, screenX, size, left, right, top, bottom });
+    projected.push({
+      kind: sprite.kind, depth, screenX, size, left, right, top, bottom, worldSize: spriteWorldSize,
+    });
   }
   // Painter's order: farthest first (stable sort keeps input order on ties).
   projected.sort((a, b) => b.depth - a.depth);

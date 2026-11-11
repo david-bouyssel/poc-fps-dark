@@ -4,7 +4,7 @@ Démo en ligne : <https://david-bouyssel.github.io/poc-fps-dark/>
 
 Application concrète du POC
 [**poc-orchestration**](https://github.com/david-bouyssel/poc-orchestration) : un
-**FPS « mignon »** jouable dans le navigateur, développé entièrement par le workflow
+**FPS « sombre »** jouable dans le navigateur, développé entièrement par le workflow
 multi-agents de ce POC.
 
 Le dépôt d'origine définit un processus de développement orchestré par des agents IA,
@@ -15,7 +15,7 @@ traverse toute la chaîne d'agents, de la conception au commit.
 ## Le jeu
 
 État actuel : génération d'un labyrinthe parfait aléatoire, reproductible par graine,
-affiché en vue de dessus (canvas 2D, palette pastel). Une fois généré, on peut
+affiché en vue de dessus (canvas 2D, palette sombre). Une fois généré, on peut
 l'explorer en vue FPS (raycasting, déplacement clavier façon Doom).
 
 - Stack : HTML + JavaScript ES modules vanilla, sans bundler ni dépendance npm.

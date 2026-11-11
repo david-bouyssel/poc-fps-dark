@@ -200,24 +200,3 @@ body {
   box-shadow: var(--shadow);
 }
 
-.hud {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  max-width: 60%;
-  padding: 8px 14px;
-  border-radius: var(--radius);
-  background: rgba(18, 14, 22, 0.85);
-  color: var(--color-text);
-  text-align: right;
-  pointer-events: none;
-}
-
-.hud p {
-  margin: 0;
-}
-
-.hud-legend {
-  font-size: 0.8rem;
-  color: var(--color-muted);
-}

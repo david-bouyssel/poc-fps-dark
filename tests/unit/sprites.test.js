@@ -151,6 +151,49 @@ describe('projectSprites', () => {
   });
 });
 
+describe('projectSprites : sprite.worldSize par sprite', () => {
+  // Sprite droit devant à distance 2 : size = H * worldSize / depth.
+  const ahead = { x: 3.5, y: 1.5 };
+
+  test('sprite.worldSize fourni : prioritaire sur options.worldSize', () => {
+    const [s] = projectSprites([{ ...ahead, kind: 'monster', worldSize: 0.5 }], player, W, H, { worldSize: 0.2 });
+    assert.ok(close(s.size, (H * 0.5) / 2), `size ${s.size}`);
+    assert.equal(s.worldSize, 0.5);
+  });
+
+  test('sprite.worldSize absent : options.worldSize utilisé, sinon défaut 0.35', () => {
+    const [byOption] = projectSprites([{ ...ahead, kind: 'monster' }], player, W, H, { worldSize: 0.2 });
+    assert.ok(close(byOption.size, (H * 0.2) / 2));
+    assert.equal(byOption.worldSize, 0.2);
+    const [byDefault] = projectSprites([{ ...ahead, kind: 'monster' }], player, W, H);
+    assert.ok(close(byDefault.size, (H * 0.35) / 2));
+    assert.equal(byDefault.worldSize, 0.35);
+  });
+
+  test('sprite.worldSize explicitement undefined : traité comme absent (défaut 0.35)', () => {
+    const [s] = projectSprites([{ ...ahead, kind: 'monster', worldSize: undefined }], player, W, H);
+    assert.ok(close(s.size, (H * 0.35) / 2));
+  });
+
+  test('sprite.worldSize par sprite : chaque sprite garde sa taille dans le même appel', () => {
+    const out = projectSprites([
+      { ...ahead, kind: 'big', worldSize: 0.6 },
+      { x: 3.5, y: 2.5, kind: 'small', worldSize: 0.1 },
+    ], player, W, H);
+    const big = out.find((s) => s.kind === 'big');
+    const small = out.find((s) => s.kind === 'small');
+    assert.ok(close(big.size, (H * 0.6) / 2));
+    assert.ok(close(small.size, (H * 0.1) / 2));
+  });
+
+  test('sprite.worldSize invalide (<= 0, non fini, non nombre) -> RangeError', () => {
+    for (const worldSize of [0, -1, NaN, Infinity, -Infinity, null, '0.5', true]) {
+      assert.throws(() => projectSprites([{ ...ahead, kind: 'monster', worldSize }], player, W, H),
+        RangeError, String(worldSize));
+    }
+  });
+});
+
 describe('isSpriteColumnVisible', () => {
   test('depth < distance -> true ; >= -> false', () => {
     const hit = Object.freeze({ distance: 3, side: 'x', tileX: 4, tileY: 1, wallX: 0.5 });

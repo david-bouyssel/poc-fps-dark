@@ -8,7 +8,6 @@ import assert from 'node:assert/strict';
 import { drawFpsView } from '../../src/render/fps-renderer.js';
 import { PALETTE } from '../../src/render/palette.js';
 import { WALL_TEXTURE_KINDS } from '../../src/render/wall-textures.js';
-import { FRUIT_SPRITE_KINDS } from '../../src/render/fruit-sprites.js';
 import { room } from './fps-test-grids.js';
 
 /** Taille CSS de la vue : container factice 160 x 120 (pas de devicePixelRatio sous Node). */
@@ -43,7 +42,7 @@ function fakeContext(sequence) {
 
 /**
  * Document factice. `created` garde l'ordre de création des canvas hors écran :
- * [0] = tampon sol/plafond, puis 2 canvas par type de mur, puis les images de fruits.
+ * [0] = tampon sol/plafond, puis 2 canvas par type de mur. Les sprites n'en créent aucun.
  */
 function makeEnv() {
   const sequence = [];
@@ -80,10 +79,9 @@ function wallImagesOf(created) {
   return new Set(created.slice(1, 1 + 2 * WALL_TEXTURE_KINDS.length));
 }
 
-/** Images de fruits : canvas créés après les murs. */
-function fruitImagesOf(created) {
-  return new Set(created.slice(1 + 2 * WALL_TEXTURE_KINDS.length));
-}
+/** Image de sprite fournie par l'appelant (Map kind -> image) : taille de texel connue. */
+const SPRITE_KIND = 'testSprite';
+const SPRITE_IMAGE = Object.freeze({ width: 8, height: 8 });
 
 /** Palette valide unique par test (évite les effets du cache module de textures). */
 let paletteCounter = 0;
@@ -159,17 +157,67 @@ describe('drawFpsView : murs texturés opaques, voile de brouillard seul atténu
   test('avec sprites devant le joueur : les murs restent à globalAlpha === 1', () => {
     const env = makeEnv();
     const palette = uniquePalette();
-    const sprites = [{ x: 3.2, y: 2.6, kind: FRUIT_SPRITE_KINDS[0] }];
-    drawFpsView(env.canvas, grid, player, { palette, sprites });
+    const sprites = [{ x: 3.2, y: 2.6, kind: SPRITE_KIND }];
+    drawFpsView(env.canvas, grid, player, { palette, sprites, spriteImages: new Map([[SPRITE_KIND, SPRITE_IMAGE]]) });
     const walls = wallImagesOf(env.created);
-    const fruits = fruitImagesOf(env.created);
     const wallDraws = env.sequence.filter((op) => op.kind === 'draw' && walls.has(op.image));
-    const fruitDraws = env.sequence.filter((op) => op.kind === 'draw' && fruits.has(op.image));
-    assert.ok(fruitDraws.length > 0, 'le fruit devant le joueur doit être dessiné (sinon test vide)');
+    const spriteDraws = env.sequence.filter((op) => op.kind === 'draw' && op.image === SPRITE_IMAGE);
+    assert.ok(spriteDraws.length > 0, 'le sprite devant le joueur doit être dessiné (sinon test vide)');
     assert.ok(wallDraws.length >= 2, 'au moins 2 colonnes de mur attendues');
     for (const op of wallDraws) {
       assert.equal(op.globalAlpha, 1, `mur en x=${op.args[4]} avec sprites : globalAlpha=${op.globalAlpha}`);
     }
     assert.equal(env.mainContext.globalAlpha, 1, 'fin de frame avec sprites');
+  });
+
+  test('sprite dont le kind est absent de spriteImages : ignoré, aucune exception', () => {
+    const env = makeEnv();
+    const sprites = [{ x: 3.2, y: 2.6, kind: 'absent' }];
+    assert.doesNotThrow(() => drawFpsView(env.canvas, grid, player, {
+      palette: uniquePalette(), sprites, spriteImages: new Map([[SPRITE_KIND, SPRITE_IMAGE]]),
+    }));
+    assert.equal(env.sequence.filter((op) => op.kind === 'draw' && op.image === SPRITE_IMAGE).length, 0);
+    assert.equal(env.mainContext.globalAlpha, 1);
+  });
+
+  test('sans sprites : spriteImages jamais consultée, aucune image de sprite dessinée', () => {
+    const env = makeEnv();
+    let reads = 0;
+    const spy = { get() { reads += 1; return SPRITE_IMAGE; } };
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), spriteImages: spy });
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), sprites: [], spriteImages: spy });
+    assert.equal(reads, 0, 'aucune lecture de la Map sans sprites');
+    assert.equal(env.sequence.filter((op) => op.kind === 'draw' && op.image === SPRITE_IMAGE).length, 0);
+  });
+
+  test('worldSize par sprite : le sprite plus grand est dessiné deux fois plus haut', () => {
+    const heightFor = (worldSize) => {
+      const env = makeEnv();
+      const sprites = [{ x: 3.2, y: 2.6, kind: SPRITE_KIND, worldSize }];
+      drawFpsView(env.canvas, grid, player, {
+        palette: uniquePalette(), sprites, spriteImages: new Map([[SPRITE_KIND, SPRITE_IMAGE]]),
+      });
+      const heights = env.sequence
+        .filter((op) => op.kind === 'draw' && op.image === SPRITE_IMAGE)
+        .map((op) => op.args[7]);
+      assert.ok(heights.length > 0, `worldSize ${worldSize} : sprite non dessiné`);
+      assert.ok(heights.every((h) => h === heights[0]), 'hauteur constante sur les bandes');
+      return heights[0];
+    };
+    const base = heightFor(0.35);
+    const double = heightFor(0.7);
+    assert.ok(Math.abs(double / base - 2) < 1e-6, `ratio ${double / base}`);
+  });
+
+  test('worldSize invalide (<= 0, non fini) : sprite ignoré, aucune exception', () => {
+    for (const worldSize of [0, -1, NaN, Infinity]) {
+      const env = makeEnv();
+      const sprites = [{ x: 3.2, y: 2.6, kind: SPRITE_KIND, worldSize }];
+      assert.doesNotThrow(() => drawFpsView(env.canvas, grid, player, {
+        palette: uniquePalette(), sprites, spriteImages: new Map([[SPRITE_KIND, SPRITE_IMAGE]]),
+      }), String(worldSize));
+      assert.equal(env.sequence.filter((op) => op.kind === 'draw' && op.image === SPRITE_IMAGE).length, 0, String(worldSize));
+      assert.equal(env.mainContext.globalAlpha, 1, String(worldSize));
+    }
   });
 });

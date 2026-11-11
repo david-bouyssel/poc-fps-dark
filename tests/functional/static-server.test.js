@@ -139,10 +139,8 @@ const FPS_MODULES = [
   // Automap (plan docs/design/fps-automap.md §6)
   ['/render/automap.js', 'revealVisibleTiles'],
   ['/render/automap-renderer.js', 'drawAutomap'],
-  // Fruits et score (plan docs/design/fps-fruits-score.md §6)
-  ['/game/fruits.js', 'placeFruits'],
+  // Sprites billboard (plan docs/design/fps-fruits-score.md §3, généralisé par dark-retrait-fruits.md)
   ['/render/sprites.js', 'projectSprites'],
-  ['/render/fruit-sprites.js', 'generateFruitSprite'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {
@@ -169,17 +167,20 @@ test('GET / contient fps-enter-button, fps-exit-button, fps-help', async () => {
   assert.ok(!/\shidden[\s>=]/.test(enter), 'bouton entrer masqué au chargement');
 });
 
-test('GET / contient le HUD des fruits (fps-hud, fps-score), masqué au chargement', async () => {
+test('retrait : /game/fruits.js et /render/fruit-sprites.js -> 404', async () => {
+  for (const path of ['/game/fruits.js', '/render/fruit-sprites.js']) {
+    const res = await fetch(`${base}${path}`);
+    assert.equal(res.status, 404, path);
+    await res.body?.cancel();
+  }
+});
+
+test('retrait : GET / ne contient plus de HUD (fps-hud, fps-score, fps-all-collected, fps-fruit-legend)', async () => {
   const res = await fetch(`${base}/`);
   assert.equal(res.status, 200);
   const body = await res.text();
   for (const id of ['fps-hud', 'fps-score', 'fps-all-collected', 'fps-fruit-legend']) {
-    assert.match(body, new RegExp(`id=["']${id}["']`), id);
+    assert.doesNotMatch(body, new RegExp(`id=["']${id}["']`), id);
   }
-  const hud = body.match(/<div[^>]*id=["']fps-hud["'][^>]*>/);
-  assert.ok(hud, 'div#fps-hud absent');
-  assert.match(hud[0], /\shidden[\s>=]/, 'HUD visible au chargement');
-  const score = body.match(/<p[^>]*id=["']fps-score["'][^>]*>/);
-  assert.ok(score, 'p#fps-score absent');
-  assert.match(score[0], /role=["']status["']/, 'fps-score sans role=status');
+  assert.doesNotMatch(body, /class=["'][^"']*\bhud\b/, 'classe hud résiduelle');
 });
