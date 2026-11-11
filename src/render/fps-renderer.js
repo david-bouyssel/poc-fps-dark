@@ -17,6 +17,7 @@ import {
   surfaceBufferSize,
 } from './surface-textures.js';
 import { isSpriteColumnVisible, projectSprites } from './sprites.js';
+import { EXIT_FOG_SCALE, generateExitTexture, isExitFace } from './exit-texture.js';
 
 /** Largeur d'une colonne de rendu, en px CSS (un rayon par colonne). */
 const COLUMN_WIDTH = 2;
@@ -63,6 +64,13 @@ const textureCache = new Map();
 const surfaceTextureCache = new Map();
 
 /**
+ * Cache module de la texture de sortie : clé = couleurs exit* (frame, glow, core), valeur =
+ * canvas hors écran, ou null (échec mémorisé : faces dessinées comme des murs normaux).
+ * @type {Map<string, HTMLCanvasElement | null>}
+ */
+const exitTextureCache = new Map();
+
+/**
  * Tampon sol/plafond (une seule entrée) : { width, height, ownerDocument, canvas,
  * context, imageData }, ou { width, height, ownerDocument, failed: true }.
  */
@@ -94,7 +102,11 @@ let surfaceBuffer = null;
  * @param {HTMLCanvasElement} canvas
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @param {{ x: number, y: number, angle: number }} player
- * @param {{ palette?: object,
+ * Sortie (options.exit = { tx, ty }, facultatif) : les faces de mur tournées vers la tuile
+ * de sortie (isExitFace) utilisent la texture de porte lumineuse (mêmes textureColumn et
+ * textureSlice, sans variante assombrie, brouillard * EXIT_FOG_SCALE) ; repli aplat :
+ * exitGlow mélangé vers fog. Échec de la texture de sortie : murs normaux, sans exception.
+ * @param {{ palette?: object, exit?: { tx: number, ty: number },
  *           sprites?: ReadonlyArray<{ x: number, y: number, kind: string, worldSize?: number }>,
  *           spriteImages?: ReadonlyMap<string, CanvasImageSource> }} [options]
  *        sprites : défaut [] ; spriteImages : défaut aucune image
@@ -146,11 +158,14 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   }
 
   // Walls: one ray per column, drawn over the floor and ceiling.
+  // Exit faces (options.exit = { tx, ty }) get a glowing door texture.
+  const exit = options.exit ?? null;
   const textures = getWallTextures(canvas, palette);
   if (textures) {
-    drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight);
+    const exitImage = exit ? getExitTexture(canvas, palette) : null;
+    drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight, exit, exitImage);
   } else {
-    drawFlatWalls(ctx, hits, palette, cssWidth, cssHeight);
+    drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit);
   }
 
   // Sprites last: drawn over the walls, hidden column by column by the wall distances.
@@ -328,22 +343,25 @@ function getSurfaceBuffer(canvas, cssWidth, cssHeight) {
   return surfaceBuffer;
 }
 
-function drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight) {
+function drawTexturedWalls(
+  ctx, hits, player, textures, palette, cssWidth, cssHeight, exit = null, exitImage = null,
+) {
   for (let column = 0; column < hits.length; column++) {
     const hit = hits[column];
     const { top, bottom, srcY, srcHeight } = textureSlice(hit.distance, cssHeight);
     if (bottom <= top || srcHeight <= 0) {
       continue;
     }
+    const isExit = exitImage !== null && isExitFace(hit, player, exit);
     const pair = textures[textureIndexForTile(hit.tileX, hit.tileY)];
-    const image = hit.side === 'y' ? pair.dark : pair.light;
+    const image = isExit ? exitImage : (hit.side === 'y' ? pair.dark : pair.light);
     const texX = textureColumn(hit, player);
     const x = column * COLUMN_WIDTH;
     const width = Math.min(COLUMN_WIDTH, cssWidth - x);
     // The fog veil of the previous column leaves globalAlpha below 1: reset it so the wall is opaque.
     ctx.globalAlpha = 1;
     ctx.drawImage(image, texX, srcY, 1, srcHeight, x, top, width, bottom - top);
-    const fog = fogFactor(hit.distance);
+    const fog = fogFactor(hit.distance) * (isExit ? EXIT_FOG_SCALE : 1);
     if (fog > 0) {
       ctx.globalAlpha = fog;
       ctx.fillStyle = palette.fog;
@@ -354,16 +372,17 @@ function drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHe
   ctx.globalAlpha = 1;
 }
 
-function drawFlatWalls(ctx, hits, palette, cssWidth, cssHeight) {
+function drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit = null) {
   for (let column = 0; column < hits.length; column++) {
     const hit = hits[column];
     const { top, bottom } = projectColumn(hit.distance, cssHeight);
     if (bottom <= top) {
       continue;
     }
-    const base = hit.side === 'x' ? palette.wallLight : palette.wallDark;
-    let color = mixColor(base, palette.fog, fogFactor(hit.distance));
-    if (hit.wallX < EDGE_LOW || hit.wallX > EDGE_HIGH) {
+    const isExit = exit !== null && isExitFace(hit, player, exit);
+    const base = isExit ? palette.exitGlow : (hit.side === 'x' ? palette.wallLight : palette.wallDark);
+    let color = mixColor(base, palette.fog, fogFactor(hit.distance) * (isExit ? EXIT_FOG_SCALE : 1));
+    if (!isExit && (hit.wallX < EDGE_LOW || hit.wallX > EDGE_HIGH)) {
       color = mixColor(color, EDGE_SHADE_COLOR, EDGE_SHADE);
     }
     const x = column * COLUMN_WIDTH;
@@ -396,6 +415,33 @@ function getWallTextures(canvas, palette) {
   }
   textureCache.set(key, textures);
   return textures;
+}
+
+/**
+ * Texture de sortie (canvas hors écran) pour la palette effective, mise en cache.
+ * Ne lève jamais : renvoie null (échec mémorisé) si elle ne peut être créée.
+ */
+function getExitTexture(canvas, palette) {
+  const key = ['exitFrame', 'exitGlow', 'exitCore']
+    .map((name) => (typeof palette[name] === 'string' ? palette[name] : ''))
+    .join(',');
+  if (exitTextureCache.has(key)) {
+    return exitTextureCache.get(key);
+  }
+  if (exitTextureCache.size >= MAX_TEXTURE_CACHE_ENTRIES) {
+    exitTextureCache.clear();
+  }
+  let image = null;
+  try {
+    const ownerDocument = canvas.ownerDocument;
+    if (ownerDocument && typeof ownerDocument.createElement === 'function') {
+      image = toCanvas(ownerDocument, generateExitTexture(palette, TEXTURE_SIZE));
+    }
+  } catch {
+    image = null;
+  }
+  exitTextureCache.set(key, image);
+  return image;
 }
 
 function createWallTextures(ownerDocument, palette) {

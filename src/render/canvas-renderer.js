@@ -9,7 +9,8 @@ const DEFAULT_PADDING = 16;
  * Gère devicePixelRatio pour un rendu net.
  * @param {HTMLCanvasElement} canvas
  * @param {import('../maze/maze.js').Maze} maze
- * @param {{ palette?: object, padding?: number }} [options]
+ * @param {{ palette?: object, padding?: number, exit?: { cellX: number, cellY: number } }} [options]
+ *        exit : cellule de sortie, marqueur dessiné après le sol et avant les murs
  */
 export function drawMaze(canvas, maze, options = {}) {
   const palette = { ...PALETTE, ...(options.palette ?? {}) };
@@ -63,6 +64,24 @@ export function drawMaze(canvas, maze, options = {}) {
     }
   }
   ctx.restore();
+
+  // Marqueur de sortie : carré arrondi (60 % du côté de la cellule), sous les murs.
+  const exit = options.exit;
+  if (
+    exit && Number.isInteger(exit.cellX) && Number.isInteger(exit.cellY)
+    && exit.cellX >= 0 && exit.cellX < maze.width
+    && exit.cellY >= 0 && exit.cellY < maze.height
+  ) {
+    ctx.fillStyle = palette.topExit;
+    fillRoundedRect(
+      ctx,
+      padding + exit.cellX * cellSize + cellSize * 0.2,
+      padding + exit.cellY * cellSize + cellSize * 0.2,
+      cellSize * 0.6,
+      cellSize * 0.6,
+      cellSize * 0.2,
+    );
+  }
 
   // Murs lavande, traits épais et arrondis.
   ctx.strokeStyle = palette.wall;

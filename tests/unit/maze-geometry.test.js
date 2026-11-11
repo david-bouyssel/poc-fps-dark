@@ -120,3 +120,69 @@ describe('PALETTE', () => {
     }
   });
 });
+
+// --- Marqueur de sortie en vue de dessus (plan docs/design/dark-sortie-victoire.md §4.1) ---
+import { drawMaze } from '../../src/render/canvas-renderer.js';
+
+const DRAW_PADDING = 16;
+
+/** Canvas factice : journalise chaque fill/stroke avec la boîte englobante du chemin courant. */
+function recordingMazeCanvas() {
+  const ops = [];
+  let points = [];
+  const context = {
+    fillStyle: '#000000', strokeStyle: '#000000', globalAlpha: 1,
+    lineWidth: 1, lineCap: 'butt', lineJoin: 'miter',
+    setTransform() {}, clearRect() {}, save() {}, restore() {}, closePath() {},
+    beginPath() { points = []; },
+    moveTo(x, y) { points.push([x, y]); },
+    lineTo(x, y) { points.push([x, y]); },
+    arcTo(x1, y1, x2, y2) { points.push([x1, y1], [x2, y2]); },
+    fill() {
+      const xs = points.map((p) => p[0]);
+      const ys = points.map((p) => p[1]);
+      ops.push({ kind: 'fill', fillStyle: this.fillStyle,
+        box: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
+    },
+    stroke() { ops.push({ kind: 'stroke', strokeStyle: this.strokeStyle }); },
+  };
+  const canvas = {
+    width: 0, height: 0, style: {},
+    parentElement: { clientWidth: 400, clientHeight: 300 },
+    getContext: () => context,
+  };
+  return { ops, canvas };
+}
+
+describe('drawMaze : option exit', () => {
+  const maze = generateMaze({ width: 6, height: 4, seed: 5 });
+  const palette = { topExit: '#123456' };
+
+  test('carré topExit centré (60 % du côté), après le sol, avant les murs', () => {
+    const { ops, canvas } = recordingMazeCanvas();
+    drawMaze(canvas, maze, { palette, exit: { cellX: 4, cellY: 2 } });
+    const exitOps = ops.filter((op) => op.fillStyle === palette.topExit && op.kind === 'fill');
+    assert.equal(exitOps.length, 1);
+    const cell = computeCellSize(maze, 400, 300, DRAW_PADDING);
+    const [x0, y0, x1, y1] = exitOps[0].box;
+    const near = (a, b) => assert.ok(Math.abs(a - b) < 1e-6, `${a} != ${b}`);
+    near(x0, DRAW_PADDING + 4 * cell + 0.2 * cell);
+    near(y0, DRAW_PADDING + 2 * cell + 0.2 * cell);
+    near(x1 - x0, 0.6 * cell);
+    near(y1 - y0, 0.6 * cell);
+    const exitIndex = ops.indexOf(exitOps[0]);
+    const floorIndex = ops.findIndex((op) => op.kind === 'fill' && op.fillStyle === PALETTE.floor);
+    const strokeIndex = ops.findIndex((op) => op.kind === 'stroke');
+    assert.ok(floorIndex >= 0 && floorIndex < exitIndex, 'marqueur avant le sol');
+    assert.ok(strokeIndex > exitIndex, 'murs dessinés avant le marqueur');
+  });
+
+  test('exit absent, null ou hors bornes : aucun marqueur, aucune exception', () => {
+    for (const exit of [undefined, null, { cellX: 6, cellY: 0 }, { cellX: 0, cellY: 4 },
+      { cellX: -1, cellY: 0 }, { cellX: 1.5, cellY: 0 }, {}]) {
+      const { ops, canvas } = recordingMazeCanvas();
+      assert.doesNotThrow(() => drawMaze(canvas, maze, { palette, exit }));
+      assert.equal(ops.filter((op) => op.fillStyle === palette.topExit).length, 0, JSON.stringify(exit));
+    }
+  });
+});

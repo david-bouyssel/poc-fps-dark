@@ -6,13 +6,21 @@
 // qu'aucun écouteur global inattendu (message, storage...) n'est posé.
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { generateMaze } from '../../src/maze/maze.js';
+import { toTileGrid } from '../../src/maze/grid.js';
+import { createPlayer } from '../../src/game/player.js';
+import { actionForCode, computeIntent } from '../../src/game/input.js';
+import { stepPlayer } from '../../src/game/movement.js';
+import { findExit } from '../../src/game/exit.js';
+import { shortestPath } from '../../src/game/pathfinding.js';
 
 const ELEMENT_IDS = [
   'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'new-maze-button', 'maze-info',
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
+  'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
 ];
 /** Éléments masqués au chargement, comme dans src/index.html. */
-const HIDDEN_AT_LOAD = new Set(['fps-exit-button', 'fps-help']);
+const HIDDEN_AT_LOAD = new Set(['fps-exit-button', 'fps-help', 'fps-goal', 'end-screen']);
 /** Toute écriture HTML (innerHTML, outerHTML, insertAdjacentHTML) est journalisée ici. */
 const htmlWrites = [];
 
@@ -252,6 +260,135 @@ describe('sécurité du câblage clavier de main.js (DOM factice)', () => {
     for (const code of [...BOUND, 'Escape']) {
       assert.equal(press('keydown', code).defaultPrevented, false, `après sortie : keydown ${code}`);
     }
+  });
+
+  // --- Fin de manche (T4 : sortie et victoire) ---------------------------------------
+  // Pilote automatique en lockstep : le test rejoue en local le même joueur (mêmes
+  // fonctions pures, mêmes dt) et choisit les touches pour suivre le plus court chemin
+  // jusqu'à la sortie. Sans rotation : l'orientation de départ (est ou sud) fixe le sens
+  // des touches W/S/A/D.
+  const endScreen = () => elements.get('end-screen');
+  const FRAME_MS = 50;
+
+  function generateSmallMaze() {
+    elements.get('maze-width').value = '3';
+    elements.get('maze-height').value = '3';
+    form().dispatch('submit', { preventDefault() {} });
+    assert.equal(elements.get('maze-error').textContent, '', 'génération 3 x 3 sans erreur');
+  }
+
+  function currentLocalGrid() {
+    const maze = generateMaze({
+      width: Number(elements.get('maze-width').value),
+      height: Number(elements.get('maze-height').value),
+      seed: Number(elements.get('maze-seed').value),
+    });
+    return toTileGrid(maze);
+  }
+
+  /** Touche pour aller dans la direction (dx, dy) selon l'orientation de départ. */
+  function keyFor(angle, dx, dy) {
+    const east = angle === 0;
+    if (dx > 0) return east ? 'KeyW' : 'KeyA';
+    if (dx < 0) return east ? 'KeyS' : 'KeyD';
+    if (dy > 0) return east ? 'KeyD' : 'KeyW';
+    return east ? 'KeyA' : 'KeyS';
+  }
+
+  /** Mène le joueur à la sortie ; renvoie l'horodatage suivant. */
+  function walkToExit(startTime) {
+    const grid = currentLocalGrid();
+    const exit = findExit(grid);
+    let local = createPlayer(grid);
+    const path = shortestPath(grid, 1, 1, exit.tx, exit.ty);
+    let target = 1;
+    let t = startTime;
+    let first = true;
+    let held = null;
+    for (let i = 0; i < 2000 && frames.size > 0 && endScreen().hidden; i++) {
+      const node = path[Math.min(target, path.length - 1)];
+      const ex = node.tx + 0.5 - local.x;
+      const ey = node.ty + 0.5 - local.y;
+      if (Math.abs(ex) < 0.15 && Math.abs(ey) < 0.15 && target < path.length - 1) target++;
+      let key = null;
+      if (Math.abs(ex) > 0.1) key = keyFor(local.angle, Math.sign(ex), 0);
+      else if (Math.abs(ey) > 0.1) key = keyFor(local.angle, 0, Math.sign(ey));
+      if (key !== held) {
+        if (held) press('keyup', held);
+        if (key) assert.equal(press('keydown', key).defaultPrevented, true, 'touche liée en cours de partie');
+        held = key;
+      }
+      runFrame(t);
+      const dt = first ? 0 : FRAME_MS / 1000;
+      first = false;
+      const actions = new Set(held ? [actionForCode(held)] : []);
+      local = stepPlayer(local, computeIntent(actions), dt, grid);
+      t += FRAME_MS;
+    }
+    if (held) press('keyup', held);
+    assert.equal(endScreen().hidden, false, 'écran de fin affiché à la sortie');
+    assert.equal(frames.size, 0, 'boucle arrêtée en fin de manche');
+    return t;
+  }
+
+  test('fin de manche : écran de fin via textContent, boucle arrêtée, focus sur Rejouer', () => {
+    generateSmallMaze();
+    assert.equal(endScreen().hidden, true);
+    enterButton().dispatch('click', {});
+    assert.equal(frames.size, 1);
+    assert.equal(elements.get('fps-goal').hidden, false, 'objectif affiché en FPS');
+    walkToExit(1_000_000);
+    assert.notEqual(elements.get('end-title').textContent, '');
+    assert.notEqual(elements.get('end-message').textContent, '');
+    assert.equal(fakeDocument.activeElement, elements.get('replay-button'));
+  });
+
+  test('fin de manche : seule Échap est traitée, aucune autre touche bloquée ni relance', () => {
+    const others = [...BOUND, 'KeyM', 'Tab', 'Enter', 'Space', 'NumpadEnter', 'F5'];
+    for (const code of others) {
+      assert.equal(press('keydown', code).defaultPrevented, false, `fin : keydown ${code}`);
+      assert.equal(press('keyup', code).defaultPrevented, false, `fin : keyup ${code}`);
+    }
+    for (const code of ['__proto__', 'constructor', undefined, null, 42]) {
+      assert.doesNotThrow(() => press('keydown', code));
+    }
+    for (const mod of MODIFIERS) {
+      assert.equal(press('keydown', 'Escape', mod).defaultPrevented, false, 'Échap + modificateur ignoré');
+    }
+    assert.equal(frames.size, 0, 'aucune touche ne relance la boucle');
+    assert.equal(endScreen().hidden, false, 'écran de fin toujours visible');
+    const event = press('keydown', 'Escape');
+    assert.equal(event.defaultPrevented, true, 'Échap traitée en fin de manche');
+    assert.equal(form().hidden, false, 'retour à la vue de dessus');
+    assert.equal(endScreen().hidden, true, 'écran de fin masqué');
+    assert.equal(frames.size, 0);
+  });
+
+  test('boutons de fin hors FPS : sans effet (aucune boucle lancée)', () => {
+    elements.get('replay-button').dispatch('click', {});
+    elements.get('end-new-maze-button').dispatch('click', {});
+    assert.equal(frames.size, 0);
+    assert.equal(form().hidden, false);
+  });
+
+  test('Rejouer et Nouveau labyrinthe : une seule boucle, manche neuve, clics répétés sûrs', () => {
+    enterButton().dispatch('click', {});
+    assert.equal(frames.size, 1, 'une partie finie reprend en manche neuve');
+    assert.equal(endScreen().hidden, true);
+    let t = walkToExit(2_000_000);
+    elements.get('replay-button').dispatch('click', {});
+    elements.get('replay-button').dispatch('click', {});
+    assert.equal(frames.size, 1, 'double clic Rejouer : une seule boucle');
+    assert.equal(endScreen().hidden, true);
+    t = walkToExit(t + 1000);
+    elements.get('end-new-maze-button').dispatch('click', {});
+    elements.get('end-new-maze-button').dispatch('click', {});
+    assert.equal(frames.size, 1, 'double clic Nouveau labyrinthe : une seule boucle');
+    assert.equal(endScreen().hidden, true);
+    assert.equal(form().hidden, true, 'on reste en FPS');
+    assert.equal(elements.get('maze-error').textContent, '');
+    press('keydown', 'Escape');
+    assert.equal(frames.size, 0);
   });
 
   test('HUD et textes : aucune écriture HTML (innerHTML/outerHTML/insertAdjacentHTML)', () => {

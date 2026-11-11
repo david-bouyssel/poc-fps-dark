@@ -134,3 +134,34 @@ test('retrait : index.html ne référence aucune clé retirée via data-i18n', (
   }
   assert.doesNotMatch(html, /data-i18n=["']fruit\./);
 });
+
+// --- Sortie et victoire (plan docs/design/dark-sortie-victoire.md §5) ---
+
+const EXPECTED_END = {
+  'fps.goal': 'Trouve la porte lumineuse de la sortie avant de te faire attraper !',
+  'end.wonTitle': 'Tu t’en es sorti !',
+  'end.wonMessage': 'Tu as trouvé la sortie du labyrinthe.',
+  'end.lostTitle': 'Attrapé !',
+  'end.lostMessage': 'Le monstre t’a rattrapé avant la sortie.',
+  'end.replay': 'Rejouer',
+  'end.newMaze': 'Nouveau labyrinthe',
+};
+
+test('sortie : clés fps.goal et end.* présentes, non vides, textes du plan', () => {
+  for (const [key, text] of Object.entries(EXPECTED_END)) {
+    assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
+    assert.ok(fr[key].trim().length > 0, `clé vide : ${key}`);
+    assert.equal(fr[key], text, key);
+    assert.equal(t(key), text, `t(${key})`);
+  }
+});
+
+test('sortie : index.html référence fps.goal, end.replay, end.newMaze via data-i18n', () => {
+  const htmlPath = fileURLToPath(new URL('../../src/index.html', import.meta.url));
+  const html = readFileSync(htmlPath, 'utf8');
+  for (const [id, key] of [['fps-goal', 'fps.goal'], ['replay-button', 'end.replay'], ['end-new-maze-button', 'end.newMaze']]) {
+    const tag = html.match(new RegExp(`<[a-z0-9]+[^>]*id=["']${id}["'][^>]*>`));
+    assert.ok(tag, `élément ${id} absent`);
+    assert.match(tag[0], new RegExp(`data-i18n=["']${key.replace('.', '\.')}["']`), id);
+  }
+});

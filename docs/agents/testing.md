@@ -51,10 +51,15 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/automap.test.js` | `createExploredMask`, `revealVisibleTiles` (voisines, couloir, murs, portée, idempotence, erreurs), `automapLayout` (mini, plein écran, petits canvas), clés `automap*` de `PALETTE` |
 | `tests/functional/fps-automap.test.js` | exploration le long du parcours BFS : tuiles traversées marquées, labyrinthe non entièrement révélé |
 | `tests/unit/sprites.test.js` | projection (cohérence avec `castRays`, tri, exclusions), `worldSize` par sprite |
-| `tests/unit/i18n.test.js` | clés `fps.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
+| `tests/unit/i18n.test.js` | clés `fps.*` (dont `fps.goal`), `end.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
-| `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis, boutons FPS dans `/` |
+| `tests/functional/static-server.test.js` | modules `game/` et `render/` FPS servis (dont sortie et état de partie), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
 | `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
+| `tests/unit/pathfinding.test.js` | `tileDistances`, `pathDistance`, `shortestPath` (couloir, pièce séparée, chemin contigu, déterminisme, gel, erreurs), `cellToTile`, `tileAt` |
+| `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale, cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
+| `tests/unit/game-state.test.js` | `createGameState`, `checkVictory`, `declareDefeat` (premier état final l'emporte, même référence), `isGameOver`, erreurs |
+| `tests/unit/exit-texture.test.js` | `generateExitTexture` (cadre, centre, 3 couleurs, déterminisme, erreurs), `isExitFace` (faces vues depuis la sortie, face opposée d'un mur partagé, exit absent) |
+| `tests/functional/fps-exit.test.js` | parcours `shortestPath` jusqu'à la sortie avec `stepPlayer` : `PLAYING` avant la tuile de sortie, `WON` en y entrant, `declareDefeat` sans effet ensuite |
 
 Dans `fps-renderer.js`, seul l'état `globalAlpha` du dessin des murs texturés est
 testé (faux contexte, `tests/unit/fps-renderer.test.js`). Le reste (cache de
@@ -121,6 +126,15 @@ bleu pâle étoilé, sans trou ni décalage à la jonction avec les murs ; motif
 monde quand on avance ou tourne (il ne glisse pas avec la caméra) ; brouillard du sol
 raccordé à celui des murs au loin, moiré faible ; redimensionnement -> rendu net ;
 fluidité correcte en 64 x 64 et en plein écran ; console sans erreur.
+
+Sortie et victoire : porte lumineuse visible au loin en FPS, cadrée, jamais sur la face
+opposée d'un mur ; marqueur de sortie en vue de dessus ; automap : sortie affichée
+seulement une fois vue ; objectif affiché sous l'aide en FPS ; entrée dans la sortie ->
+écran de fin, boucle arrêtée, mini-carte visible dessous, focus sur « Rejouer » ; Tab
+passe d'un bouton à l'autre ; « Rejouer » -> départ, même sortie, exploration vide ;
+« Nouveau labyrinthe » -> autre graine, on reste en FPS ; Échap sur l'écran de fin ->
+vue de dessus, puis « Explorer en 3D » -> manche neuve ; même graine -> même sortie ;
+console sans erreur.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir

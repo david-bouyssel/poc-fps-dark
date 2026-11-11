@@ -16,7 +16,8 @@ const PANEL_RADIUS = 10;
  * @param {Uint8Array} explored
  * @param {{ x: number, y: number, angle: number }} player
  * @param {'mini' | 'full'} mode
- * @param {{ palette?: object }} [options]
+ * @param {{ palette?: object, exit?: { tx: number, ty: number } }} [options]
+ *        exit : tuile de sortie, peinte (automapExit) seulement si explorée
  */
 export function drawAutomap(canvas, grid, explored, player, mode, options = {}) {
   const context = canvas.getContext('2d');
@@ -62,6 +63,17 @@ export function drawAutomap(canvas, grid, explored, player, mode, options = {}) 
           grid.tiles[index] === TILE.FLOOR ? palette.automapFloor : palette.automapWall;
         context.fillRect(originX + tx * scale, originY + ty * scale, size, size);
       }
+    }
+
+    // Sortie : seulement si sa tuile est explorée.
+    const exit = options?.exit;
+    if (
+      exit && Number.isInteger(exit.tx) && Number.isInteger(exit.ty)
+      && exit.tx >= 0 && exit.tx < grid.width && exit.ty >= 0 && exit.ty < grid.height
+      && explored[exit.ty * grid.width + exit.tx] === 1
+    ) {
+      context.fillStyle = palette.automapExit;
+      context.fillRect(originX + exit.tx * scale, originY + exit.ty * scale, size, size);
     }
 
     drawPlayer(context, palette, originX + player.x * scale, originY + player.y * scale,

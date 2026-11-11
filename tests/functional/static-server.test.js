@@ -184,3 +184,62 @@ test('retrait : GET / ne contient plus de HUD (fps-hud, fps-score, fps-all-colle
   }
   assert.doesNotMatch(body, /class=["'][^"']*\bhud\b/, 'classe hud résiduelle');
 });
+
+// --- Sortie et victoire (plan docs/design/dark-sortie-victoire.md §6) ---
+
+const EXIT_MODULES = [
+  ['/game/pathfinding.js', 'shortestPath'],
+  ['/game/exit.js', 'findExit'],
+  ['/game/game-state.js', 'checkVictory'],
+  ['/render/exit-texture.js', 'generateExitTexture'],
+];
+
+for (const [path, symbol] of EXIT_MODULES) {
+  test(`sortie : GET ${path} -> 200 text/javascript`, async () => {
+    const res = await fetch(`${base}${path}`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /^text\/javascript; charset=utf-8/);
+    const body = await res.text();
+    assert.ok(body.includes(symbol), `${path} ne contient pas ${symbol}`);
+  });
+}
+
+test('sortie : GET / contient end-screen, replay-button, end-new-maze-button, fps-goal', async () => {
+  const res = await fetch(`${base}/`);
+  assert.equal(res.status, 200);
+  const body = await res.text();
+  for (const id of ['end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button', 'fps-goal']) {
+    assert.match(body, new RegExp(`id=["']${id}["']`), id);
+  }
+  const tagOf = (id) => body.match(new RegExp(`<[a-z0-9]+[^>]*id=["']${id}["'][^>]*>`))[0];
+  // Masqués au chargement.
+  for (const id of ['end-screen', 'fps-goal']) {
+    assert.match(tagOf(id), /\shidden[\s>=]/, `${id} visible au chargement`);
+  }
+  // Accessibilité de l'écran de fin.
+  const screen = tagOf('end-screen');
+  assert.match(screen, /role=["']alertdialog["']/);
+  assert.match(screen, /aria-labelledby=["']end-title["']/);
+  assert.match(screen, /aria-describedby=["']end-message["']/);
+  for (const id of ['replay-button', 'end-new-maze-button']) {
+    assert.match(tagOf(id), /^<button/, `${id} doit être un bouton`);
+    assert.match(tagOf(id), /type=["']button["']/, `${id} type=button`);
+  }
+  // Écran de fin placé dans #maze-stage, après le canvas.
+  const stage = body.indexOf('id="maze-stage"');
+  assert.ok(stage >= 0, 'maze-stage absent');
+  assert.ok(body.indexOf('<canvas', stage) < body.indexOf('id="end-screen"'), 'end-screen avant le canvas');
+});
+
+test('sortie : écran de fin et objectif sans texte en dur', async () => {
+  const body = await (await fetch(`${base}/`)).text();
+  const start = body.indexOf('<div id="end-screen"');
+  assert.ok(start >= 0);
+  // Contenu jusqu'au dernier bouton de l'écran de fin inclus.
+  const end = body.indexOf('</button>', body.indexOf('id="end-new-maze-button"')) + '</button>'.length;
+  const fragment = body.slice(start, end).replace(/<[^>]*>/g, ' ');
+  assert.deepEqual(fragment.match(/\p{L}+/gu) ?? [], []);
+  const goal = body.match(/<p[^>]*id=["']fps-goal["'][^>]*>([\s\S]*?)<\/p>/);
+  assert.ok(goal);
+  assert.equal(goal[1].trim(), '');
+});

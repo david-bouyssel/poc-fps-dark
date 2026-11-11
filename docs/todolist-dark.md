@@ -30,7 +30,7 @@ tri final revient à l'orchestrateur).
   noircies), plafond sombre sans étoiles, sol sombre, brouillard vers le noir (portée de
   vue réduite), automap et vue de dessus assorties. Textes de l'interface lisibles
   (contraste suffisant).
-- [ ] **Sortie et victoire** [complète] : cellule de sortie déterministe par graine (la
+- [x] **Sortie et victoire** [complète] : cellule de sortie déterministe par graine (la
   plus éloignée de (0, 0) en distance de chemin, BFS pur, sans toucher à
   `generateMaze`). Visible en FPS (lueur ou texture dédiée), en vue de dessus et sur
   l'automap. Atteindre la sortie = victoire. État de partie pur

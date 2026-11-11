@@ -265,3 +265,70 @@ describe('clés automap* de PALETTE', () => {
     });
   }
 });
+
+// --- Sortie sur l'automap (plan docs/design/dark-sortie-victoire.md §4.1) ---
+import { drawAutomap } from '../../src/render/automap-renderer.js';
+
+function recordingCanvas(width = 400, height = 300) {
+  const ops = [];
+  const context = {
+    fillStyle: '#000000',
+    globalAlpha: 1,
+    save() {}, restore() {}, setTransform() {}, beginPath() {}, closePath() {},
+    rect() {}, roundRect() {}, clip() {}, moveTo() {}, lineTo() {},
+    fillRect(...args) { ops.push({ kind: 'fillRect', args, fillStyle: this.fillStyle }); },
+    fill() { ops.push({ kind: 'fill', fillStyle: this.fillStyle }); },
+  };
+  return { ops, canvas: { width, height, getContext: () => context } };
+}
+
+describe('drawAutomap : option exit', () => {
+  const g = room(9, 7);
+  const exit = Object.freeze({ tx: 6, ty: 4 });
+  const player = { x: 2.5, y: 2.5, angle: 0 };
+  const palette = { ...PALETTE, automapExit: '#123456' };
+
+  for (const mode of [AUTOMAP_MODE.MINI, AUTOMAP_MODE.FULL]) {
+    test(`${mode} : sortie explorée peinte en automapExit, après les tuiles, avant le joueur`, () => {
+      const explored = createExploredMask(g).fill(1);
+      const { ops, canvas } = recordingCanvas();
+      drawAutomap(canvas, g, explored, player, mode, { palette, exit });
+      const exitIndex = ops.findIndex((op) => op.fillStyle === palette.automapExit);
+      assert.ok(exitIndex >= 0, 'sortie non peinte');
+      assert.equal(ops[exitIndex].kind, 'fillRect');
+      assert.equal(ops.filter((op) => op.fillStyle === palette.automapExit).length, 1);
+      const lastTile = ops.findLastIndex((op) => op.kind === 'fillRect'
+        && (op.fillStyle === palette.automapFloor || op.fillStyle === palette.automapWall));
+      const playerIndex = ops.findIndex((op) => op.kind === 'fill' && op.fillStyle === palette.automapPlayer);
+      assert.ok(exitIndex > lastTile, 'sortie peinte avant les tuiles');
+      assert.ok(playerIndex > exitIndex, 'joueur dessiné avant la sortie');
+    });
+
+    test(`${mode} : sortie non explorée -> rien`, () => {
+      const explored = createExploredMask(g).fill(1);
+      explored[exit.ty * g.width + exit.tx] = 0;
+      const { ops, canvas } = recordingCanvas();
+      drawAutomap(canvas, g, explored, player, mode, { palette, exit });
+      assert.equal(ops.filter((op) => op.fillStyle === palette.automapExit).length, 0);
+    });
+  }
+
+  test('sortie peinte à la place de la tuile (même rectangle que sa tuile de sol)', () => {
+    const explored = createExploredMask(g).fill(1);
+    const { ops, canvas } = recordingCanvas();
+    drawAutomap(canvas, g, explored, player, AUTOMAP_MODE.FULL, { palette, exit });
+    const exitRect = ops.find((op) => op.fillStyle === palette.automapExit).args;
+    const { scale, originX, originY } = automapLayout(AUTOMAP_MODE.FULL, g, player, 400, 300);
+    assert.ok(Math.abs(exitRect[0] - (originX + exit.tx * scale)) < 1e-9);
+    assert.ok(Math.abs(exitRect[1] - (originY + exit.ty * scale)) < 1e-9);
+  });
+
+  test('sans exit, exit null ou mal formé : rien, aucune exception', () => {
+    const explored = createExploredMask(g).fill(1);
+    for (const opt of [{}, { exit: null }, { exit: {} }, { exit: { tx: NaN, ty: 1 } }, { exit: { tx: 99, ty: 99 } }]) {
+      const { ops, canvas } = recordingCanvas();
+      assert.doesNotThrow(() => drawAutomap(canvas, g, explored, player, AUTOMAP_MODE.FULL, { palette, ...opt }));
+      assert.equal(ops.filter((op) => op.fillStyle === palette.automapExit).length, 0, JSON.stringify(opt));
+    }
+  });
+});

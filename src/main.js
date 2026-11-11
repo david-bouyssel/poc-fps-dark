@@ -5,6 +5,13 @@ import { createPlayer } from './game/player.js';
 import { ACTION, actionForCode, computeIntent } from './game/input.js';
 import { stepPlayer } from './game/movement.js';
 import { createGameLoop } from './game/loop.js';
+import { findExit } from './game/exit.js';
+import {
+  GAME_STATUS,
+  checkVictory,
+  createGameState,
+  isGameOver,
+} from './game/game-state.js';
 import { drawMaze } from './render/canvas-renderer.js';
 import { drawFpsView } from './render/fps-renderer.js';
 import {
@@ -29,6 +36,12 @@ const canvas = document.getElementById('maze-canvas');
 const fpsEnterButton = document.getElementById('fps-enter-button');
 const fpsExitButton = document.getElementById('fps-exit-button');
 const fpsHelp = document.getElementById('fps-help');
+const fpsGoal = document.getElementById('fps-goal');
+const endScreen = document.getElementById('end-screen');
+const endTitle = document.getElementById('end-title');
+const endMessage = document.getElementById('end-message');
+const replayButton = document.getElementById('replay-button');
+const endNewMazeButton = document.getElementById('end-new-maze-button');
 
 const VIEW_TOP = 'top';
 const VIEW_FPS = 'fps';
@@ -37,6 +50,10 @@ const VIEW_FPS = 'fps';
 let currentMaze = null;
 /** Grille de tuiles du labyrinthe courant (vue FPS). */
 let currentGrid = null;
+/** Sortie du labyrinthe courant (Exit gelé) ; null avant la première génération. */
+let currentExit = null;
+/** État de la manche courante (GameState gelé) ; null avant la première génération. */
+let gameState = null;
 /** Joueur courant ; null tant qu'aucune entrée en FPS depuis la dernière génération. */
 let player = null;
 /** @type {'top' | 'fps'} */
@@ -51,12 +68,19 @@ let resizeFrame = 0;
 
 const gameLoop = createGameLoop({
   update(dt) {
+    if (isGameOver(gameState)) {
+      return;
+    }
     player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
     revealVisibleTiles(explored, currentGrid, player);
+    // Frame order (contract for the future monster): stepPlayer, then checkVictory.
+    gameState = checkVictory(gameState, player, currentExit);
+    if (isGameOver(gameState)) {
+      endRound();
+    }
   },
   render() {
-    drawFpsView(canvas, currentGrid, player);
-    drawAutomap(canvas, currentGrid, explored, player, mapMode);
+    drawFpsFrame();
   },
   requestFrame: (callback) => requestAnimationFrame(callback),
   cancelFrame: (id) => cancelAnimationFrame(id),
@@ -93,22 +117,36 @@ function clearError() {
   errorElement.textContent = '';
 }
 
+/** Dessine une image FPS (vue 3D puis automap) de la manche courante. */
+function drawFpsFrame() {
+  drawFpsView(canvas, currentGrid, player, { exit: currentExit });
+  drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
+}
+
 function render() {
   if (viewMode === VIEW_TOP && currentMaze) {
-    drawMaze(canvas, currentMaze);
+    drawMaze(canvas, currentMaze, { exit: currentExit });
+  } else if (viewMode === VIEW_FPS && player !== null && !gameLoop.isRunning()) {
+    // Round over: keep the last frame (and the mini-map) visible under the end screen.
+    drawFpsFrame();
   }
+}
+
+function hideEndScreen() {
+  endScreen.hidden = true;
 }
 
 /**
  * Valide la saisie puis génère et affiche un labyrinthe.
  * @param {{ forceRandomSeed: boolean }} options
+ * @returns {boolean} true si un nouveau labyrinthe a été généré
  */
 function generateFromForm({ forceRandomSeed }) {
   const width = readNonNegativeInteger(widthInput);
   const height = readNonNegativeInteger(heightInput);
   if (!isValidSize(width) || !isValidSize(height)) {
     showError('errors.size', { min: MAZE_LIMITS.minSize, max: MAZE_LIMITS.maxSize });
-    return;
+    return false;
   }
 
   let seed;
@@ -118,23 +156,30 @@ function generateFromForm({ forceRandomSeed }) {
     seed = readNonNegativeInteger(seedInput);
     if (seed === null || seed > MAX_SEED) {
       showError('errors.seed', { max: MAX_SEED });
-      return;
+      return false;
     }
   }
 
   let maze;
+  let grid;
+  let exit;
   try {
     maze = generateMaze({ width, height, seed });
+    grid = toTileGrid(maze);
+    exit = findExit(grid);
   } catch {
     showError('errors.generic');
-    return;
+    return false;
   }
 
   seedInput.value = String(seed);
   currentMaze = maze;
-  currentGrid = toTileGrid(maze);
+  currentGrid = grid;
+  currentExit = exit;
+  gameState = createGameState();
   player = null;
   explored = createExploredMask(currentGrid);
+  hideEndScreen();
   clearError();
   infoElement.textContent = t('info.current', {
     seed: maze.seed,
@@ -142,6 +187,7 @@ function generateFromForm({ forceRandomSeed }) {
     height: maze.height,
   });
   render();
+  return true;
 }
 
 function onResize() {
@@ -154,18 +200,75 @@ function onResize() {
   });
 }
 
+/**
+ * Démarre une manche neuve sur le labyrinthe courant (même sortie) : joueur au départ,
+ * exploration remise à zéro, partie en cours, écran de fin masqué. Point d'accroche du
+ * futur monstre.
+ * @returns {boolean} false si le joueur n'a pas pu être créé (erreur affichée)
+ */
+function startRound() {
+  let nextPlayer;
+  try {
+    nextPlayer = createPlayer(currentGrid);
+  } catch {
+    showError('errors.generic');
+    return false;
+  }
+  player = nextPlayer;
+  explored = createExploredMask(currentGrid);
+  gameState = createGameState();
+  pressedActions.clear();
+  hideEndScreen();
+  return true;
+}
+
+/**
+ * Termine la manche (victoire ou défaite) : boucle arrêtée, dernière image dessinée,
+ * écran de fin affiché avec le focus sur « Rejouer ».
+ */
+function endRound() {
+  gameLoop.stop();
+  pressedActions.clear();
+  mapMode = AUTOMAP_MODE.MINI;
+  canvas.setAttribute('aria-label', t('canvas.labelFps'));
+  drawFpsFrame();
+  const won = gameState.status === GAME_STATUS.WON;
+  endTitle.textContent = t(won ? 'end.wonTitle' : 'end.lostTitle');
+  endMessage.textContent = t(won ? 'end.wonMessage' : 'end.lostMessage');
+  endScreen.hidden = false;
+  replayButton.focus();
+}
+
+/** « Rejouer » : manche neuve sur le même labyrinthe (même sortie). */
+function replay() {
+  if (viewMode !== VIEW_FPS || !startRound()) {
+    return;
+  }
+  gameLoop.start();
+  fpsExitButton.focus();
+}
+
+/** « Nouveau labyrinthe » de l'écran de fin : autre graine, on reste en FPS. */
+function newMazeFromEndScreen() {
+  if (viewMode !== VIEW_FPS) {
+    return;
+  }
+  // On failure the error is shown and the end screen stays.
+  if (!generateFromForm({ forceRandomSeed: true }) || !startRound()) {
+    return;
+  }
+  gameLoop.start();
+  fpsExitButton.focus();
+}
+
 /** Passe en vue à la première personne (labyrinthe courant, sans regénération). */
 function enterFps() {
   if (viewMode === VIEW_FPS || !currentGrid) {
     return;
   }
-  if (player === null) {
-    try {
-      player = createPlayer(currentGrid);
-    } catch {
-      showError('errors.generic');
-      return;
-    }
+  // A finished round is never resumed as is.
+  if ((player === null || isGameOver(gameState)) && !startRound()) {
+    return;
   }
   viewMode = VIEW_FPS;
   mapMode = AUTOMAP_MODE.MINI;
@@ -173,6 +276,7 @@ function enterFps() {
   fpsEnterButton.hidden = true;
   fpsExitButton.hidden = false;
   fpsHelp.hidden = false;
+  fpsGoal.hidden = false;
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
   pressedActions.clear();
   gameLoop.start();
@@ -193,6 +297,8 @@ function exitFps() {
   fpsEnterButton.hidden = false;
   fpsExitButton.hidden = true;
   fpsHelp.hidden = true;
+  fpsGoal.hidden = true;
+  hideEndScreen();
   canvas.setAttribute('aria-label', t('canvas.label'));
   render();
   fpsEnterButton.focus();
@@ -220,6 +326,11 @@ function toggleMap() {
 function onKeyDown(event) {
   const action = boundKeyDownAction(event);
   if (action === null) {
+    return;
+  }
+  // Round over: only Escape is handled; other keys keep their default behaviour
+  // (Tab, Enter and Space stay usable on the end screen buttons).
+  if (isGameOver(gameState) && action !== ACTION.EXIT) {
     return;
   }
   event.preventDefault();
@@ -269,6 +380,8 @@ function init() {
 
   fpsEnterButton.addEventListener('click', enterFps);
   fpsExitButton.addEventListener('click', exitFps);
+  replayButton.addEventListener('click', replay);
+  endNewMazeButton.addEventListener('click', newMazeFromEndScreen);
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => {

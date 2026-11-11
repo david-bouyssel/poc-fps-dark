@@ -41,9 +41,18 @@
         <button id="fps-exit-button" type="button" class="button button-secondary" data-i18n="fps.exit" hidden></button>
       </div>
       <p id="fps-help" class="help" data-i18n="fps.help" hidden></p>
+      <p id="fps-goal" class="help" data-i18n="fps.goal" hidden></p>
 
       <div id="maze-stage" class="stage">
         <canvas id="maze-canvas" role="img" data-i18n-aria-label="canvas.label"></canvas>
+        <div id="end-screen" class="end-screen" role="alertdialog" aria-labelledby="end-title" aria-describedby="end-message" hidden>
+          <h2 id="end-title" class="end-title"></h2>
+          <p id="end-message" class="end-message"></p>
+          <div class="buttons end-buttons">
+            <button id="replay-button" type="button" class="button button-primary" data-i18n="end.replay"></button>
+            <button id="end-new-maze-button" type="button" class="button button-secondary" data-i18n="end.newMaze"></button>
+          </div>
+        </div>
       </div>
     </main>
   </body>

@@ -221,3 +221,137 @@ describe('drawFpsView : murs texturés opaques, voile de brouillard seul atténu
     }
   });
 });
+
+// --- Sortie : option exit (plan docs/design/dark-sortie-victoire.md §4.1) ---
+import { fogFactor, mixColor, castRays } from '../../src/render/raycaster.js';
+import { EXIT_FOG_SCALE } from '../../src/render/exit-texture.js';
+import { gridFromRows } from './fps-test-grids.js';
+
+/** Env. dont les canvas hors écran gardent les pixels posés (repère la texture de sortie). */
+function makeExitEnv({ withDocument = true } = {}) {
+  const base = makeEnv();
+  const pixelsOf = new Map();
+  if (withDocument) {
+    base.canvas.ownerDocument = {
+      createElement(tag) {
+        const context = fakeContext([]);
+        const element = { tag, width: 0, height: 0, getContext: () => context };
+        context.putImageData = (imageData) => { pixelsOf.set(element, imageData.data); };
+        base.created.push(element);
+        return element;
+      },
+    };
+  } else {
+    delete base.canvas.ownerDocument;
+  }
+  return { ...base, pixelsOf };
+}
+
+/** Palette avec couleurs exit* uniques (évite le cache module), cœur reconnaissable. */
+let exitPaletteCounter = 0;
+function exitPalette() {
+  exitPaletteCounter += 1;
+  const n = exitPaletteCounter.toString(16).padStart(4, '0');
+  return { ...uniquePalette(), exitFrame: `#01${n}`, exitGlow: `#02${n}`, exitCore: `#03${n}` };
+}
+
+function hasColor(data, color) {
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i] === r && data[i + 1] === g && data[i + 2] === b) return true;
+  }
+  return false;
+}
+
+function exitImagesOf(env, palette) {
+  return new Set([...env.pixelsOf].filter(([, data]) => hasColor(data, palette.exitCore)).map(([el]) => el));
+}
+
+// Couloir est-ouest long : sortie en (8, 1), joueur en (1.5, 1.5) regardant l'est vers le
+// mur (9, 1), face tournée vers la sortie.
+const exitCorridor = gridFromRows(['##########', '#........#', '##########']);
+const exitPlayer = { x: 1.5, y: 1.5, angle: 0 };
+const corridorExit = Object.freeze({ tx: 8, ty: 1 });
+
+describe('drawFpsView : faces de sortie (option exit)', () => {
+  test('faces tournées vers la sortie : texture de sortie dessinée, à globalAlpha 1', () => {
+    const env = makeExitEnv();
+    const palette = exitPalette();
+    drawFpsView(env.canvas, exitCorridor, exitPlayer, { palette, exit: corridorExit });
+    const exitImages = exitImagesOf(env, palette);
+    assert.equal(exitImages.size, 1, 'une texture de sortie hors écran');
+    const draws = env.sequence.filter((op) => op.kind === 'draw' && exitImages.has(op.image));
+    assert.ok(draws.length > 0, 'aucune colonne de sortie dessinée');
+    for (const op of draws) assert.equal(op.globalAlpha, 1);
+  });
+
+  test('voile de brouillard des faces de sortie = voile normal * EXIT_FOG_SCALE', () => {
+    const fogByColumn = (exit) => {
+      const env = makeExitEnv();
+      const palette = exitPalette();
+      drawFpsView(env.canvas, exitCorridor, exitPlayer, { palette, exit });
+      const exitImages = exitImagesOf(env, palette);
+      const result = new Map();
+      env.sequence.forEach((op, i) => {
+        if (op.kind !== 'fill' || op.fillStyle !== palette.fog) return;
+        const prev = env.sequence[i - 1];
+        if (prev?.kind !== 'draw') return;
+        result.set(op.args[0], { alpha: op.globalAlpha, exit: exitImages.has(prev.image) });
+      });
+      return result;
+    };
+    const normal = fogByColumn(undefined);
+    const withExit = fogByColumn(corridorExit);
+    let compared = 0;
+    for (const [x, { alpha, exit }] of withExit) {
+      if (!exit) continue;
+      const ref = normal.get(x);
+      assert.ok(ref, `colonne ${x} : voile normal absent`);
+      assert.ok(Math.abs(alpha - ref.alpha * EXIT_FOG_SCALE) < 1e-9, `colonne ${x} : ${alpha} vs ${ref.alpha}`);
+      compared++;
+    }
+    assert.ok(compared > 0, 'aucune colonne de sortie avec voile (test vide)');
+  });
+
+  test('sans exit (absent ou null) : aucune texture de sortie dessinée', () => {
+    for (const exit of [undefined, null]) {
+      const env = makeExitEnv();
+      const palette = exitPalette();
+      drawFpsView(env.canvas, exitCorridor, exitPlayer, { palette, exit });
+      const exitImages = exitImagesOf(env, palette);
+      const draws = env.sequence.filter((op) => op.kind === 'draw' && exitImages.has(op.image));
+      assert.equal(draws.length, 0, String(exit));
+    }
+  });
+
+  test('exit ailleurs (face non tournée vers la sortie) : aucune colonne de sortie', () => {
+    const env = makeExitEnv();
+    const palette = exitPalette();
+    // Sortie en (1, 1) derrière le joueur regardant l'est : le mur (9, 1) n'est pas adjacent.
+    drawFpsView(env.canvas, exitCorridor, { x: 4.5, y: 1.5, angle: 0 }, { palette, exit: { tx: 1, ty: 1 } });
+    const exitImages = exitImagesOf(env, palette);
+    const draws = env.sequence.filter((op) => op.kind === 'draw' && exitImages.has(op.image));
+    // Le champ de vision (est) ne montre pas le mur ouest (0, 1).
+    assert.equal(draws.length, 0);
+  });
+
+  test('exit mal formé : aucune exception', () => {
+    for (const exit of [{}, { tx: NaN, ty: 1 }, { tx: '8', ty: 1 }, 42]) {
+      const env = makeExitEnv();
+      assert.doesNotThrow(() => drawFpsView(env.canvas, exitCorridor, exitPlayer, { palette: exitPalette(), exit }));
+      assert.equal(env.mainContext.globalAlpha, 1);
+    }
+  });
+
+  test('repli aplat (pas de ownerDocument) : exitGlow mélangé vers fog * EXIT_FOG_SCALE', () => {
+    const env = makeExitEnv({ withDocument: false });
+    const palette = exitPalette();
+    assert.doesNotThrow(() => drawFpsView(env.canvas, exitCorridor, exitPlayer, { palette, exit: corridorExit }));
+    const hits = castRays(exitCorridor, exitPlayer, VIEW_WIDTH / 2);
+    const expected = new Set(hits.map((h) => mixColor(palette.exitGlow, palette.fog, fogFactor(h.distance) * EXIT_FOG_SCALE)));
+    const fills = env.sequence.filter((op) => op.kind === 'fill' && expected.has(op.fillStyle));
+    assert.ok(fills.length > 0, 'aucune colonne de sortie en aplat');
+  });
+});

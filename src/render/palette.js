@@ -32,4 +32,10 @@ export const PALETTE = Object.freeze({
   automapFloor: '#2a2230', // sol vu
   automapWall: '#6a6573', // mur vu
   automapPlayer: '#d6455d', // rouge vif, joueur
+  // Teintes de la sortie (porte lumineuse, marqueurs).
+  exitFrame: '#5a4626', // cadre bois sombre
+  exitGlow: '#ffc861', // lueur dorée
+  exitCore: '#fff3d1', // cœur de lumière
+  automapExit: '#ffc861', // sortie sur l'automap
+  topExit: '#ffc861', // marqueur de la vue de dessus
 });
