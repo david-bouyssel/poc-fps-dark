@@ -132,6 +132,62 @@ convertit la ligne `model:` d'un format à l'autre : `model: opus` côté Claude
 `reasoning-effort:` (Copilot). À chaque nouvelle version de modèle, mettre à jour la
 table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 
+## Sécurité des agents
+
+Les agents obéissent à des fichiers texte : définitions d'agents, `CLAUDE.md`,
+`AGENTS.md`, instructions Copilot, skills. Une pull request peut y glisser des
+instructions malveillantes. Elle peut aussi modifier un hook ou un script qui s'exécute
+sur ta machine. Trois protections s'ajoutent à ta relecture.
+
+### Audit automatique des PR
+
+Le workflow `.github/workflows/audit-agents.yml` lance `scripts/audit-agents.mjs` sur
+chaque PR. Il ne relit que les lignes ajoutées.
+
+| Niveau | Constat |
+|---|---|
+| **Erreur** (job en échec) | Caractère invisible ou bidirectionnel (texte caché au relecteur mais lu par le modèle) ; consigne de contournement des instructions ou de dissimulation à l'utilisateur ; téléchargement exécuté directement ; contournement des permissions ; domaine d'exfiltration connu ; permission `Bash` sans restriction |
+| **Alerte** (annotation dans la PR) | Outil ajouté à un agent, ligne `tools:` retirée, modèle changé ; nouvel agent, skill, commande ou prompt ; hook, script, workflow, `CODEOWNERS` ou configuration MCP modifié ; nouvelle commande de hook ou nouvelle permission ; URL externe, commentaire HTML, mention de secret, long bloc encodé |
+
+En PR, le scanner est lu sur la branche cible et non dans la PR : une PR ne peut pas
+l'affaiblir pour se valider elle-même. Sur `main`, le workflow analyse tout le dépôt.
+
+Le scanner cherche des motifs connus. Il ne remplace pas la relecture : une
+consigne malveillante bien formulée passe au travers. Il sert à rendre visible ce qui
+ne l'est pas et à pointer les fichiers à relire en priorité.
+
+### Revue obligatoire : `CODEOWNERS`
+
+`.github/CODEOWNERS` rend ta revue obligatoire pour les fichiers des agents, les hooks,
+les scripts et la CI. Pour que ce soit effectif, active une règle de protection sur
+`main` (*Settings > Rules > Rulesets* ou *Settings > Branches*) :
+
+- *Require a pull request before merging*, avec *Require review from Code Owners* ;
+- *Dismiss stale pull request approvals when new commits are pushed*, pour qu'un commit
+  ajouté après ton approbation demande une nouvelle revue ;
+- *Require status checks to pass*, avec le job `audit`.
+
+GitHub ne permet pas d'approuver sa propre PR. Si tu es seul sur le dépôt, garde le
+contournement réservé aux administrateurs pour merger tes propres PR.
+
+### Auditer une PR avant de la récupérer
+
+Récupérer la branche d'une PR puis y lancer Claude Code peut exécuter ses hooks
+(`.claude/settings.json`) et ses scripts. Audite-la d'abord, sans toucher à ton arbre
+de travail :
+
+```bash
+git fetch origin pull/<numéro>/head:pr-<numéro>
+```
+
+```bash
+node scripts/audit-agents.mjs --base main --head pr-<numéro>
+```
+
+Le scanner lit alors le contenu dans git, pas dans l'arbre de travail : rien de la PR ne
+s'exécute. Relis ensuite le diff de `.claude/settings.json` et de `scripts/` avant de
+récupérer la branche dans ton arbre de travail.
+
 ## Contenu du dépôt
 
 | Chemin | Rôle |
@@ -145,6 +201,9 @@ table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 | `scripts/sync-agents.mjs` | Synchro bidirectionnelle des agents (`--check` pour vérifier) |
 | `.githooks/pre-commit` | Synchro des agents avant chaque commit |
 | `.github/workflows/check-agents-sync.yml` | CI : échoue si les agents divergent |
+| `scripts/audit-agents.mjs` | Audit de sécurité des fichiers des agents (tests : `node --test "scripts/*.test.mjs"`) |
+| `.github/workflows/audit-agents.yml` | CI : audit de sécurité de chaque PR et tests du scanner |
+| `.github/CODEOWNERS` | Revue obligatoire des fichiers des agents, hooks, scripts et CI |
 | `docs/agents/` | Gabarits à remplir : architecture, conventions, tests, build |
 | `docs/design/` | Plans de conception produits par le `concepteur` |
 
@@ -164,6 +223,8 @@ table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 4. Compléter `AGENTS.md` et les gabarits de `docs/agents/` avec les spécificités du
    projet.
 5. Ajuster les axes de vérification de `testeur-securite` au profil de risque réel.
+6. Remplacer le compte de `.github/CODEOWNERS` et activer la protection de branche
+   (section « Sécurité des agents »).
 
 Les agents s'éditent indifféremment côté Copilot ou côté Claude Code : la synchro est
 automatique. Pour la lancer à la main :
