@@ -1,4 +1,4 @@
-// Fonctionnement sous un sous-chemin (GitHub Pages : /poc-fps-orchestration/).
+// Fonctionnement sous un sous-chemin (GitHub Pages : /poc-fps-dark/).
 // Plan : docs/design/publication-pages.md, § 6, `subpath-resolution.test.js`.
 // Analyse textuelle de src/ : aucune dépendance, compatible Node 20.
 import { test } from 'node:test';
@@ -8,7 +8,7 @@ import { join, relative, sep, isAbsolute } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const SRC_DIR = fileURLToPath(new URL('../../src/', import.meta.url));
-const BASE = 'https://example.github.io/poc-fps-orchestration/';
+const BASE = 'https://example.github.io/poc-fps-dark/';
 
 function walk(dir) {
   const files = [];

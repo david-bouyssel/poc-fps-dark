@@ -5,9 +5,11 @@ import { fileURLToPath } from 'node:url';
 import { fr } from '../../src/i18n/fr.js';
 import { t } from '../../src/i18n/i18n.js';
 
+// app.title / app.subtitle : texte laissé au développeur (plan dark-renommage.md) ;
+// seules la présence et la non-vacuité sont vérifiées, pas le libellé exact.
+const TEXTES_LIBRES = ['app.title', 'app.subtitle'];
+
 const EXPECTED = {
-  'app.title': 'Mini Labyrinthe',
-  'app.subtitle': 'Un petit labyrinthe tout doux, généré au hasard',
   'form.width': 'Largeur',
   'form.height': 'Hauteur',
   'form.seed': 'Graine (optionnelle)',
@@ -26,9 +28,17 @@ test('fr est un objet gelé à plat', () => {
 });
 
 test('toutes les clés du plan existent, chaînes non vides', () => {
-  for (const key of Object.keys(EXPECTED)) {
+  for (const key of [...Object.keys(EXPECTED), ...TEXTES_LIBRES]) {
     assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
-    assert.ok(fr[key].length > 0, `clé vide : ${key}`);
+    assert.ok(fr[key].trim().length > 0, `clé vide : ${key}`);
+  }
+});
+
+test('app.title et app.subtitle : clés présentes, non vides, issues de fr.js', () => {
+  for (const key of TEXTES_LIBRES) {
+    assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
+    assert.ok(fr[key].trim().length > 0, `clé vide : ${key}`);
+    assert.equal(t(key), fr[key], `t(${key}) doit renvoyer fr.js`);
   }
 });
 
@@ -39,7 +49,6 @@ test('textes conformes au plan (section 5)', () => {
 });
 
 test('t sans paramètre renvoie le texte', () => {
-  assert.equal(t('app.title'), 'Mini Labyrinthe');
   assert.equal(t('errors.generic'), 'Impossible de générer le labyrinthe.');
 });
 

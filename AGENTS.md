@@ -4,17 +4,21 @@ Ce fichier oriente tout agent IA travaillant sur ce dépôt. Pour les détails, 
 fichiers liés dans `docs/agents/`.
 
 ## Résumé du projet
-FPS « mignon » qui s'exécute dans le navigateur. Premier lot : génération et affichage
-(vue de dessus, canvas 2D, palette pastel) d'un labyrinthe parfait aléatoire,
-reproductible par graine. Deuxième lot : balade en vue à la première personne
-(raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches) dans le
-labyrinthe généré, avec retour à la vue de dessus. Troisième lot : murs de la vue FPS
-texturés procéduralement (motifs pastel générés en code, sans fichier image), ainsi que sol carrelé et plafond étoilé texturés (floor casting). Quatrième ajout : automap en vue FPS (mini-carte en bas à gauche, carte plein écran avec la touche M, zones explorées seulement). Cinquième ajout : fruits à ramasser en vue FPS (sprites face caméra cachés par les murs, plus le fruit est rare plus il rapporte) avec score affiché en HUD. Stack : HTML + JavaScript ES modules vanilla, sans bundler, sans
-framework, sans aucune dépendance npm. Node >= 20 sert uniquement aux tests
-(`node --test`) et au serveur statique local. Aucun stockage. Application statique
-publiée sur GitHub Pages (<https://david-bouyssel.github.io/poc-fps-orchestration/>),
-sans aucun appel réseau sortant depuis l'app. En local, servie par `npm start` sur
-`127.0.0.1`.
+FPS « sombre » qui s'exécute dans le navigateur (version sombre en cours de livraison :
+les items suivants de la todolist ajoutent le monstre et la sortie, et retirent les
+fruits et le score). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
+d'un labyrinthe parfait aléatoire, reproductible par graine. Balade en vue à la première
+personne (raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches)
+dans le labyrinthe généré, avec retour à la vue de dessus. Murs de la vue FPS texturés
+procéduralement (motifs générés en code, sans fichier image), sol carrelé et plafond
+étoilé texturés (floor casting). Automap en vue FPS (mini-carte en bas à gauche, carte
+plein écran avec la touche M, zones explorées seulement). Objectif visé : trouver la
+sortie d'un labyrinthe traqué par un monstre, sans fruits ni score. Stack : HTML +
+JavaScript ES modules vanilla, sans bundler, sans framework, sans aucune dépendance npm.
+Node >= 20 sert uniquement aux tests (`node --test`) et au serveur statique local. Aucun
+stockage. Application statique publiée sur GitHub Pages
+(<https://david-bouyssel.github.io/poc-fps-dark/>), sans aucun appel réseau sortant
+depuis l'app. En local, servie par `npm start` sur `127.0.0.1`.
 
 ## Commandes
 | Action | Commande |
@@ -51,7 +55,7 @@ Aucun `npm install` requis (zéro dépendance).
 7. Code applicatif : `src/` et `scripts/`. Tests : `tests/unit/` et `tests/functional/`
    uniquement, jamais dans `src/` (tout `src/` est servi au navigateur).
 8. **`src/` est publié tel quel et publiquement** sur GitHub Pages, sous le sous-chemin
-   `/poc-fps-orchestration/` : tout fichier de `src/` est public. Les chemins (`src`,
+   `/poc-fps-dark/` : tout fichier de `src/` est public. Les chemins (`src`,
    `href`, imports, `url(`) restent relatifs (`./`, `../`), jamais avec un `/` initial.
 
 ## Orchestration

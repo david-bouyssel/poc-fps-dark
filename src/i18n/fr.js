@@ -3,8 +3,8 @@
  * Objet à plat : clé -> texte. Les paramètres s'écrivent {nom} et sont remplacés par t().
  */
 export const fr = Object.freeze({
-  'app.title': 'Mini Labyrinthe',
-  'app.subtitle': 'Un petit labyrinthe tout doux, généré au hasard',
+  'app.title': 'Labyrinthe sombre',
+  'app.subtitle': 'Un labyrinthe sombre où un monstre vous traque : trouvez la sortie',
   'form.width': 'Largeur',
   'form.height': 'Hauteur',
   'form.seed': 'Graine (optionnelle)',

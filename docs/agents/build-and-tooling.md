@@ -34,7 +34,7 @@ Les ES modules ne fonctionnent pas en `file://` : il faut servir `src/` en HTTP.
   `static-server.mjs` (décision `lead-tech`).
 
 ## Déploiement (GitHub Pages)
-Site publié : <https://david-bouyssel.github.io/poc-fps-orchestration/>.
+Site publié : <https://david-bouyssel.github.io/poc-fps-dark/>.
 
 - Workflow : `.github/workflows/pages.yml` (« Publier sur GitHub Pages »). Déclencheurs :
   push sur `main` et lancement manuel (`workflow_dispatch`). Aucun déclencheur
@@ -59,7 +59,7 @@ Site publié : <https://david-bouyssel.github.io/poc-fps-orchestration/>.
   `X-Content-Type-Options: nosniff` et `Cache-Control: no-store` sont propres au serveur
   local. Le CDN met en cache environ 10 min : l'ancienne version peut rester visible
   quelques minutes après un déploiement.
-- Sous-chemin : le site est servi sous `/poc-fps-orchestration/`. Tout chemin absolu
+- Sous-chemin : le site est servi sous `/poc-fps-dark/`. Tout chemin absolu
   (`/main.js`, `url(/img.png)`) fonctionne en local mais casse en ligne.
 
 ## Particularités de l'environnement

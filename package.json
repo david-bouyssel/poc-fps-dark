@@ -1,5 +1,5 @@
 {
-  "name": "poc-fps",
+  "name": "poc-fps-dark",
   "private": true,
   "type": "module",
   "engines": { "node": ">=20" },

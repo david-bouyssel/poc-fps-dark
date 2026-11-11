@@ -14,7 +14,7 @@ Contraintes communes :
 À traiter avec `new todolist docs/todolist-dark.md`. Voie suggérée entre crochets (le
 tri final revient à l'orchestrateur).
 
-- [ ] **Renommage du fork** [express] : titre, textes i18n (`src/i18n/fr.js`), README,
+- [x] **Renommage du fork** [express] : titre, textes i18n (`src/i18n/fr.js`), README,
   `AGENTS.md`, `docs/agents/*` : nom « poc-fps-dark », URL Pages
   `https://david-bouyssel.github.io/poc-fps-dark/`, résumé du projet réécrit (version
   sombre, monstre, sortie, sans fruits). Adapter les tests qui citent le sous-chemin

@@ -69,7 +69,7 @@ DOM) se vérifient manuellement.
   de secrets et de `npm install`, non-régression de `check-agents-sync.yml`.
 - `tests/unit/subpath-resolution.test.js` : vérifie que les références de `index.html`
   et les imports de `src/**/*.js` se résolvent sous un sous-chemin
-  (`https://example.github.io/poc-fps-orchestration/`) vers des fichiers existants de
+  (`https://example.github.io/poc-fps-dark/`) vers des fichiers existants de
   `src/`, et qu'aucun chemin absolu `/…` n'existe.
 - `tests/unit/security-static-scan.test.js` couvre déjà l'absence de réseau sortant et
   les imports non relatifs : ne pas le dupliquer.
@@ -85,7 +85,7 @@ DOM) se vérifient manuellement.
 - **Fermeture du serveur** : oublier `server.close()` laisse le processus de test ouvert.
 - **Node 20 vs plus récent** : la CI tourne en Node 20 ; éviter les API plus récentes.
 - **Chemins absolus `/…`** : ils fonctionnent avec `npm start` (servi à la racine) mais
-  cassent sur GitHub Pages (servi sous `/poc-fps-orchestration/`). Toujours `./` ou `../`.
+  cassent sur GitHub Pages (servi sous `/poc-fps-dark/`). Toujours `./` ou `../`.
 
 ## Vérification manuelle
 `npm start`, ouvrir `http://127.0.0.1:8080/` : labyrinthe affiché au chargement ;
@@ -133,7 +133,7 @@ console sans erreur.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir
-<https://david-bouyssel.github.io/poc-fps-orchestration/> et dérouler la même liste que
+<https://david-bouyssel.github.io/poc-fps-dark/> et dérouler la même liste que
 la vérification manuelle ci-dessus. Seule exception tolérée en console : un 404 sur
-`/favicon.ico`. Vérifier aussi que l'URL sans `/` final (`…/poc-fps-orchestration`)
+`/favicon.ico`. Vérifier aussi que l'URL sans `/` final (`…/poc-fps-dark`)
 redirige vers l'URL avec `/`. Le CDN peut servir l'ancienne version quelques minutes.
