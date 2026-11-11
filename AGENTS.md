@@ -4,8 +4,7 @@ Ce fichier oriente tout agent IA travaillant sur ce dépôt. Pour les détails, 
 fichiers liés dans `docs/agents/`.
 
 ## Résumé du projet
-FPS « sombre » qui s'exécute dans le navigateur (version sombre en cours de livraison :
-les items suivants de la todolist ajoutent l'apparence et le son du monstre). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
+FPS « sombre » qui s'exécute dans le navigateur (version sombre). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
 d'un labyrinthe parfait aléatoire, reproductible par graine. Balade en vue à la première
 personne (raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches)
 dans le labyrinthe généré, avec retour à la vue de dessus. Murs de la vue FPS texturés
@@ -16,7 +15,9 @@ graine (cellule la plus éloignée du départ, porte lumineuse en FPS, marqueur 
 dessus et sur l'automap) : y entrer en FPS donne la victoire et un écran de fin
 (« Rejouer », « Nouveau labyrinthe »). Monstre en FPS : apparition loin du départ
 (déterministe par graine), immobile 3 s, puis errance ou traque par plus court chemin ;
-plus rapide que la marche, moins que la course ; un contact donne la défaite. Objectif visé : trouver la sortie d'un labyrinthe traqué par un monstre. Stack : HTML +
+plus rapide que la marche, moins que la course ; un contact donne la défaite. À chaque changement de direction, le monstre émet un
+« bong bong » grave synthétisé en Web Audio (sans fichier son), d'autant plus fort qu'il
+est proche en distance de chemin, coupé hors vue FPS, page cachée et en fin de partie. Objectif visé : trouver la sortie d'un labyrinthe traqué par un monstre. Stack : HTML +
 JavaScript ES modules vanilla, sans bundler, sans framework, sans aucune dépendance npm.
 Node >= 20 sert uniquement aux tests (`node --test`) et au serveur statique local. Aucun
 stockage. Application statique publiée sur GitHub Pages

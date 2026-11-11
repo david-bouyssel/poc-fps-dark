@@ -143,6 +143,9 @@ const FPS_MODULES = [
   ['/render/sprites.js', 'projectSprites'],
   // Apparence du monstre (plan docs/design/dark-monstre-apparence.md)
   ['/render/monster-sprite.js', 'generateMonsterSprite'],
+  // Son « bong bong » (plan docs/design/dark-son-bong.md §6)
+  ['/audio/bong.js', 'selectBongGain'],
+  ['/audio/bong-player.js', 'createBongPlayer'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {

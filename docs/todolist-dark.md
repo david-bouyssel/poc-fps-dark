@@ -52,7 +52,7 @@ tri final revient à l'orchestrateur).
   en FPS via `projectSprites` avec occlusion par les murs. Jamais affiché en vue de
   dessus ; sur l'automap seulement s'il est dans une zone visible (à trancher par le
   concepteur).
-- [ ] **Son « bong bong »** [complète] : son synthétisé en Web Audio (aucun fichier,
+- [x] **Son « bong bong »** [complète] : son synthétisé en Web Audio (aucun fichier,
   aucun réseau) : deux coups graves « bong bong » à chaque changement de direction du
   monstre. Gain décroissant avec la distance de chemin (proche = fort, loin = faible,
   silence au-delà d'une portée), calcul pur et testé. Seul `main.js` (ou un module
