@@ -98,6 +98,10 @@ l'indépendance de deux items, sépare-les.
   (`Surface sensible : oui/non`). L'orchestrateur s'en sert pour décider si
   `testeur-securite` doit passer.
 
+- **Effet visible (toutes voies)** : indique aussi si le diff change ce que
+  l'utilisateur voit à l'écran (`Visuel : oui/non`). L'orchestrateur s'en sert
+  pour lancer la vague `visual-qa`. En cas de doute : oui.
+
 - **Intégration de vague (mode parallèle)** : tu intègres tous les items de la
   vague en une invocation. Vérifie en plus que chaque item est resté dans son
   périmètre (`git diff --name-only`). Ton rapport a une ligne par item :
@@ -123,6 +127,12 @@ un, dans l'ordre de la liste : `git add` des seuls fichiers du périmètre de
 l'item (jamais `git add .` ni `git add -A`), case cochée dans la checklist, puis
 `git commit`. Vérifie avec `git diff --cached --name-only` qu'aucun fichier d'un
 autre item n'est indexé.
+
+**Captures visual-qa** : si l'item a un dossier `docs/visual-qa/<item>/`
+(captures + `rapport.md`), indexe-le avec l'item et ajoute au corps du message
+une ligne `Captures visual-qa :` suivie d'une puce par capture
+(`- docs/visual-qa/<item>/01-murs.png`). Ce corps est alors obligatoire. Ne
+committe pas un item dont `rapport.md` commence par `KO`.
 
 Hors mode liste, une fois que l'orchestrateur a obtenu la **confirmation
 explicite de l'utilisateur** :

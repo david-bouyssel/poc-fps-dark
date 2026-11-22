@@ -53,9 +53,10 @@ produits pour le jeu sont dans [`docs/design/`](docs/design/).
 | `scripts/serve.mjs`, `scripts/static-server.mjs` | Serveur statique local |
 | `docs/design/` | Plans de conception produits par le concepteur |
 | `docs/agents/` | Architecture, conventions, tests et build du jeu |
+| `docs/visual-qa/` | Captures et rapports de la vague `visual-qa`, par item |
 | `AGENTS.md` | Guide pour tout agent IA travaillant sur le dépôt |
 | `CLAUDE.md` | Point d'entrée Claude Code (importe `AGENTS.md` et les règles d'orchestration) |
-| `.github/copilot-instructions.md` | Règles d'orchestration (`new func`, backlog, `new todolist`, choix du modèle) et schéma Mermaid |
+| `.github/copilot-instructions.md` | Règles d'orchestration (`new func`, backlog, `new todolist`, `visual-qa`, choix du modèle) et schéma Mermaid |
 | `.github/agents/*.agent.md` | Définition de chaque agent (rôle, outils, limites) |
 | `.claude/agents/*.md` | Agents Claude Code, synchronisés avec `.github/agents/` |
 | `.claude/settings.json` | Hook Claude Code : synchro après chaque édition |
@@ -63,6 +64,7 @@ produits pour le jeu sont dans [`docs/design/`](docs/design/).
 | `.githooks/pre-commit` | Synchro des agents avant chaque commit |
 | `.github/workflows/check-agents-sync.yml` | CI : échoue si les agents divergent |
 | `.github/workflows/pages.yml` | CI : `npm test` puis publication de `src/` sur GitHub Pages |
+| `scripts/visual-qa-server.mjs` | Serveur local de la vague `visual-qa` : sert le jeu et enregistre les captures |
 | `scripts/audit-agents.mjs` | Audit de sécurité des fichiers des agents (tests : `node --test "scripts/*.test.mjs"`) |
 | `.github/workflows/audit-agents.yml` | CI : audit de sécurité de chaque PR et tests du scanner |
 | `.github/CODEOWNERS` | Revue obligatoire des fichiers des agents, hooks, scripts et CI |
