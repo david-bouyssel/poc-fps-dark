@@ -27,10 +27,13 @@ La demande traverse toute la chaîne :
 4. **`lead-tech`** : vérifie l'intégration (conflits, build, conventions).
 5. **`testeur-securite`** : teste la sécurité du code produit.
 6. **`testeur`** : écrit et lance les tests d'après le plan, pas d'après le code.
-7. **`lead-tech`** : rédige le message de commit, committe et pousse, **après ta
+7. **`visual-qa`** (si la fonctionnalité a un effet visible) : l'orchestrateur vérifie
+   l'application dans un navigateur, sur des captures (voir
+   [Vérification visuelle](#vérification-visuelle-visual-qa)).
+8. **`lead-tech`** : rédige le message de commit, committe et pousse, **après ta
    confirmation**.
 
-Les étapes 4 à 6 sont des boucles : chaque échec repart au `developpeur`, avec
+Les étapes 4 à 7 sont des boucles : chaque échec repart au `developpeur`, avec
 **3 itérations au plus**. Au-delà, l'orchestrateur s'arrête et te remonte le problème.
 
 ### `new func` avec une liste : un backlog de fonctionnalités
@@ -60,8 +63,8 @@ donc chaque item avant de commencer, et t'annonce ce tri :
 
 | Voie | Pour quoi | Chaîne |
 |---|---|---|
-| **express** | Texte, renommage, configuration, doc. Aucune logique nouvelle. | `developpeur` → `testeur` → `lead-tech` (revue, build et commit en une fois) |
-| **courte** | Logique locale qui suit un pattern existant | plan court → `developpeur` → intégration → sécurité si besoin → `testeur` → commit |
+| **express** | Texte, renommage, configuration, doc. Aucune logique nouvelle. | `developpeur` → `testeur` → `visual-qa` si effet visible → `lead-tech` (revue, build et commit en une fois) |
+| **courte** | Logique locale qui suit un pattern existant | plan court → `developpeur` → intégration → sécurité si besoin → `testeur` → `visual-qa` si effet visible → commit |
 | **complète** | Nouvelle fonctionnalité, changement transverse, demande ambiguë | chaîne `new func` complète |
 
 Garde-fous pour garder la qualité :
@@ -94,19 +97,10 @@ new todolist max-devs=4 budget=2M
   vague en une fois.
 - Chaque testeur ne reçoit qu'**un seul item** : il n'écrit et ne lance que les tests
   de cet item. Un échec ailleurs est signalé, mais pas mis sur le compte de son item.
+- Les items à effet visible passent ensuite en `visual-qa`, un par un : le navigateur
+  est unique.
 - `lead-tech` lance la suite de tests complète, puis committe les items un par un,
   avec uniquement les fichiers de chaque item.
-
-#### Vérification visuelle (`visual-qa`)
-
-Pour un projet avec une interface (un jeu, une page web), une vague `visual-qa` passe
-après les tests et avant le commit de chaque item à effet visible. L'orchestrateur
-lance l'application dans un navigateur, rejoue les touches qui exercent l'item et juge
-des **critères visuels** sur des captures : « pas de canvas vide », « les murs ne sont
-pas inversés »… Un critère `KO` renvoie la capture au `developpeur` (3 essais au plus).
-Les captures et le rapport vont dans `docs/visual-qa/<item>/`, et le message de commit
-les cite. La vague s'active en remplissant la section « Vérification visuelle » de
-`docs/agents/testing.md`.
 
 #### Suivi de la consommation
 
@@ -122,6 +116,30 @@ L'orchestrateur additionne les tokens de chaque appel d'agent et tient un journa
 Une liste interrompue (budget ou limite de débit) reprend avec
 `reprendre todolist <liste>`.
 
+### Vérification visuelle (`visual-qa`)
+
+Pour un projet avec une interface (un jeu, une page web), une vague `visual-qa` passe
+après les tests et avant le commit, dans `new func` comme dans `new todolist`, pour
+chaque item à effet visible. L'orchestrateur la mène lui-même, sans sous-agent :
+
+1. Il lance l'application avec `scripts/visual-qa-server.mjs` et l'ouvre dans un
+   navigateur, avec une graine ou des données fixes.
+2. Il rejoue les entrées qui exercent l'item : déplacement, rotation, ouverture d'une
+   carte, approche d'un élément…
+3. Il juge des **critères visuels** sur des captures : « pas de canvas vide », « les
+   murs sont visibles et non inversés », « le monstre est visible quand il traque ».
+   Le `concepteur` les écrit dans le plan ; pour un item express, l'orchestrateur les
+   écrit lui-même. Chaque critère est `OK`, `KO` ou `non concluant`.
+
+Un critère `KO` renvoie le rapport et les captures au `developpeur` (3 itérations au
+plus). Après chaque correctif, les tests relancent, puis la vague est rejouée. Les
+captures et le `rapport.md` vont dans `docs/visual-qa/<item>/`, sont committés avec
+l'item, et le message de commit les cite sous `Captures visual-qa :`.
+
+La vague s'active en remplissant la section « Vérification visuelle » de
+`docs/agents/testing.md`. Sans elle, ou sans navigateur pilotable (Copilot sans outil
+de navigateur, par exemple), la vague est sautée et le récapitulatif l'indique.
+
 ## Consommation de tokens
 
 Sous Claude Code, chaque appel d'agent utilise le modèle adapté à sa tâche :
@@ -132,6 +150,7 @@ Sous Claude Code, chaque appel d'agent utilise le modèle adapté à sa tâche :
 | `lead-tech` | `sonnet` ; `haiku` pour le commit |
 | `developpeur`, `testeur` | selon la complexité : `S` → `haiku`, `M` → `sonnet`, `L` → `opus` |
 | `testeur-securite` | comme `testeur`, jamais en dessous de `sonnet` |
+| `visual-qa` | aucun sous-agent : la session principale, non comptée dans le total des agents |
 
 Dans une boucle de correction, le modèle monte d'un cran à partir de la 2ᵉ itération.
 Les agents s'échangent des chemins de fichiers plutôt que du contenu, et rendent des
@@ -147,7 +166,7 @@ table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 
 | Chemin | Rôle |
 |---|---|
-| `.github/copilot-instructions.md` | Règles d'orchestration (`new func`, backlog, `new todolist`, choix du modèle) et schéma Mermaid |
+| `.github/copilot-instructions.md` | Règles d'orchestration (`new func`, backlog, `new todolist`, `visual-qa`, choix du modèle) et schéma Mermaid |
 | `.github/agents/*.agent.md` | Agents Copilot (rôle, outils, limites) |
 | `.claude/agents/*.md` | Agents Claude Code, synchronisés avec `.github/agents/` |
 | `AGENTS.md` | Guide générique pour tout agent IA |
@@ -159,6 +178,7 @@ table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 | `scripts/visual-qa-server.mjs` | Serveur local de la vague `visual-qa` : sert l'application et enregistre les captures (tests : `node --test "scripts/*.test.mjs"`) |
 | `docs/agents/` | Gabarits à remplir : architecture, conventions, tests, build |
 | `docs/design/` | Plans de conception produits par le `concepteur` |
+| `docs/visual-qa/` | Captures et rapports `visual-qa`, créés dans le projet cible au fil des items |
 
 ## L'adopter dans un projet
 
@@ -176,6 +196,10 @@ table `MODEL_TO_COPILOT` de `scripts/sync-agents.mjs`.
 4. Compléter `AGENTS.md` et les gabarits de `docs/agents/` avec les spécificités du
    projet.
 5. Ajuster les axes de vérification de `testeur-securite` au profil de risque réel.
+6. Projet avec interface : remplir la section « Vérification visuelle » de
+   `docs/agents/testing.md` (sinon la supprimer). Sous Claude Code, ajouter l'entrée
+   `visual-qa` à `.claude/launch.json`, fichier local ignoré par git (exemple dans
+   `CLAUDE.md`).
 
 Les agents s'éditent indifféremment côté Copilot ou côté Claude Code : la synchro est
 automatique. Pour la lancer à la main :
