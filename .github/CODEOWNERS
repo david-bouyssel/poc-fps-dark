@@ -1,0 +1,15 @@
+# Fichiers qui pilotent les agents ou exécutent du code : la revue du propriétaire est
+# obligatoire avant le merge. N'a d'effet qu'avec la protection de branche « Require
+# review from Code Owners » activée sur main (voir README, section Sécurité des agents).
+# En adoptant ce dépôt, remplacer @david-bouyssel par le compte ou l'équipe responsable.
+
+/.claude/               @david-bouyssel
+/.github/               @david-bouyssel
+/.githooks/             @david-bouyssel
+/scripts/               @david-bouyssel
+/docs/agents/           @david-bouyssel
+/.mcp.json              @david-bouyssel
+/package.json           @david-bouyssel
+CLAUDE.md               @david-bouyssel
+CLAUDE.local.md         @david-bouyssel
+AGENTS.md               @david-bouyssel
