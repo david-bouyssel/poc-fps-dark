@@ -76,6 +76,9 @@ const exitTextureCache = new Map();
  */
 let surfaceBuffer = null;
 
+/** Canvas hors écran réutilisé pour teinter les sprites : { ownerDocument, canvas, context }. */
+let spriteScratch = null;
+
 /**
  * Dessine la vue FPS. Taille CSS = zone du parent (repli : taille actuelle du canvas),
  * gestion de devicePixelRatio. Ne réaffecte canvas.width/height que si la taille change
@@ -95,7 +98,7 @@ let surfaceBuffer = null;
  * fogFactor ; liseré plus sombre si wallX < 0.04 ou > 0.96 (joints doux de tuiles).
  * Enfin, sprites billboard (options.sprites) après les murs : projectSprites, du plus loin
  * au plus proche, occlusion par colonne (depth < hit.distance), bande de texels sans
- * lissage, brouillard par globalAlpha = 1 - fogFactor(depth). Les images viennent de
+ * lissage, brouillard par globalAlpha = fogFactor(depth) (voile fog). Les images viennent de
  * l'appelant (options.spriteImages : Map kind -> image prête) ; le renderer n'en génère
  * aucune. Kind absent de la Map, sprite mal formé ou worldSize invalide : sprite ignoré,
  * sans exception.
@@ -169,17 +172,18 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   }
 
   // Sprites last: drawn over the walls, hidden column by column by the wall distances.
-  drawSprites(ctx, hits, player, options.sprites, options.spriteImages, cssWidth, cssHeight);
+  drawSprites(ctx, hits, player, options.sprites, options.spriteImages, cssWidth, cssHeight, palette.fog);
 }
 
 /**
  * Dessine les sprites du plus loin au plus proche, colonne de rendu par colonne : une
  * colonne n'est dessinée que si le sprite est devant le mur (isSpriteColumnVisible).
- * Brouillard : globalAlpha = 1 - fogFactor(depth). Ne lève jamais : un sprite sans image
+ * Opacité : le sprite reste opaque (globalAlpha = 1) ; le brouillard assombrit ses pixels
+ * opaques vers fogColor (fogTintSprite), comme les murs. Ne lève jamais : un sprite sans image
  * dans la Map, mal formé ou de worldSize invalide est ignoré ; sans sprites ou sans Map,
  * rien n'est dessiné.
  */
-function drawSprites(ctx, hits, player, sprites, images, cssWidth, cssHeight) {
+function drawSprites(ctx, hits, player, sprites, images, cssWidth, cssHeight, fogColor) {
   if (!Array.isArray(sprites) || sprites.length === 0) {
     return;
   }
@@ -191,7 +195,7 @@ function drawSprites(ctx, hits, player, sprites, images, cssWidth, cssHeight) {
     const projected = projectSprites(drawable, player, cssWidth, cssHeight);
     for (const sprite of projected) {
       const image = images.get(sprite.kind);
-      drawSprite(ctx, hits, sprite, image, cssWidth);
+      drawSprite(ctx, hits, sprite, image, cssWidth, fogColor);
     }
   } catch {
     // Canvas failure or invalid player: the frame stays without sprites.
@@ -222,7 +226,66 @@ function isDrawableSprite(sprite, images) {
     && sprite.worldSize > 0;
 }
 
-function drawSprite(ctx, hits, sprite, image, cssWidth) {
+/**
+ * Seul point de création de canvas hors écran (jamais attaché au DOM). Renvoie
+ * { element, context } ou null si le document/contexte 2D n'est pas disponible.
+ */
+function createOffscreenCanvas(ownerDocument, width, height) {
+  if (!ownerDocument || typeof ownerDocument.createElement !== 'function') {
+    return null;
+  }
+  const element = ownerDocument.createElement('canvas');
+  if (!element || typeof element.getContext !== 'function') {
+    return null;
+  }
+  element.width = width;
+  element.height = height;
+  const context = element.getContext('2d');
+  if (!context) {
+    return null;
+  }
+  return { element, context };
+}
+
+/**
+ * Copie de l'image du sprite assombrie vers fogColor selon fogFactor(depth). Seuls les pixels
+ * opaques sont touchés (source-atop) : l'alpha 0 reste transparent. Renvoie null si aucun
+ * canvas hors écran n'est disponible : le sprite est alors dessiné opaque, sans brouillard.
+ */
+function fogTintSprite(ctx, image, fog, fogColor) {
+  const ownerDocument = ctx.canvas?.ownerDocument;
+  if (!spriteScratch || spriteScratch.ownerDocument !== ownerDocument) {
+    const offscreen = createOffscreenCanvas(ownerDocument, 1, 1);
+    if (!offscreen) {
+      return null;
+    }
+    spriteScratch = { ownerDocument, canvas: offscreen.element, context: offscreen.context };
+  }
+  const { canvas, context } = spriteScratch;
+  const width = image.width;
+  const height = image.height;
+  if (canvas.width !== width) {
+    canvas.width = width;
+  }
+  if (canvas.height !== height) {
+    canvas.height = height;
+  }
+  context.globalCompositeOperation = 'source-over';
+  context.globalAlpha = 1;
+  context.clearRect(0, 0, width, height);
+  context.drawImage(image, 0, 0);
+  if (fog > 0) {
+    context.globalCompositeOperation = 'source-atop';
+    context.globalAlpha = fog;
+    context.fillStyle = fogColor;
+    context.fillRect(0, 0, width, height);
+    context.globalCompositeOperation = 'source-over';
+    context.globalAlpha = 1;
+  }
+  return canvas;
+}
+
+function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor) {
   const { depth, left, right, top, bottom, size } = sprite;
   if (!(size > 0) || !(bottom > top)) {
     return;
@@ -235,7 +298,8 @@ function drawSprite(ctx, hits, sprite, image, cssWidth) {
   }
   const firstColumn = Math.max(0, Math.floor(left / COLUMN_WIDTH));
   const lastColumn = Math.min(hits.length - 1, Math.ceil(right / COLUMN_WIDTH) - 1);
-  ctx.globalAlpha = 1 - fogFactor(depth);
+  const source = fogTintSprite(ctx, image, fogFactor(depth), fogColor) ?? image;
+  ctx.globalAlpha = 1;
   for (let column = firstColumn; column <= lastColumn; column++) {
     if (!isSpriteColumnVisible(depth, hits[column])) {
       continue;
@@ -248,7 +312,7 @@ function drawSprite(ctx, hits, sprite, image, cssWidth) {
     }
     const relative = ((startX + endX) / 2 - left) / size;
     const texX = Math.min(texWidth - 1, Math.max(0, Math.floor(relative * texWidth)));
-    ctx.drawImage(image, texX, 0, 1, texHeight, startX, top, endX - startX, bottom - top);
+    ctx.drawImage(source, texX, 0, 1, texHeight, startX, top, endX - startX, bottom - top);
   }
 }
 
@@ -322,19 +386,11 @@ function getSurfaceBuffer(canvas, cssWidth, cssHeight) {
   // Failure is memoised for this size until the size or document changes.
   surfaceBuffer = { width, height, ownerDocument, failed: true };
   try {
-    if (!ownerDocument || typeof ownerDocument.createElement !== 'function') {
+    const offscreen = createOffscreenCanvas(ownerDocument, width, height);
+    if (!offscreen) {
       return surfaceBuffer;
     }
-    const element = ownerDocument.createElement('canvas');
-    if (!element || typeof element.getContext !== 'function') {
-      return surfaceBuffer;
-    }
-    element.width = width;
-    element.height = height;
-    const context = element.getContext('2d');
-    if (!context) {
-      return surfaceBuffer;
-    }
+    const { element, context } = offscreen;
     const imageData = context.createImageData(width, height);
     surfaceBuffer = { width, height, ownerDocument, canvas: element, context, imageData };
   } catch {
@@ -463,16 +519,11 @@ function createWallTextures(ownerDocument, palette) {
 }
 
 function toCanvas(ownerDocument, texture) {
-  const element = ownerDocument.createElement('canvas');
-  if (!element || typeof element.getContext !== 'function') {
+  const offscreen = createOffscreenCanvas(ownerDocument, texture.width, texture.height);
+  if (!offscreen) {
     return null;
   }
-  element.width = texture.width;
-  element.height = texture.height;
-  const context = element.getContext('2d');
-  if (!context) {
-    return null;
-  }
+  const { element, context } = offscreen;
   const imageData = context.createImageData(texture.width, texture.height);
   imageData.data.set(texture.data);
   context.putImageData(imageData, 0, 0);
