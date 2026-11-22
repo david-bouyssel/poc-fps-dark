@@ -67,7 +67,7 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/functional/static-server.test.js` | modules `game/`, `render/` et `audio/` FPS servis (dont sortie, état de partie, `render/monster-sprite.js`, `audio/bong.js` et `audio/bong-player.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
 | `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
 | `tests/unit/pathfinding.test.js` | `tileDistances`, `pathDistance`, `shortestPath` (couloir, pièce séparée, chemin contigu, déterminisme, gel, erreurs), `cellToTile`, `tileAt` |
-| `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale, cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
+| `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale parmi les culs-de-sac, préférence cul-de-sac, repli sans cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
 | `tests/unit/game-state.test.js` | `createGameState`, `checkVictory`, `declareDefeat` (premier état final l'emporte, même référence), `isGameOver`, erreurs |
 | `tests/unit/exit-texture.test.js` | `generateExitTexture` (cadre, centre, 3 couleurs, déterminisme, erreurs), `isExitFace` (faces vues depuis la sortie, face opposée d'un mur partagé, exit absent) |
 | `tests/unit/monster.test.js` | `createMonster` (cellule, distance minimale, sortie évitée, déterminisme, repli, erreurs), `stepMonster` (grâce, bornage, déplacement, jamais sur un mur, errance, traque et hystérésis, événements `TURN`, pureté), `isCatching`, capture garantie, `monsterSprite` |

@@ -1,7 +1,7 @@
 // Maze exit: farthest cell from the start by path distance (pure, no DOM).
 //
 // Seed contract: the exit of a seed depends on toTileGrid, on the neighbor order of the
-// BFS (NEIGHBOR_OFFSETS) and on the tie rule below. Changing any of them changes the exit
+// BFS (NEIGHBOR_OFFSETS), on the dead-end preference and on the tie rule below. Changing any of them changes the exit
 // of a shared seed (never the maze itself).
 
 import { TILE } from '../maze/grid.js';
@@ -19,9 +19,27 @@ import { tileDistances, UNREACHABLE } from './pathfinding.js';
  */
 
 /**
- * Sortie : la cellule dont la tuile centrale est la plus éloignée de la tuile (1, 1)
- * (cellule (0, 0)) au sens de tileDistances. Seules les tuiles (impair, impair) sont
- * candidates. Égalité : plus petit index de cellule cellY * mazeWidth + cellX (parcours
+ * true si la tuile (tx, ty) n'a qu'une seule tuile sol voisine (4-voisins).
+ * @param {{ width: number, tiles: Uint8Array }} grid
+ * @param {number} tx tuile intérieure (jamais sur la bordure)
+ * @param {number} ty
+ * @returns {boolean}
+ */
+function isDeadEnd(grid, tx, ty) {
+  const { width, tiles } = grid;
+  const i = ty * width + tx;
+  let floors = 0;
+  for (const n of [i - width, i + 1, i + width, i - 1]) {
+    if (tiles[n] === TILE.FLOOR) floors++;
+  }
+  return floors === 1;
+}
+
+/**
+ * Sortie : parmi les culs-de-sac (une seule tuile sol voisine), la cellule dont la tuile
+ * centrale est la plus éloignée de la tuile (1, 1) (cellule (0, 0)) au sens de
+ * tileDistances ; s'il n'y a aucun cul-de-sac atteignable, la plus éloignée de toutes.
+ * Seules les tuiles (impair, impair) sont candidates. Égalité : plus petit index de cellule cellY * mazeWidth + cellX (parcours
  * ligne par ligne, on ne remplace que si strictement plus loin).
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid grille issue de
  *        toTileGrid (dimensions impaires >= 5)
@@ -54,16 +72,23 @@ export function findExit(grid) {
   let bestX = -1;
   let bestY = -1;
   let bestDistance = 0;
-  for (let cellY = 0; cellY < mazeHeight; cellY++) {
-    for (let cellX = 0; cellX < mazeWidth; cellX++) {
-      if (cellX === 0 && cellY === 0) continue;
-      const d = dist[(2 * cellY + 1) * width + (2 * cellX + 1)];
-      if (d !== UNREACHABLE && d > bestDistance) {
-        bestDistance = d;
-        bestX = cellX;
-        bestY = cellY;
+  // Dead ends first (the door sits at the end of a corridor), then any cell as a fallback.
+  for (const deadEndsOnly of [true, false]) {
+    for (let cellY = 0; cellY < mazeHeight; cellY++) {
+      for (let cellX = 0; cellX < mazeWidth; cellX++) {
+        if (cellX === 0 && cellY === 0) continue;
+        const tx = 2 * cellX + 1;
+        const ty = 2 * cellY + 1;
+        if (deadEndsOnly && !isDeadEnd(grid, tx, ty)) continue;
+        const d = dist[ty * width + tx];
+        if (d !== UNREACHABLE && d > bestDistance) {
+          bestDistance = d;
+          bestX = cellX;
+          bestY = cellY;
+        }
       }
     }
+    if (bestX >= 0) break;
   }
   if (bestX < 0) {
     throw new RangeError('no reachable cell other than (0, 0)');

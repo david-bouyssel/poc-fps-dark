@@ -26,7 +26,7 @@ src/                             # racine servie au navigateur (et seulement ell
     movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
     loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
     pathfinding.js               # BFS sur la grille de tuiles : tileDistances, pathDistance, shortestPath, cellToTile, tileAt
-    exit.js                      # findExit(grid) (cellule la plus éloignée de (0, 0)), isAtExit
+    exit.js                      # findExit(grid) (cul-de-sac le plus éloigné de (0, 0)), isAtExit
     game-state.js                # GAME_STATUS, createGameState, checkVictory, declareDefeat, isGameOver
     monster.js                   # monstre (pur) : createMonster, stepMonster, isCatching, monsterSprite, MONSTER
   render/
@@ -79,7 +79,10 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
 
 - **Maze** (`generateMaze({ width, height, seed })`, objet gelé) : `width`, `height`
   (bornes `MAZE_LIMITS` = 2..64), `seed` (entier 0..`MAX_SEED` = `0xFFFFFFFF`), `cells`
-  (`Uint8Array` de `width * height` masques de murs).
+  (`Uint8Array` de `width * height` masques de murs). Arbre couvrant par DFS itératif,
+  puis `addLoops` ouvre jusqu'à `round(width * height * LOOP_RATIO)` murs internes
+  (`LOOP_RATIO = 0.15`) tirés au hasard, sans toucher aux culs-de-sac de l'arbre ni créer
+  de bloc 2x2 ouvert : plusieurs chemins pour semer le monstre.
 - **Bits de mur** `WALL` : `N = 1`, `E = 2`, `S = 4`, `W = 8` (bit à 1 = mur présent ;
   `ALL_WALLS = 15`). Lecture via `hasWall(maze, x, y, wall)`.
 - **Grille de tuiles** (`toTileGrid(maze)`) : `(2w+1) x (2h+1)`, `TILE.FLOOR = 0`,
@@ -122,9 +125,11 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   murs, sprites, automap. Les images du monstre (`monster-sprite.js`) sont créées par
   `main.js` au démarrage (canvas hors écran, Map indexée par `MONSTER_FRAME_KINDS`).
 - **Exit** (`findExit(grid)`, objet gelé) : `{ cellX, cellY, tx, ty, x, y, distance }`.
-  Cellule dont la tuile centrale est la plus éloignée de la tuile (1, 1) au sens de
+  Parmi les culs-de-sac (repli : toutes les cellules s'il n'y en a aucun), cellule dont
+  la tuile centrale est la plus éloignée de la tuile (1, 1) au sens de
   `tileDistances` (BFS 4-connexité, voisins dans l'ordre `NEIGHBOR_OFFSETS` N, E, S, W) ;
-  égalité -> plus petit index de cellule. Toujours un cul-de-sac, jamais (0, 0). Les
+  égalité -> plus petit index de cellule. Cul-de-sac sur les labyrinthes générés, jamais
+  (0, 0). Les
   renderers la reçoivent par l'option facultative `exit` (`{ tx, ty }` pour
   `drawFpsView`/`drawAutomap`, `{ cellX, cellY }` pour `drawMaze`).
 - **GameState** (`createGameState()`, objet gelé) : `{ status }`, `GAME_STATUS` =
@@ -158,9 +163,11 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   sans doublon.
 
 Stabilité des graines : le résultat « graine -> labyrinthe » dépend de mulberry32, du
-départ (0, 0), de l'ordre de tirage des voisins (DFS itératif) et de `randomInt`. Tout
+départ (0, 0), de l'ordre de tirage des voisins (DFS itératif), de `randomInt`, de
+`LOOP_RATIO` et de l'ordre des candidats de `addLoops`. Tout
 changement de l'un d'eux casse les graines déjà partagées. La sortie d'une graine dépend
-en plus de `toTileGrid`, de l'ordre des voisins du BFS et de la règle d'égalité de
+en plus de `toTileGrid`, de l'ordre des voisins du BFS, de la préférence pour les
+culs-de-sac et de la règle d'égalité de
 `findExit` (jamais le labyrinthe). Le monstre d'une graine (apparition, errance) dépend
 de `MONSTER_SEED_SALT`, de l'ordre des candidats (index croissant), de `NEIGHBOR_OFFSETS`
 et de l'ordre des tirages (jamais le labyrinthe).

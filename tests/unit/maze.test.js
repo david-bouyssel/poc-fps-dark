@@ -7,6 +7,7 @@ import {
   WALL,
   ALL_WALLS,
   MAZE_LIMITS,
+  LOOP_RATIO,
 } from '../../src/maze/maze.js';
 import { MAX_SEED } from '../../src/maze/random.js';
 
@@ -79,7 +80,7 @@ test('constantes exportées conformes au plan', () => {
 
 for (const [width, height] of SIZES) {
   for (const seed of SEEDS) {
-    describe(`labyrinthe parfait ${width}x${height} graine ${seed}`, () => {
+    describe(`labyrinthe à boucles ${width}x${height} graine ${seed}`, () => {
       const maze = generateMaze({ width, height, seed });
 
       test('métadonnées et taille de cells', () => {
@@ -132,8 +133,24 @@ for (const [width, height] of SIZES) {
         assert.equal(bfsReachable(maze), width * height);
       });
 
-      test('pas de cycle : w*h - 1 passages internes ouverts', () => {
-        assert.equal(countOpenInternalPassages(maze), width * height - 1);
+      test('boucles : entre w*h - 1 et w*h - 1 + round(w*h*LOOP_RATIO) passages', () => {
+        const open = countOpenInternalPassages(maze);
+        const extra = Math.round(width * height * LOOP_RATIO);
+        assert.ok(open >= width * height - 1, `${open} passages`);
+        assert.ok(open <= width * height - 1 + extra, `${open} passages`);
+        if (width * height >= 64) {
+          assert.ok(open > width * height - 1, 'aucune boucle ajoutée');
+        }
+      });
+
+      test('aucun bloc 2x2 entièrement ouvert', () => {
+        for (let y = 0; y < height - 1; y++) {
+          for (let x = 0; x < width - 1; x++) {
+            const room = !(cell(maze, x, y) & WALL.E) && !(cell(maze, x, y + 1) & WALL.E)
+              && !(cell(maze, x, y) & WALL.S) && !(cell(maze, x + 1, y) & WALL.S);
+            assert.ok(!room, `bloc ouvert en (${x},${y})`);
+          }
+        }
       });
 
       test('hasWall cohérent avec cells', () => {
@@ -149,6 +166,14 @@ for (const [width, height] of SIZES) {
     });
   }
 }
+
+test('LOOP_RATIO : 16x16 -> exactement round(256 * LOOP_RATIO) boucles', () => {
+  assert.ok(LOOP_RATIO > 0 && LOOP_RATIO < 1);
+  for (const seed of SEEDS) {
+    const maze = generateMaze({ width: 16, height: 16, seed });
+    assert.equal(countOpenInternalPassages(maze), 255 + Math.round(256 * LOOP_RATIO), `graine ${seed}`);
+  }
+});
 
 test('déterminisme : même entrée -> cells identiques octet par octet', () => {
   for (const [width, height] of SIZES) {

@@ -32,7 +32,7 @@ export function normalizeAngle(angle) {
 /**
  * Joueur de départ : centre de la cellule (0, 0), soit (1.5, 1.5).
  * Orientation : vers l'est (0) si la tuile (2, 1) est un sol, sinon vers le sud (PI/2).
- * (Labyrinthe parfait : la cellule (0, 0) a toujours au moins un passage E ou S.)
+ * (Labyrinthe connexe : la cellule (0, 0) a toujours au moins un passage E ou S.)
  * Ne modifie pas la grille.
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @returns {Player}

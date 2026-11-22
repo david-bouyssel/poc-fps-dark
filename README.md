@@ -14,7 +14,8 @@ traverse toute la chaîne d'agents, de la conception au commit.
 
 ## Le jeu
 
-État actuel : génération d'un labyrinthe parfait aléatoire, reproductible par graine,
+État actuel : génération d'un labyrinthe aléatoire à boucles (plusieurs chemins pour semer le
+monstre), reproductible par graine,
 affiché en vue de dessus (canvas 2D, palette sombre). Une fois généré, on peut
 l'explorer en vue FPS (raycasting, déplacement clavier façon Doom).
 

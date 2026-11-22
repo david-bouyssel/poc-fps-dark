@@ -26,24 +26,25 @@ describe('findExit sur des labyrinthes générés', () => {
       assert.equal(exit.x, exit.tx + 0.5);
       assert.equal(exit.y, exit.ty + 0.5);
 
-      // distance = maximum de tileDistances sur les tuiles de cellule ; égalité : plus petit index.
+      // distance = maximum de tileDistances sur les culs-de-sac ; égalité : plus petit index.
       const d = tileDistances(grid, 1, 1);
+      const openSides = (cx, cy) => [WALL.N, WALL.E, WALL.S, WALL.W]
+        .filter((w) => !hasWall(maze, cx, cy, w)).length;
       let best = -1;
       let bestIndex = -1;
       for (let cy = 0; cy < height; cy++) {
         for (let cx = 0; cx < width; cx++) {
           const v = d[(2 * cy + 1) * grid.width + (2 * cx + 1)];
-          assert.notEqual(v, UNREACHABLE, 'labyrinthe parfait : toute cellule atteignable');
-          if (v > best) { best = v; bestIndex = cy * width + cx; }
+          assert.notEqual(v, UNREACHABLE, 'toute cellule atteignable');
+          if (cx === 0 && cy === 0) continue;
+          if (openSides(cx, cy) === 1 && v > best) { best = v; bestIndex = cy * width + cx; }
         }
       }
       assert.equal(exit.distance, best);
       assert.equal(exit.cellY * width + exit.cellX, bestIndex);
 
       // cul-de-sac : une seule ouverture.
-      const openings = [WALL.N, WALL.E, WALL.S, WALL.W]
-        .filter((w) => !hasWall(maze, exit.cellX, exit.cellY, w)).length;
-      assert.equal(openings, 1, 'la sortie doit être un cul-de-sac');
+      assert.equal(openSides(exit.cellX, exit.cellY), 1, 'la sortie doit être un cul-de-sac');
 
       // même graine -> même sortie.
       const again = findExit(toTileGrid(generateMaze({ width, height, seed })));
@@ -82,6 +83,31 @@ describe('findExit : règle d\'égalité et erreurs', () => {
     assert.equal(exit.cellX, 2);
     assert.equal(exit.cellY, 0);
     assert.equal(exit.distance, 4);
+  });
+
+  test('cul-de-sac préféré à une cellule plus lointaine qui n’en est pas un', () => {
+    // Cellules 3 x 3 : anneau sur les deux premières lignes, éperon vers (0, 2).
+    // (2, 1) [tuile (5, 3), distance 6] a deux ouvertures ; (0, 2) [tuile (1, 5),
+    // distance 4] est le seul cul-de-sac.
+    const grid = gridFromRows([
+      '#######',
+      '#.....#',
+      '#.#.#.#',
+      '#.....#',
+      '#.#####',
+      '#.#####',
+      '#######',
+    ]);
+    const exit = findExit(grid);
+    assert.equal(tileDistances(grid, 1, 1)[3 * 7 + 5], 6);
+    assert.deepEqual([exit.cellX, exit.cellY, exit.distance], [0, 2, 4]);
+  });
+
+  test('aucun cul-de-sac : la cellule la plus lointaine', () => {
+    // Anneau de 2 x 2 cellules : aucune cellule n'a une seule ouverture.
+    const grid = gridFromRows(['#####', '#...#', '#.#.#', '#...#', '#####']);
+    const exit = findExit(grid);
+    assert.deepEqual([exit.cellX, exit.cellY, exit.distance], [1, 1, 4]);
   });
 
   test('TypeError grille mal formée', () => {

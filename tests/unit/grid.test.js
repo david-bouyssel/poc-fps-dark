@@ -73,10 +73,18 @@ for (const [w, h, seed] of CASES) {
       }
     });
 
-    test('nombre de tuiles FLOOR === w*h + (w*h - 1)', () => {
+    test('nombre de tuiles FLOOR === w*h + passages internes ouverts', () => {
       let floors = 0;
       for (const v of grid.tiles) if (v === TILE.FLOOR) floors++;
-      assert.equal(floors, w * h + (w * h - 1));
+      let passages = 0;
+      for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+          const c = maze.cells[y * w + x];
+          if (x < w - 1 && !(c & WALL.E)) passages++;
+          if (y < h - 1 && !(c & WALL.S)) passages++;
+        }
+      }
+      assert.equal(floors, w * h + passages);
     });
 
     test('connexité des tuiles FLOOR (BFS 4-voisins)', () => {

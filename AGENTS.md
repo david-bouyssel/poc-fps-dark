@@ -5,13 +5,13 @@ fichiers liés dans `docs/agents/`.
 
 ## Résumé du projet
 FPS « sombre » qui s'exécute dans le navigateur (version sombre). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
-d'un labyrinthe parfait aléatoire, reproductible par graine. Balade en vue à la première
+d'un labyrinthe aléatoire à boucles (plusieurs chemins pour semer le monstre), reproductible par graine. Balade en vue à la première
 personne (raycasting sur canvas 2D, commandes au clavier uniquement, ZQSD/WASD + flèches)
 dans le labyrinthe généré, avec retour à la vue de dessus. Murs de la vue FPS texturés
 procéduralement (motifs générés en code, sans fichier image), sol carrelé et plafond
 étoilé texturés (floor casting). Automap en vue FPS (mini-carte en bas à gauche, carte
 plein écran avec la touche M, zones explorées seulement). Sortie déterministe par
-graine (cellule la plus éloignée du départ, porte lumineuse en FPS, marqueur en vue de
+graine (cul-de-sac le plus éloigné du départ, porte lumineuse en FPS, marqueur en vue de
 dessus et sur l'automap) : y entrer en FPS donne la victoire et un écran de fin
 (« Rejouer », « Nouveau labyrinthe »). Monstre en FPS : apparition loin du départ
 (déterministe par graine), immobile 3 s, puis errance ou traque par plus court chemin ;
