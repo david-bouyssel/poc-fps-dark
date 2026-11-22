@@ -26,5 +26,28 @@
   chaque appel de l'outil Agent, et le reporter dans `.orchestration/suivi-<liste>.md`.
   Ce total ne couvre que les sous-agents : la consommation de la session principale
   s'y ajoute (`/usage` dans un terminal `claude`).
+- Vague `visual-qa` (voir les instructions d'orchestration) : la session principale la
+  mène elle-même avec le navigateur intégré (outils `mcp__Claude_Browser__*`), jamais un
+  sous-agent ni en parallèle.
+  - Serveur : entrée `visual-qa` de `.claude/launch.json` (fichier local, ignoré par
+    git), lancée par `preview_start`. Exemple : `"runtimeExecutable": "node"`,
+    `"runtimeArgs": ["scripts/visual-qa-server.mjs", "--root", "src", "--out",
+    "docs/visual-qa", "--port", "8765"]`, `"port": 8765`.
+  - Gestes : un seul `browser_batch` par séquence. Touche brève (bascule de carte,
+    Échap) : action `key` de `computer`. Touche maintenue (avancer, tourner) :
+    `javascript_tool` qui envoie `keydown`, attente, puis `keyup` (l'action `key`
+    relâche aussitôt, trop court pour une boucle de jeu).
+  - Capture : `computer` `screenshot` (`scale` 0.5) pour juger le critère. Pour
+    l'enregistrer, `javascript_tool` poste le canvas au serveur :
+    `await fetch('/__visual-qa/capture?item=<item>&name=<nn>-<moment>', {method:
+    'POST', headers: {'Content-Type': 'text/plain'}, body:
+    document.querySelector('canvas').toDataURL('image/png')}).then(r => r.json())`.
+    Seul le canvas est enregistré : un critère sur du HTML (écran de fin, textes) se
+    juge sur le `screenshot` et se décrit dans le rapport.
+  - Canvas vide : en plus de l'œil, compter les couleurs distinctes d'un échantillon
+    de `getImageData` (une seule couleur = `KO`).
+  - Rapport au `developpeur` : chemins seulement ; il ouvre les PNG avec `Read`.
+  - Consommation : la vague tourne dans la session principale, hors du total de
+    l'outil Agent. Le journal la note `non mesuré`.
 - Pour le trailer de co-auteur des commits, utiliser la ligne `Co-Authored-By` fournie par
   la session.

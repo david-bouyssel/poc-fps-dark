@@ -56,13 +56,19 @@ redondance avec l'existant, dérive de périmètre).
 6. **Plan de tests attendu** : liste des cas à couvrir par l'agent testeur
    (tests unitaires obligatoires pour la logique métier, tests fonctionnels si
    un flux utilisateur change) — sans écrire le code des tests toi-même.
+6 bis. **Critères visuels** (si la fonctionnalité a un effet visible et que
+   `docs/agents/testing.md` prévoit la vérification visuelle) : contrôles
+   `V1`, `V2`… jugeables sur une capture d'écran, chacun avec le geste qui y
+   mène et ce qu'on doit voir (ex. « V1 — après 1 s d'avance : les murs sont
+   visibles et non inversés »). Pas de critère qui ne se juge pas sur une image.
 7. **Points d'attention / risques** connus (voir `docs/agents/testing.md`).
 8. **Questions ouvertes** si la demande initiale est ambiguë.
 
 ## Plan court (voie courte de "new todolist")
 Quand l'orchestrateur te demande un **plan court**, écris dans
 `docs/design/<feature>.md` un document de **40 lignes au plus** : résumé,
-fichiers touchés, comportement attendu, cas de test à couvrir. Omets les
+fichiers touchés, comportement attendu, cas de test à couvrir, critères visuels
+s'il y a un effet visible. Omets les
 sections sans objet. Ton droit de challenge reste entier. Si l'item demande une
 décision d'architecture, touche le modèle de données ou dépasse un changement
 local, n'écris pas de plan court : demande son **reclassement** en voie

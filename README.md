@@ -97,6 +97,17 @@ new todolist max-devs=4 budget=2M
 - `lead-tech` lance la suite de tests complète, puis committe les items un par un,
   avec uniquement les fichiers de chaque item.
 
+#### Vérification visuelle (`visual-qa`)
+
+Pour un projet avec une interface (un jeu, une page web), une vague `visual-qa` passe
+après les tests et avant le commit de chaque item à effet visible. L'orchestrateur
+lance l'application dans un navigateur, rejoue les touches qui exercent l'item et juge
+des **critères visuels** sur des captures : « pas de canvas vide », « les murs ne sont
+pas inversés »… Un critère `KO` renvoie la capture au `developpeur` (3 essais au plus).
+Les captures et le rapport vont dans `docs/visual-qa/<item>/`, et le message de commit
+les cite. La vague s'active en remplissant la section « Vérification visuelle » de
+`docs/agents/testing.md`.
+
 #### Suivi de la consommation
 
 L'orchestrateur additionne les tokens de chaque appel d'agent et tient un journal dans
@@ -201,6 +212,7 @@ récupérer la branche dans ton arbre de travail.
 | `scripts/sync-agents.mjs` | Synchro bidirectionnelle des agents (`--check` pour vérifier) |
 | `.githooks/pre-commit` | Synchro des agents avant chaque commit |
 | `.github/workflows/check-agents-sync.yml` | CI : échoue si les agents divergent |
+| `scripts/visual-qa-server.mjs` | Serveur local de la vague `visual-qa` : sert l'application et enregistre les captures (tests : `node --test "scripts/*.test.mjs"`) |
 | `scripts/audit-agents.mjs` | Audit de sécurité des fichiers des agents (tests : `node --test "scripts/*.test.mjs"`) |
 | `.github/workflows/audit-agents.yml` | CI : audit de sécurité de chaque PR et tests du scanner |
 | `.github/CODEOWNERS` | Revue obligatoire des fichiers des agents, hooks, scripts et CI |

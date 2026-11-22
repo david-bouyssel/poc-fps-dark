@@ -62,7 +62,14 @@ en les invoquant explicitement (`Use the <agent> agent to ...`) :
    produit).
    - **Boucle de correction fonctionnelle** (max **3 itérations**), même mécanique que
      les boucles précédentes.
-7. Une fois intégration + sécurité + tests fonctionnels + build au vert, l'orchestrateur
+6 bis. **Vague `visual-qa`**, une fois les tests fonctionnels au vert, si la
+   fonctionnalité a un effet visible et que le projet la prévoit : l'orchestrateur lance
+   l'application dans un navigateur, rejoue les gestes qui exercent la fonctionnalité et
+   vérifie les **critères visuels** du plan sur des captures d'écran (voir
+   [Vague visual-qa](#vague-visual-qa)).
+   - **Boucle de correction visuelle** (max **3 itérations**), même mécanique : le
+     rapport et le chemin des captures partent au `developpeur`.
+7. Une fois intégration + sécurité + tests fonctionnels + visual-qa + build au vert, l'orchestrateur
    **demande confirmation à l'utilisateur** avant de déclencher **`lead-tech` (commit)**,
    qui rédige le message de commit et exécute `git add`/`commit`/`push` (la passphrase
    SSH est saisie directement par l'utilisateur au moment du push, jamais transmise
@@ -89,6 +96,7 @@ invocation :
 | `developpeur` | selon la note de son lot : `S` → léger, `M` → standard, `L` → avancé |
 | `testeur` | selon la note la plus haute parmi les lots, même correspondance |
 | `testeur-securite` | comme `testeur`, mais jamais en dessous de standard |
+| `visual-qa` | aucun sous-agent : l'orchestrateur la mène lui-même |
 
 **Escalade dans les boucles de correction** : la première tentative de correction du
 `developpeur` utilise le modèle de son lot ; à partir de la 2ᵉ itération d'une même
@@ -182,10 +190,12 @@ items concernés en une fois.
 | `lead-tech` intégration | fusionnée avec le commit | oui | oui |
 | `testeur-securite` | non | si surface sensible | oui |
 | `testeur` | léger, tests existants + test de non-régression si utile | léger, d'après le plan court | selon la note |
+| `visual-qa` (orchestrateur) | si effet visible | si effet visible | si effet visible |
 | `lead-tech` commit | standard, revue + build + commit en une invocation | léger | léger |
 
-- **Voie express** : `developpeur` → `testeur` → `lead-tech`. Pas de document dans
-  `docs/design/`. `lead-tech` relit le diff, lance le build et committe dans la même
+- **Voie express** : `developpeur` → `testeur` → (`visual-qa`) → `lead-tech`. Pas de
+  document dans `docs/design/` : l'orchestrateur écrit lui-même les critères visuels
+  de l'item dans son rapport `visual-qa`. `lead-tech` relit le diff, lance le build et committe dans la même
   invocation ; s'il refuse le diff, il ne committe pas et son rapport repart au
   `developpeur` (boucle de 3 itérations).
 - **Voie courte** : le plan court tient en 40 lignes au plus (résumé, fichiers touchés,
@@ -262,6 +272,9 @@ attendre de validation.
    tests de cet item et ne lance que ces tests (`<commande de tests ciblée>`). Un échec
    hors de son périmètre n'est pas un bug de son item : il le signale sur une ligne
    `Hors périmètre :`, et l'orchestrateur le transmet à `lead-tech`.
+3 bis. `visual-qa` des items à effet visible, **un item après l'autre** (un seul
+   navigateur), dans l'ordre de la liste. Les captures montrent l'état intégré de la
+   vague. `docs/visual-qa/<item>/` entre dans le périmètre de l'item.
 4. `lead-tech` (léger) committe les items validés **un par un**, dans l'ordre de la
    liste. Pour chaque commit, il ajoute uniquement les fichiers du périmètre de l'item
    (`git add <fichiers>`, jamais `git add .`) et coche sa case. Avant le premier commit
@@ -322,10 +335,68 @@ s'arrête, et indique à l'utilisateur la commande de reprise.
 ### 7. Récapitulatif final
 
 Un tableau : item, voie (et reclassement éventuel), vague en mode parallèle, nombre
-d'itérations de correction, consommation, hash du commit. Puis la consommation totale
+d'itérations de correction, verdict `visual-qa` (`OK`, `KO`, `non concluant` ou `sans
+objet`), consommation, hash du commit. Puis la consommation totale
 (et la part du budget), et le rappel que le push reste à faire par l'utilisateur.
 
-### Schéma du workflow
+## Vague visual-qa
+
+Vérification visuelle de l'application réelle, dans un navigateur, après les tests
+fonctionnels et avant le commit. Elle attrape ce que les tests unitaires ne voient pas :
+canvas vide, murs inversés, sprite absent, texte illisible.
+
+**Quand** : le projet décrit la vague dans `docs/agents/testing.md` (section
+« Vérification visuelle » : commande du serveur, URL, mise en route de l'application).
+Sans cette section, ou si l'outil n'a pas de navigateur pilotable, la vague est sautée et
+le récapitulatif l'indique. Pour chaque item, l'orchestrateur décide au tri si l'item a
+un **effet visible** (`Visuel : oui/non`) ; `lead-tech` le confirme à l'intégration. En
+cas de doute : oui.
+
+**Qui** : l'orchestrateur lui-même, sans sous-agent. Le navigateur est unique : un item
+après l'autre, jamais en parallèle.
+
+**Critères visuels** : une liste de contrôles observables sur une capture, chacun avec
+un identifiant (`V1`, `V2`…), le geste qui y mène et ce qu'on doit voir. Exemples :
+« pas de canvas vide », « les murs sont visibles et non inversés », « le monstre est
+visible quand il traque », « l'automap s'ouvre et montre le joueur ». Ils viennent de la
+section « Critères visuels » du plan (`concepteur`) ; en voie express, l'orchestrateur
+les écrit d'après le texte de l'item. Un critère qui ne se juge pas sur une image n'en
+est pas un : il relève de `testeur`.
+
+**Déroulé par item** :
+1. Démarrer le serveur local (`scripts/visual-qa-server.mjs`, voir ci-dessous) et
+   ouvrir l'application. Graine ou données fixes, pour des captures reproductibles.
+2. Rejouer en une suite d'actions les entrées clavier/souris qui exercent l'item
+   (déplacement, rotation, ouverture d'une carte, approche d'un élément…).
+3. Aux moments clés, capturer l'écran et l'enregistrer dans
+   `docs/visual-qa/<item>/<nn>-<moment>.png` (`<item>` : nom du plan sans `.md`, ou
+   identifiant `T<n>` suivi d'un nom court pour un item express).
+4. Juger chaque critère sur sa capture : `OK`, `KO`, ou `non concluant` (la capture ne
+   permet pas de trancher : dire pourquoi). Écrire `docs/visual-qa/<item>/rapport.md` :
+   verdict sur la première ligne, puis une ligne par critère (identifiant, verdict,
+   capture, constat en une phrase).
+
+**Boucle de correction visuelle** (max **3 itérations**, escalade de modèle comme les
+autres boucles) : un critère `KO` envoie au `developpeur` le chemin du rapport et des
+captures en cause, rien d'autre. Après son correctif, l'orchestrateur relance
+`<commande de tests>` (le correctif ne doit rien casser), puis rejoue toute la vague
+`visual-qa` de l'item ; les nouvelles captures remplacent les anciennes. Un correctif
+qui touche une surface sensible repasse par `testeur-securite`. Un critère
+`non concluant` ne bloque pas le commit, il figure au récapitulatif.
+
+**Commit** : `docs/visual-qa/<item>/` (captures + rapport) est committé avec l'item, et
+le corps du message de commit liste les captures sous une ligne `Captures visual-qa :`.
+
+**Serveur local** : `node scripts/visual-qa-server.mjs --root <dossier servi> --out
+docs/visual-qa [--port 8765]`. Il sert l'application en statique sur 127.0.0.1 et
+accepte `POST /__visual-qa/capture?item=<item>&name=<nom>` (corps : data URL PNG d'un
+canvas, même origine seulement), écrit dans `<out>/<item>/<nom>.png`. Une capture du
+navigateur que l'outil ne sait pas écrire sur disque passe par cette route.
+
+**Consommation** : les captures coûtent cher en contexte. Captures réduites, une par
+critère au plus, et le journal de suivi compte une ligne `visual-qa` par item.
+
+## Schéma du workflow
 
 ```mermaid
 flowchart TD
@@ -344,7 +415,9 @@ flowchart TD
     S -- faille detectee --> D1
     S -- OK, max 3 iterations --> T{testeur<br/>tests fonctionnels/unitaires}
     T -- bug detecte --> D1
-    T -- OK, max 3 iterations --> B[build vert]
+    T -- OK, max 3 iterations --> V{visual-qa<br/>captures + criteres visuels}
+    V -- critere KO --> D1
+    V -- OK, max 3 iterations --> B[build vert]
     D1 -. question conception .-> C
     D1 -. question technique/lot .-> L1
     B --> Conf[Confirmation utilisateur]

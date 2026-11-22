@@ -71,6 +71,10 @@ ressources utilisateur).
   faille/bug/non-conformité, corrige uniquement le code applicatif concerné,
   explique brièvement la cause et le correctif, puis indique que le code est
   prêt à être retesté.
+- **Rapport `visual-qa`** : tu reçois le chemin de
+  `docs/visual-qa/<item>/rapport.md` et des captures `KO`. Ouvre-les avec `Read`
+  (il affiche les PNG), compare au critère du plan, corrige le code applicatif.
+  Ne modifie ni les captures ni le rapport : l'orchestrateur rejoue la vague.
 
 ## Qualité
 - Toute logique nouvelle doit être conçue pour être testable (respecte les
