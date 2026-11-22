@@ -28,3 +28,8 @@
   s'y ajoute (`/usage` dans un terminal `claude`).
 - Pour le trailer de co-auteur des commits, utiliser la ligne `Co-Authored-By` fournie par
   la session.
+
+## Testing
+- When changing any user-visible string (titles, i18n keys), grep the tests for the old value and update them in the same change.
+- After the test waves pass, open the game in the browser (Claude_Browser), take a screenshot of the changed feature and report what it looks like. Tests passing is not enough for visual features.
+- Run `npm test` before every commit and report the pass count.
