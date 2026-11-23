@@ -1,10 +1,13 @@
 // Tests unitaires du lecteur de bongs (plan docs/design/dark-son-bong.md §3.2 et §6) :
 // faux contexte audio injecté, cycle de vie, création paresseuse, délai entre deux
 // bongs, suspension, nettoyage des voix. Aucun accès à une vraie API Web Audio.
+// Extension « cris du monstre » (plan docs/design/monster-cries.md §3.3 et §6) : playCry,
+// playSlurp, état FINALE, filtres (createBiquadFilter), pannes.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { BONG, bongSchedule } from '../../src/audio/bong.js';
 import { BONG_PLAYER_STATE, createBongPlayer } from '../../src/audio/bong-player.js';
+import { CRY, crySchedule, slurpSchedule } from '../../src/audio/monster-cries.js';
 
 const EPS = 1e-9;
 
@@ -15,13 +18,14 @@ function fakeParam() {
 }
 
 /** Faux AudioContext : enregistre tous les appels ; currentTime réglable. */
-function fakeContext({ resumeImpl, suspendImpl, failOscillatorAt } = {}) {
+function fakeContext({ resumeImpl, suspendImpl, failOscillatorAt, failFilterAt } = {}) {
   const ctx = {
     currentTime: 0,
     state: 'running',
     destination: { name: 'destination' },
     oscillators: [],
     gains: [],
+    filters: [],
     resumeCalls: 0,
     suspendCalls: 0,
     createOscillator() {
@@ -54,6 +58,22 @@ function fakeContext({ resumeImpl, suspendImpl, failOscillatorAt } = {}) {
       };
       ctx.gains.push(env);
       return env;
+    },
+    createBiquadFilter() {
+      if (failFilterAt !== undefined && ctx.filters.length === failFilterAt) {
+        throw new Error('createBiquadFilter failure');
+      }
+      const filter = {
+        type: 'lowpass',
+        frequency: fakeParam(),
+        Q: fakeParam(),
+        connections: [],
+        disconnected: 0,
+        connect(node) { this.connections.push(node); },
+        disconnect() { this.disconnected += 1; },
+      };
+      ctx.filters.push(filter);
+      return filter;
     },
     resume() {
       ctx.resumeCalls += 1;
@@ -98,6 +118,7 @@ describe('construction', () => {
   test('BONG_PLAYER_STATE : valeurs et gel', () => {
     assert.deepEqual({ ...BONG_PLAYER_STATE }, {
       IDLE: 'idle', RUNNING: 'running', SUSPENDED: 'suspended', UNAVAILABLE: 'unavailable',
+      FINALE: 'finale',
     });
     assert.ok(Object.isFrozen(BONG_PLAYER_STATE));
   });
@@ -347,5 +368,287 @@ describe('exception pendant la programmation', () => {
       // un stop() programmé (osc.stop(stop)) + l'arrêt immédiat après l'exception
       assert.ok(osc.stopCalls.length >= 2, 'voix déjà créée non arrêtée');
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cris du monstre (plan docs/design/monster-cries.md §3.3 et §6)
+
+const RAMP = { set: 'set', linear: 'linear', exponential: 'exp' };
+
+/** Appels attendus sur un AudioParam pour une liste de points d'automation. */
+function expectedCalls(points) {
+  return points.map((p) => [RAMP[p.ramp], p.value, p.time]);
+}
+
+/** Nœud de gain (enveloppe) d'un oscillateur, à travers son filtre éventuel. */
+function envOf(ctx, osc) {
+  const first = osc.connections[0];
+  return ctx.filters.includes(first) ? first.connections[0] : first;
+}
+
+/** Vérifie qu'un groupe d'oscillateurs suit exactement la partition donnée. */
+function assertMatchesSchedule(ctx, oscillators, voices) {
+  assert.equal(oscillators.length, voices.length);
+  voices.forEach((v, i) => {
+    const osc = oscillators[i];
+    assert.equal(osc.type, v.wave, `voix ${i} : forme d'onde`);
+    assert.deepEqual(osc.frequency.calls, expectedCalls(v.frequency), `voix ${i} : hauteur`);
+    const env = envOf(ctx, osc);
+    assert.ok(ctx.gains.includes(env), `voix ${i} : enveloppe absente`);
+    assert.deepEqual(env.gain.calls, expectedCalls(v.gain), `voix ${i} : enveloppe`);
+    assert.deepEqual(env.connections, [ctx.destination], `voix ${i} : env -> destination`);
+    assert.equal(osc.startCalls[0], v.start);
+    assert.equal(osc.stopCalls[0], v.stop);
+    if (v.filter) {
+      const filter = osc.connections[0];
+      assert.ok(ctx.filters.includes(filter), `voix ${i} : filtre attendu`);
+      assert.equal(filter.type, v.filter.type);
+      assert.deepEqual(filter.Q.calls, [['set', v.filter.q, v.start]]);
+      assert.deepEqual(filter.frequency.calls, expectedCalls(v.filter.frequency));
+      assert.deepEqual(filter.connections, [env]);
+    } else {
+      assert.deepEqual(osc.connections, [env], `voix ${i} : osc -> env sans filtre`);
+    }
+  });
+}
+
+/** Lecteur dans l'état FINALE (sluuurp programmé), avec les oscillateurs du sluuurp. */
+function inFinale(contextOptions) {
+  const { ctx, player } = setup(contextOptions);
+  player.resume();
+  ctx.currentTime = 4;
+  assert.equal(player.playSlurp(), true);
+  const slurpOscs = ctx.oscillators.slice();
+  return { ctx, player, slurpOscs };
+}
+
+describe('playCry', () => {
+  test('en RUNNING : true, 3 oscillateurs, paramètres conformes à crySchedule', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    ctx.currentTime = 7;
+    assert.equal(player.playCry(0.4), true);
+    assert.equal(ctx.oscillators.length, 3);
+    assert.equal(ctx.filters.length, 0, 'le cri n\'a pas de filtre');
+    assertMatchesSchedule(ctx, ctx.oscillators, crySchedule(7, 0.4));
+  });
+
+  test('gain > 1 borné à 1', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    assert.equal(player.playCry(3), true);
+    assertMatchesSchedule(ctx, ctx.oscillators, crySchedule(0, 1));
+  });
+
+  test('gain <= 0, NaN, Infinity ou non numérique -> false, rien programmé', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    for (const g of [0, -1, NaN, Infinity, -Infinity, '0.5', undefined, null]) {
+      assert.equal(player.playCry(g), false, String(g));
+    }
+    assert.equal(ctx.oscillators.length, 0);
+  });
+
+  test('délai CRY.minInterval : +3 s -> false, +6 s -> true', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    ctx.currentTime = 1;
+    assert.equal(player.playCry(0.5), true);
+    ctx.currentTime = 4;
+    assert.equal(player.playCry(0.5), false);
+    assert.equal(ctx.oscillators.length, 3);
+    ctx.currentTime = 1 + CRY.minInterval;
+    assert.equal(player.playCry(0.5), true);
+    assert.equal(ctx.oscillators.length, 6);
+  });
+
+  test('un cri n\'empêche pas un bong immédiat, et inversement', () => {
+    const a = setup();
+    a.player.resume();
+    assert.equal(a.player.playCry(0.5), true);
+    assert.equal(a.player.play(0.5), true);
+    assert.equal(a.ctx.oscillators.length, 3 + 4);
+
+    const b = setup();
+    b.player.resume();
+    assert.equal(b.player.play(0.5), true);
+    assert.equal(b.player.playCry(0.5), true);
+    assert.equal(b.ctx.oscillators.length, 4 + 3);
+  });
+
+  test('IDLE, SUSPENDED, UNAVAILABLE -> false', () => {
+    const idle = setup();
+    assert.equal(idle.player.playCry(0.5), false);
+    assert.equal(idle.factoryCalls(), 0);
+
+    const suspended = setup();
+    suspended.player.resume();
+    suspended.player.suspend();
+    assert.equal(suspended.player.playCry(0.5), false);
+    assert.equal(suspended.ctx.oscillators.length, 0);
+
+    const unavailable = createBongPlayer({ createContext: () => null });
+    unavailable.resume();
+    assert.equal(unavailable.state, BONG_PLAYER_STATE.UNAVAILABLE);
+    assert.equal(unavailable.playCry(0.5), false);
+  });
+
+  test('suspend() arrête les voix du cri', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    player.playCry(0.5);
+    player.suspend();
+    for (const osc of ctx.oscillators) assert.equal(osc.stopCalls.length, 2);
+  });
+});
+
+describe('playSlurp', () => {
+  test('arrête les voix en cours (bong + cri), programme 3 voix dont 2 filtrées', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    assert.equal(player.play(0.5), true);
+    assert.equal(player.playCry(0.5), true);
+    const before = ctx.oscillators.slice();
+    ctx.currentTime = 2.5;
+    assert.equal(player.playSlurp(), true);
+    for (const osc of before) {
+      assert.equal(osc.stopCalls.length, 2, 'voix antérieure non arrêtée');
+    }
+    const slurpOscs = ctx.oscillators.slice(before.length);
+    assert.equal(slurpOscs.length, 3);
+    assert.equal(ctx.filters.length, 2);
+    assertMatchesSchedule(ctx, slurpOscs, slurpSchedule(2.5));
+    // voix 1 et 2 : osc -> filter -> env -> destination
+    for (const osc of slurpOscs.slice(0, 2)) {
+      assert.ok(ctx.filters.includes(osc.connections[0]));
+    }
+    assert.ok(!ctx.filters.includes(slurpOscs[2].connections[0]), 'le « p » n\'est pas filtré');
+  });
+
+  test('état FINALE ; play et playCry -> false ; second playSlurp -> false', () => {
+    const { ctx, player } = inFinale();
+    assert.equal(player.state, BONG_PLAYER_STATE.FINALE);
+    ctx.currentTime = 100;
+    assert.equal(player.play(0.5), false);
+    assert.equal(player.playCry(0.5), false);
+    assert.equal(player.playSlurp(), false);
+    assert.equal(ctx.oscillators.length, 3);
+    assert.equal(ctx.suspendCalls, 0, 'aucune suspension immédiate');
+  });
+
+  test('IDLE, SUSPENDED, UNAVAILABLE -> false, état inchangé', () => {
+    const idle = setup();
+    assert.equal(idle.player.playSlurp(), false);
+    assert.equal(idle.player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(idle.factoryCalls(), 0);
+
+    const suspended = setup();
+    suspended.player.resume();
+    suspended.player.suspend();
+    assert.equal(suspended.player.playSlurp(), false);
+    assert.equal(suspended.player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(suspended.ctx.oscillators.length, 0);
+
+    const unavailable = createBongPlayer({ createContext: () => null });
+    unavailable.resume();
+    assert.equal(unavailable.playSlurp(), false);
+    assert.equal(unavailable.state, BONG_PLAYER_STATE.UNAVAILABLE);
+  });
+});
+
+describe('fin naturelle du sluuurp', () => {
+  test('onended de toutes les voix -> ctx.suspend() une fois, SUSPENDED', () => {
+    const { ctx, player, slurpOscs } = inFinale();
+    for (const osc of slurpOscs) osc.onended();
+    assert.equal(ctx.suspendCalls, 1);
+    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    slurpOscs.forEach((osc, i) => assert.ok(osc.disconnected >= 1, `osc ${i} non déconnecté`));
+    for (const filter of ctx.filters) assert.ok(filter.disconnected >= 1, 'filtre non déconnecté');
+    // un onended tardif ne relance rien
+    slurpOscs[0].onended();
+    assert.equal(ctx.suspendCalls, 1);
+  });
+
+  test('onended d\'une seule voix -> toujours FINALE', () => {
+    const { ctx, player, slurpOscs } = inFinale();
+    slurpOscs[0].onended();
+    assert.equal(player.state, BONG_PLAYER_STATE.FINALE);
+    assert.equal(ctx.suspendCalls, 0);
+  });
+
+  test('ctx.suspend rejeté à la fin naturelle : aucun rejet non géré', async () => {
+    const { player, slurpOscs } = inFinale({ suspendImpl: () => Promise.reject(new Error('x')) });
+    const seen = await unhandledRejectionsDuring(() => {
+      for (const osc of slurpOscs) osc.onended();
+    });
+    assert.deepEqual(seen, []);
+    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+  });
+});
+
+describe('sortie de FINALE', () => {
+  test('suspend() en FINALE -> voix arrêtées, SUSPENDED', () => {
+    const { ctx, player, slurpOscs } = inFinale();
+    player.suspend();
+    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.ok(ctx.suspendCalls >= 1);
+    for (const osc of slurpOscs) assert.equal(osc.stopCalls.length, 2, 'sluuurp non coupé');
+  });
+
+  test('resume() en FINALE -> voix arrêtées, RUNNING, bong de nouveau possible', () => {
+    const { ctx, player, slurpOscs } = inFinale();
+    player.resume();
+    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    for (const osc of slurpOscs) assert.equal(osc.stopCalls.length, 2, 'sluuurp non coupé');
+    ctx.currentTime += 10;
+    assert.equal(player.play(0.5), true);
+    // la fin tardive des voix coupées ne suspend pas la nouvelle manche
+    for (const osc of slurpOscs) osc.onended();
+    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+  });
+});
+
+describe('pannes pendant la programmation des cris', () => {
+  test('createBiquadFilter qui lève au 2e : playSlurp false, voix créées arrêtées, SUSPENDED', () => {
+    const { ctx, player } = setup({ failFilterAt: 1 });
+    player.resume();
+    let result;
+    assert.doesNotThrow(() => { result = player.playSlurp(); });
+    assert.equal(result, false);
+    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.ok(ctx.oscillators.length >= 1);
+    for (const osc of ctx.oscillators) {
+      assert.ok(osc.stopCalls.length >= 1, 'voix créée non arrêtée');
+    }
+  });
+
+  test('createBiquadFilter qui lève dès le premier : playSlurp false, SUSPENDED', () => {
+    const { player } = setup({ failFilterAt: 0 });
+    player.resume();
+    assert.equal(player.playSlurp(), false);
+    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+  });
+
+  test('createOscillator qui lève au 2e : playCry false, voix créées arrêtées, RUNNING', () => {
+    const { ctx, player } = setup({ failOscillatorAt: 1 });
+    player.resume();
+    let result;
+    assert.doesNotThrow(() => { result = player.playCry(0.5); });
+    assert.equal(result, false);
+    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(ctx.oscillators.length, 1);
+    assert.ok(ctx.oscillators[0].stopCalls.length >= 2, 'voix déjà créée non arrêtée');
+  });
+
+  test('createOscillator qui lève au 3e : playSlurp false, voix créées arrêtées, SUSPENDED', () => {
+    const { ctx, player } = setup({ failOscillatorAt: 2 });
+    player.resume();
+    let result;
+    assert.doesNotThrow(() => { result = player.playSlurp(); });
+    assert.equal(result, false);
+    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(ctx.oscillators.length, 2);
+    for (const osc of ctx.oscillators) assert.ok(osc.stopCalls.length >= 2, 'voix non arrêtée');
   });
 });

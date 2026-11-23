@@ -233,7 +233,10 @@ describe('stepMonster : entrées hostiles', () => {
       const start = Date.now();
       const r = stepMonster(m, target, 1e300, big, options);
       assert.ok(Date.now() - start < 2000, 'appel borné en temps');
-      assert.ok(r.events.length <= 8, 'au plus 8 décisions par pas');
+      const turns = r.events.filter((event) => event.type === 'turn').length;
+      const spots = r.events.filter((event) => event.type === 'spot').length;
+      assert.ok(turns <= 8, 'au plus 8 décisions par pas');
+      assert.ok(spots <= 1, 'au plus 1 SPOT par pas');
       assert.ok(Math.abs(r.monster.tx - m.tx) + Math.abs(r.monster.ty - m.ty) <= 8, 'au plus 8 tuiles');
       assertSafeState(r.monster, big);
     }

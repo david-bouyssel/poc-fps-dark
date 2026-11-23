@@ -681,8 +681,10 @@ describe('événements TURN', () => {
     }
     const start = { x: m.x, y: m.y };
     const r = stepMonster(m, player, 0.05, grid);
-    assert.equal(r.events.length, 1);
-    const e = r.events[0];
+    // A SPOT may precede the TURN if the monster starts chasing: count TURNs only.
+    const turns = r.events.filter((event) => event.type === MONSTER_EVENT.TURN);
+    assert.equal(turns.length, 1);
+    const e = turns[0];
     assert.ok(Object.isFrozen(e));
     assert.equal(e.type, 'turn');
     assert.equal(e.type, MONSTER_EVENT.TURN);
@@ -804,5 +806,123 @@ describe('monsterSprite', () => {
     for (const bad of [null, undefined, 3, {}, { x: NaN, y: 1 }, { x: 1, y: 'a' }]) {
       assert.throws(() => monsterSprite(bad), TypeError);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Événement SPOT (plan docs/design/monster-cries.md §3.1 et §6)
+
+describe('événements SPOT', () => {
+  const spotsOf = (events) => events.filter((e) => e.type === MONSTER_EVENT.SPOT);
+
+  test('MONSTER_EVENT.SPOT === \'spot\', objet gelé', () => {
+    assert.equal(MONSTER_EVENT.SPOT, 'spot');
+    assert.equal(MONSTER_EVENT.TURN, 'turn');
+    assert.ok(Object.isFrozen(MONSTER_EVENT));
+  });
+
+  test('passage wander -> chase : forme exacte, gelé, pathDistance du résultat, centre de tuile', () => {
+    const m = monsterAt(1, 1, { ...from(0, 1), heading: HEADING.E });
+    const r = stepMonster(m, center(7, 1), 0.01, LONG);
+    assert.equal(r.monster.mode, MONSTER_MODE.CHASE);
+    const spots = spotsOf(r.events);
+    assert.equal(spots.length, 1);
+    const e = spots[0];
+    assert.ok(Object.isFrozen(e));
+    assert.deepEqual({ ...e }, { type: 'spot', pathDistance: 6, x: 1.5, y: 1.5 });
+    assert.deepEqual(Object.keys(e).sort(), ['pathDistance', 'type', 'x', 'y']);
+    assert.equal(e.pathDistance, r.monster.pathDistance);
+  });
+
+  test('SPOT placé avant le TURN de la même décision', () => {
+    // heading null : la première décision émet un TURN, la traque commence au même instant
+    const m = monsterAt(1, 1);
+    const r = stepMonster(m, center(5, 1), 0.01, LONG);
+    assert.deepEqual(r.events.map((e) => e.type), ['spot', 'turn']);
+    assert.equal(r.events[0].x, r.events[1].x);
+    assert.equal(r.events[0].y, r.events[1].y);
+    assert.equal(r.events[0].pathDistance, r.events[1].pathDistance);
+  });
+
+  test('aucun SPOT : traque qui continue, retour en errance, errance hors portée, grâce', () => {
+    const cases = [
+      ['traque qui continue', monsterAt(1, 1, { mode: MONSTER_MODE.CHASE }), center(7, 1)],
+      ['retour en errance', monsterAt(1, 1, { mode: MONSTER_MODE.CHASE }), center(20, 1)],
+      ['errance hors portée', monsterAt(1, 1), center(14, 1)],
+      ['joueur inatteignable', monsterAt(3, 1), POCKET_T, T_GRID],
+      ['grâce', monsterAt(1, 1, { graceRemaining: 3 }), center(3, 1)],
+    ];
+    for (const [label, m, player, grid = LONG] of cases) {
+      const r = stepMonster(m, player, 0.05, grid);
+      assert.equal(spotsOf(r.events).length, 0, label);
+    }
+    // traque prolongée : aucun SPOT sur toute la poursuite
+    const { events } = runSteps(monsterAt(1, 1, { mode: MONSTER_MODE.CHASE }), center(11, 1), LONG, 5, 0.05);
+    assert.equal(spotsOf(events).length, 0, 'traque prolongée');
+  });
+
+  test('re-traque après retour en errance (hystérésis franchie) : nouveau SPOT', () => {
+    // 1. traque perdue : joueur à 19 tuiles
+    let m = monsterAt(1, 1, { mode: MONSTER_MODE.CHASE });
+    let r = stepMonster(m, center(20, 1), 0.01, LONG);
+    assert.equal(r.monster.mode, MONSTER_MODE.WANDER);
+    assert.equal(spotsOf(r.events).length, 0);
+    m = r.monster;
+    // 2. le joueur revient à portée : SPOT à la décision suivante
+    const { monster, events } = runSteps(m, center(6, 1), LONG, 2, 0.05);
+    assert.equal(monster.mode, MONSTER_MODE.CHASE);
+    assert.equal(spotsOf(events).length, 1);
+  });
+
+  test('au plus un SPOT par pas (grand dt, vitesse forcée)', () => {
+    // errance vers le joueur, la portée est atteinte en cours de pas
+    const m = monsterAt(1, 1, { ...from(0, 1), heading: HEADING.E });
+    const r = stepMonster(m, center(20, 1), 1, LONG, { wanderSpeed: 65, chaseSpeed: 65, maxDt: 1 });
+    assert.ok(spotsOf(r.events).length <= 1, `${spotsOf(r.events).length} SPOT`);
+    assert.ok(r.events.filter((e) => e.type === MONSTER_EVENT.TURN).length <= 8);
+
+    // labyrinthes réels, joueur partout, pas énormes
+    for (const seed of [1, 2, 3]) {
+      const grid = realGrid(8, 8, seed);
+      let monster = createMonster(grid, seed, { exit: findExit(grid), graceDuration: 0 });
+      const rng = createRng(seed);
+      for (let i = 0; i < 300; i++) {
+        const player = center(1 + 2 * randomInt(rng, 8), 1 + 2 * randomInt(rng, 8));
+        const step = stepMonster(monster, player, 0.5, grid, { wanderSpeed: 40, chaseSpeed: 40, maxDt: 0.5 });
+        assert.ok(spotsOf(step.events).length <= 1, `graine ${seed}, pas ${i}`);
+        monster = step.monster;
+      }
+    }
+  });
+
+  test('non-régression : graine -> apparition et errance inchangées (rngState identique)', () => {
+    // Valeurs relevées avec monster.js avant l'ajout de SPOT (commit e271e41).
+    const expected = [
+      { seed: 7, init: [7, 15, 1572816370], end: [1, 14, 2783181212, 'wander'], turns: 9 },
+      { seed: 11, init: [11, 1, 2559396496], end: [13, 12, 1271350810, 'wander'], turns: 8 },
+      { seed: 42, init: [3, 15, 3302223415], end: [1, 1, 1963512754, 'chase'], turns: 6 },
+    ];
+    for (const { seed, init, end, turns } of expected) {
+      const grid = realGrid(8, 8, seed);
+      let m = createMonster(grid, seed, { exit: findExit(grid) });
+      assert.deepEqual([m.tx, m.ty, m.rngState], init, `apparition, graine ${seed}`);
+      let turnCount = 0;
+      for (let i = 0; i < 1200; i++) {
+        const r = stepMonster(m, center(1, 1), 1 / 60, grid);
+        turnCount += r.events.filter((e) => e.type === MONSTER_EVENT.TURN).length;
+        m = r.monster;
+      }
+      assert.deepEqual([m.tx, m.ty, m.rngState, m.mode], end, `errance, graine ${seed}`);
+      assert.equal(turnCount, turns, `virages, graine ${seed}`);
+    }
+  });
+
+  test('SPOT sans tirage aléatoire : rngState inchangé au carrefour', () => {
+    // T_GRID, carrefour (3, 1) : joueur à portée, passage en traque (SPOT)
+    const m = monsterAt(3, 1, { ...from(2, 1), heading: HEADING.E });
+    const near = stepMonster(m, center(4, 1), 0.01, T_GRID);
+    assert.equal(spotsOf(near.events).length, 1);
+    // en traque, aucun tirage : rngState inchangé malgré le SPOT
+    assert.equal(near.monster.rngState, m.rngState);
   });
 });

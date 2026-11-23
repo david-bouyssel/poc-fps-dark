@@ -1,15 +1,18 @@
 /**
- * Lecteur des « bong bong » : seul module qui appelle l'API Web Audio. Le contexte audio
+ * Lecteur des sons du monstre (« bong bong », cri, « sluuurp ») : seul module qui appelle
+ * l'API Web Audio. Noms historiques (createBongPlayer, BONG_PLAYER_STATE) conservés. Le contexte audio
  * vient uniquement de la fabrique injectée `createContext` (jamais d'accès global).
  * Aucune méthode ne lève d'exception : le son ne doit jamais casser le jeu.
  */
 import { BONG, bongGain, bongSchedule } from './bong.js';
+import { CRY, crySchedule, slurpSchedule } from './monster-cries.js';
 
 /** États du lecteur. */
 export const BONG_PLAYER_STATE = Object.freeze({
   IDLE: 'idle', // aucun contexte créé
   RUNNING: 'running', // contexte créé, son autorisé
   SUSPENDED: 'suspended', // contexte créé, son coupé
+  FINALE: 'finale', // contexte actif, seul le sluuurp sonne (fin de partie)
   UNAVAILABLE: 'unavailable', // fabrique en échec ou sans contexte : muet définitif
 });
 
@@ -40,11 +43,12 @@ function stopVoice(voice) {
 
 /**
  * Déconnecte les nœuds d'une voix, sans jamais lever.
- * @param {{ osc: any, env: any }} voice
+ * @param {{ osc: any, env: any, filter?: any }} voice
  */
 function disconnectVoice(voice) {
   try {
     voice.osc.disconnect();
+    if (voice.filter) voice.filter.disconnect();
     if (voice.env) voice.env.disconnect();
   } catch {
     // Nodes already disconnected.
@@ -52,10 +56,24 @@ function disconnectVoice(voice) {
 }
 
 /**
- * Lecteur de bongs. Ne crée aucun contexte à la construction.
+ * Applique une liste de points d'automation à un AudioParam.
+ * @param {any} param
+ * @param {ReadonlyArray<{ time: number, value: number, ramp: string }>} points
+ */
+function applyPoints(param, points) {
+  for (const p of points) {
+    if (p.ramp === 'set') param.setValueAtTime(p.value, p.time);
+    else if (p.ramp === 'linear') param.linearRampToValueAtTime(p.value, p.time);
+    else param.exponentialRampToValueAtTime(p.value, p.time);
+  }
+}
+
+/**
+ * Lecteur des sons du monstre. Ne crée aucun contexte à la construction.
  * @param {{ createContext: () => (AudioContext | null | undefined),
  *           options?: Partial<typeof BONG> }} deps
  * @returns {{ resume(): void, suspend(): void, play(gain: number): boolean,
+ *             playCry(gain: number): boolean, playSlurp(): boolean,
  *             readonly state: string }}  objet gelé
  * @throws {TypeError} createContext n'est pas une fonction
  * @throws {RangeError} options invalides (mêmes règles que bongGain)
@@ -72,8 +90,12 @@ export function createBongPlayer({ createContext, options } = {}) {
   /** @type {any} */
   let ctx = null;
   let lastStart = -Infinity;
-  /** @type {Set<{ osc: any, env: any }>} */
+  let lastCryStart = -Infinity;
+  /** @type {Set<{ osc: any, env: any, filter?: any }>} */
   const voices = new Set();
+  /** Voix du sluuurp en cours (null si aucun) : sa fin naturelle suspend le contexte. */
+  /** @type {Set<object> | null} */
+  let slurpVoices = null;
 
   function resume() {
     if (state === BONG_PLAYER_STATE.UNAVAILABLE) return;
@@ -90,6 +112,7 @@ export function createBongPlayer({ createContext, options } = {}) {
       }
       ctx = created;
     }
+    if (state === BONG_PLAYER_STATE.FINALE) stopAllVoices();
     state = BONG_PLAYER_STATE.RUNNING;
     try {
       if (typeof ctx.resume === 'function') absorb(ctx.resume());
@@ -103,6 +126,7 @@ export function createBongPlayer({ createContext, options } = {}) {
       stopVoice(voice);
     }
     voices.clear();
+    slurpVoices = null;
   }
 
   function suspend() {
@@ -163,10 +187,122 @@ export function createBongPlayer({ createContext, options } = {}) {
     }
   }
 
+  /**
+   * Programme une SynthVoice : osc -> (filter) -> env -> destination. L'entrée est
+   * ajoutée à created avant toute opération qui peut lever.
+   * @param {import('./monster-cries.js').SynthVoice} voice
+   * @param {Array<object>} created
+   * @param {() => void} [onEnded]  appelé après la déconnexion, à la fin de la voix
+   */
+  function scheduleSynthVoice(voice, created, onEnded) {
+    const osc = ctx.createOscillator();
+    const entry = { osc, env: null, filter: null };
+    created.push(entry);
+    osc.type = voice.wave;
+    applyPoints(osc.frequency, voice.frequency);
+    const env = ctx.createGain();
+    entry.env = env;
+    applyPoints(env.gain, voice.gain);
+    if (voice.filter) {
+      const filter = ctx.createBiquadFilter();
+      entry.filter = filter;
+      filter.type = voice.filter.type;
+      filter.Q.setValueAtTime(voice.filter.q, voice.start);
+      applyPoints(filter.frequency, voice.filter.frequency);
+      osc.connect(filter);
+      filter.connect(env);
+    } else {
+      osc.connect(env);
+    }
+    env.connect(ctx.destination);
+    osc.start(voice.start);
+    osc.stop(voice.stop);
+    osc.onended = () => {
+      disconnectVoice(entry);
+      voices.delete(entry);
+      if (onEnded) onEnded(entry);
+    };
+    voices.add(entry);
+    return entry;
+  }
+
+  /**
+   * Arrête et déconnecte les voix créées par une programmation qui a échoué.
+   * @param {Array<object>} created
+   */
+  function discard(created) {
+    for (const entry of created) {
+      stopVoice(entry);
+      disconnectVoice(entry);
+      voices.delete(entry);
+    }
+  }
+
+  /**
+   * Programme un cri (début de traque). Délai propre au cri (CRY.minInterval).
+   * @param {number} gain
+   * @returns {boolean} true si un cri est programmé
+   */
+  function playCry(gain) {
+    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
+    const created = [];
+    try {
+      const now = ctx.currentTime;
+      if (now - lastCryStart < CRY.minInterval - INTERVAL_EPSILON) return false;
+      for (const voice of crySchedule(now, Math.min(gain, 1))) {
+        scheduleSynthVoice(voice, created);
+      }
+      lastCryStart = now;
+      return true;
+    } catch {
+      discard(created);
+      return false;
+    }
+  }
+
+  /**
+   * Coupe toutes les voix, joue le sluuurp et passe en FINALE. À la fin naturelle de la
+   * dernière voix du sluuurp, le contexte est suspendu (état SUSPENDED).
+   * @returns {boolean} true si le sluuurp est programmé
+   */
+  function playSlurp() {
+    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    stopAllVoices();
+    const created = [];
+    try {
+      const current = new Set();
+      const onEnded = (entry) => {
+        if (slurpVoices !== current) return;
+        current.delete(entry);
+        if (current.size > 0 || state !== BONG_PLAYER_STATE.FINALE) return;
+        slurpVoices = null;
+        state = BONG_PLAYER_STATE.SUSPENDED;
+        try {
+          if (typeof ctx.suspend === 'function') absorb(ctx.suspend());
+        } catch {
+          // Suspend refused: the slurp is over anyway.
+        }
+      };
+      for (const voice of slurpSchedule(ctx.currentTime)) {
+        current.add(scheduleSynthVoice(voice, created, onEnded));
+      }
+      slurpVoices = current;
+      state = BONG_PLAYER_STATE.FINALE;
+      return true;
+    } catch {
+      discard(created);
+      suspend();
+      return false;
+    }
+  }
+
   return Object.freeze({
     resume,
     suspend,
     play,
+    playCry,
+    playSlurp,
     get state() {
       return state;
     },

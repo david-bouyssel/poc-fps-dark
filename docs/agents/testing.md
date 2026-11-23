@@ -69,18 +69,20 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/sprites.test.js` | projection (cohérence avec `castRays`, tri, exclusions), `worldSize` par sprite |
 | `tests/unit/i18n.test.js` | clés `fps.*` (dont `fps.goal`), `end.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
-| `tests/functional/static-server.test.js` | modules `game/`, `render/` et `audio/` FPS servis (dont sortie, état de partie, `render/monster-sprite.js`, `audio/bong.js` et `audio/bong-player.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
+| `tests/functional/static-server.test.js` | modules `game/`, `render/` et `audio/` FPS servis (dont sortie, état de partie, `render/monster-sprite.js`, `audio/bong.js`, `audio/monster-cries.js` et `audio/bong-player.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
 | `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
 | `tests/unit/pathfinding.test.js` | `tileDistances`, `pathDistance`, `shortestPath` (couloir, pièce séparée, chemin contigu, déterminisme, gel, erreurs), `cellToTile`, `tileAt` |
 | `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale parmi les culs-de-sac, préférence cul-de-sac, repli sans cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
 | `tests/unit/game-state.test.js` | `createGameState`, `checkVictory`, `declareDefeat` (premier état final l'emporte, même référence), `isGameOver`, erreurs |
 | `tests/unit/exit-texture.test.js` | `generateExitTexture` (cadre, centre, 3 couleurs, déterminisme, erreurs), `isExitFace` (faces vues depuis la sortie, face opposée d'un mur partagé, exit absent) |
-| `tests/unit/monster.test.js` | `createMonster` (cellule, distance minimale, sortie évitée, déterminisme, repli, erreurs), `stepMonster` (grâce, bornage, déplacement, jamais sur un mur, errance, traque et hystérésis, événements `TURN`, pureté), `isCatching`, capture garantie, `monsterSprite` |
+| `tests/unit/monster.test.js` | `createMonster` (cellule, distance minimale, sortie évitée, déterminisme, repli, erreurs), `stepMonster` (grâce, bornage, déplacement, jamais sur un mur, errance, traque et hystérésis, événements `TURN` et `SPOT` (forme, ordre, au plus un par pas, sans tirage), pureté), `isCatching`, capture garantie, `monsterSprite` |
 | `tests/functional/fps-monster.test.js` | simulation de `update` : capture d'un joueur immobile (`LOST`), fuite en courant (`WON`), capture en marchant, victoire prioritaire, « Rejouer » déterministe |
 | `tests/functional/fps-exit.test.js` | parcours `shortestPath` jusqu'à la sortie avec `stepPlayer` : `PLAYING` avant la tuile de sortie, `WON` en y entrant, `declareDefeat` sans effet ensuite |
 | `tests/unit/monster-sprite.test.js` | `generateMonsterSprite` (3 images distinctes, déterminisme, alpha 0/255, centre opaque, yeux et dents présents, bouche plus ouverte en image 2, erreurs), `monsterFrame` (cycle 0, 1, 2, 1, périodes 0.8 s en errance et 0.4 s en traque, grâce -> image 0, erreurs), `monsterFrameSprite` (kind `monster-k`, `worldSize`, gel, erreurs), constantes égales à celles de `game/monster.js` |
 | `tests/unit/bong.test.js` | constantes `BONG` et `BONG_SYNTH` (gel, coups graves, durée <= `minInterval`), `bongGain` (formule quadratique, repères, silence à partir de 36, continuité, surcharge, erreurs), `selectBongGain` (maximum des `turn`, types ignorés, événements réels de `stepMonster`, erreurs), `bongSchedule` (4 voix, valeurs exactes, gel, erreurs) |
-| `tests/unit/bong-player.test.js` | faux `AudioContext` injecté : création paresseuse, `UNAVAILABLE`, rejets absorbés, paramètres conformes à `bongSchedule`, gain borné, délai `minInterval`, `suspend` (arrêt des voix), `onended`, exception en cours de programmation |
+| `tests/unit/bong-player.test.js` | faux `AudioContext` injecté : création paresseuse, `UNAVAILABLE`, rejets absorbés, paramètres conformes à `bongSchedule`, gain borné, délai `minInterval`, `suspend` (arrêt des voix), `onended`, exception en cours de programmation, `playCry` (paramètres conformes à `crySchedule`, délai `CRY.minInterval`, indépendance cri/bong), `playSlurp` (voix coupées, filtres chaînés, état `FINALE`, fin naturelle -> `SUSPENDED`), `suspend`/`resume` en `FINALE`, pannes de `createBiquadFilter` et `createOscillator` |
+| `tests/unit/monster-cries.test.js` | constantes `CRY`, `SLURP`, `CRY_SYNTH`, `SLURP_SYNTH` (gel, `SPOT_EVENT_TYPE` égal à `MONSTER_EVENT.SPOT`), cri aigu (>= 1000 Hz jusqu'à 0.35 s, >= 500 Hz partout), sluuurp grave (fin <= 100 Hz, coupure décroissante), durées, `cryGain`, `selectCryGain`, `crySchedule` et `slurpSchedule` (voix, invariants, vibrato, filtres, gel, erreurs) |
+| `tests/functional/fps-monster-cries.test.js` | simulation de `update` et `endRound` : un seul cri au début de la traque, défaite -> sluuurp sans `suspend` immédiat puis `SUSPENDED`, victoire -> `suspend` sans sluuurp, « Rejouer » et sortie FPS pendant le sluuurp |
 | `tests/functional/fps-bong.test.js` | simulation de `update` : premier bong à la fin de la grâce, gains croissants à l'approche, silence au-delà de la portée, cycle `resume`/`suspend` (entrée, sortie, retour, fin de partie) |
 | `tests/functional/fps-monster-appearance.test.js` | sans DOM (faux canvas) : monstre derrière un mur non dessiné par `drawFpsView`, image dessinée = image de `monsterFrame`, grâce -> `monster-0`, aucun monstre dans `drawAutomap` ni `drawMaze` (source de `main.js`) |
 
@@ -171,6 +173,13 @@ l'instant même à la sortie FPS (Échap), au changement d'onglet et sur l'écra
 son de retour au retour sur l'onglet en FPS et à « Rejouer » ; console sans erreur ni
 avertissement d'autoplay bloquant ; navigateur sans Web Audio (ou fabrique forcée en
 échec) : le jeu fonctionne, muet.
+
+Cris du monstre : cri aigu à l'instant où le monstre se met à traquer, pas de cri répété
+pendant la poursuite ; nouveau cri seulement après l'avoir semé puis être revenu à
+portée. Contact : « sluuurp » complet par-dessus l'écran « Attrapé ! », plus aucun bong ni
+cri. Échap ou changement d'onglet pendant le sluuurp : coupure immédiate. « Rejouer »
+pendant le sluuurp : coupure, puis bongs normaux. Victoire : silence immédiat. Console
+sans erreur.
 
 Tactile (vrai téléphone) : « Explorer en 3D » -> croix à gauche et actions à droite, en
 portrait comme en paysage, sans défilement ni zoom ; ▲ avance, ↺ ↻ tournent, plusieurs

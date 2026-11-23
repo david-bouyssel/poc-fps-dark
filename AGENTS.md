@@ -17,7 +17,10 @@ dessus et sur l'automap) : y entrer en FPS donne la victoire et un écran de fin
 (déterministe par graine), immobile 3 s, puis errance ou traque par plus court chemin ;
 plus rapide que la marche, moins que la course ; un contact donne la défaite. À chaque changement de direction, le monstre émet un
 « bong bong » grave synthétisé en Web Audio (sans fichier son), d'autant plus fort qu'il
-est proche en distance de chemin, coupé hors vue FPS, page cachée et en fin de partie. Objectif visé : trouver la sortie d'un labyrinthe traqué par un monstre. Stack : HTML +
+est proche en distance de chemin, coupé hors vue FPS, page cachée et en fin de partie. Quand
+il se met à traquer, il pousse un cri strident (au plus un toutes les 6 s) ; quand il attrape
+le joueur, un « sluuurp » se joue par-dessus l'écran de fin et coupe tous les autres sons
+(même synthèse Web Audio, sans fichier son). Objectif visé : trouver la sortie d'un labyrinthe traqué par un monstre. Stack : HTML +
 JavaScript ES modules vanilla, sans bundler, sans framework, sans aucune dépendance npm.
 Node >= 20 sert uniquement aux tests (`node --test`) et au serveur statique local. Aucun
 stockage. Application statique publiée sur GitHub Pages

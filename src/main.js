@@ -38,6 +38,7 @@ import {
 } from './render/monster-sprite.js';
 import { applyTranslations, t } from './i18n/i18n.js';
 import { selectBongGain } from './audio/bong.js';
+import { selectCryGain } from './audio/monster-cries.js';
 import { createBongPlayer } from './audio/bong-player.js';
 
 const DEFAULT_SIZE = 16;
@@ -126,6 +127,10 @@ const gameLoop = createGameLoop({
       const bongGainValue = selectBongGain(step.events);
       if (bongGainValue > 0) {
         bongPlayer.play(bongGainValue);
+      }
+      const cryGainValue = selectCryGain(step.events);
+      if (cryGainValue > 0) {
+        bongPlayer.playCry(cryGainValue);
       }
       if (isCatching(monster, player)) {
         gameState = declareDefeat(gameState);
@@ -319,7 +324,10 @@ function startRound() {
  */
 function endRound() {
   gameLoop.stop();
-  bongPlayer.suspend();
+  // Defeat: the slurp plays over the end screen and cuts every other sound.
+  if (gameState.status !== GAME_STATUS.LOST || !bongPlayer.playSlurp()) {
+    bongPlayer.suspend();
+  }
   clearHeldActions();
   mapMode = AUTOMAP_MODE.MINI;
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
