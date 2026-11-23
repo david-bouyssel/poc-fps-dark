@@ -3,6 +3,13 @@ import { MAX_SEED } from './maze/random.js';
 import { toTileGrid } from './maze/grid.js';
 import { createPlayer } from './game/player.js';
 import { ACTION, actionForCode, computeIntent } from './game/input.js';
+import {
+  createTouchState,
+  pressTouch,
+  releaseTouch,
+  touchActionFor,
+  touchActions,
+} from './game/touch-input.js';
 import { stepPlayer } from './game/movement.js';
 import { createGameLoop } from './game/loop.js';
 import { findExit } from './game/exit.js';
@@ -47,6 +54,11 @@ const canvas = document.getElementById('maze-canvas');
 const fpsEnterButton = document.getElementById('fps-enter-button');
 const fpsExitButton = document.getElementById('fps-exit-button');
 const fpsHelp = document.getElementById('fps-help');
+const fpsHelpTouch = document.getElementById('fps-help-touch');
+const touchPads = [
+  document.getElementById('touch-pad-move'),
+  document.getElementById('touch-pad-actions'),
+];
 const fpsGoal = document.getElementById('fps-goal');
 const endScreen = document.getElementById('end-screen');
 const endTitle = document.getElementById('end-title');
@@ -81,6 +93,8 @@ let explored = null;
 let mapMode = AUTOMAP_MODE.MINI;
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
+/** Doigts posés sur les boutons tactiles (TouchState gelé, remplacé à chaque changement). */
+let touchState = createTouchState();
 let resizeFrame = 0;
 
 /**
@@ -101,7 +115,7 @@ const gameLoop = createGameLoop({
       return;
     }
     monsterClock += dt;
-    player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid);
+    player = stepPlayer(player, computeIntent([...pressedActions, ...touchActions(touchState)]), dt, currentGrid);
     revealVisibleTiles(explored, currentGrid, player);
     // Frame order: stepPlayer, checkVictory, then the monster only if the round goes on
     // (reaching the exit at the moment of contact is a victory).
@@ -294,7 +308,7 @@ function startRound() {
   monsterClock = 0;
   explored = createExploredMask(currentGrid);
   gameState = createGameState();
-  pressedActions.clear();
+  clearHeldActions();
   hideEndScreen();
   return true;
 }
@@ -306,7 +320,7 @@ function startRound() {
 function endRound() {
   gameLoop.stop();
   bongPlayer.suspend();
-  pressedActions.clear();
+  clearHeldActions();
   mapMode = AUTOMAP_MODE.MINI;
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
   drawFpsFrame();
@@ -356,9 +370,12 @@ function enterFps() {
   fpsEnterButton.hidden = true;
   fpsExitButton.hidden = false;
   fpsHelp.hidden = false;
+  fpsHelpTouch.hidden = false;
+  setTouchPadsHidden(false);
+  document.body.classList.add('fps-active');
   fpsGoal.hidden = false;
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
-  pressedActions.clear();
+  clearHeldActions();
   // First call creates the audio context, inside the click gesture (autoplay policy).
   bongPlayer.resume();
   gameLoop.start();
@@ -373,13 +390,16 @@ function exitFps() {
   }
   gameLoop.stop();
   bongPlayer.suspend();
-  pressedActions.clear();
+  clearHeldActions();
   viewMode = VIEW_TOP;
   mapMode = AUTOMAP_MODE.MINI;
   form.hidden = false;
   fpsEnterButton.hidden = false;
   fpsExitButton.hidden = true;
   fpsHelp.hidden = true;
+  fpsHelpTouch.hidden = true;
+  setTouchPadsHidden(true);
+  document.body.classList.remove('fps-active');
   fpsGoal.hidden = true;
   hideEndScreen();
   canvas.setAttribute('aria-label', t('canvas.label'));
@@ -404,6 +424,55 @@ function toggleMap() {
   const full = mapMode === AUTOMAP_MODE.MINI;
   mapMode = full ? AUTOMAP_MODE.FULL : AUTOMAP_MODE.MINI;
   canvas.setAttribute('aria-label', t(full ? 'canvas.labelFpsMap' : 'canvas.labelFps'));
+}
+
+/** Relâche toutes les actions maintenues (clavier et tactile). */
+function clearHeldActions() {
+  pressedActions.clear();
+  touchState = createTouchState();
+  for (const button of document.querySelectorAll('.touch-button.is-pressed')) {
+    button.classList.remove('is-pressed');
+  }
+}
+
+function setTouchPadsHidden(hidden) {
+  for (const pad of touchPads) {
+    pad.hidden = hidden;
+  }
+}
+
+/** Bouton tactile (avec data-action reconnu) sous la cible d'un événement, sinon null. */
+function touchButtonOf(event) {
+  const button = event.target instanceof Element ? event.target.closest('[data-action]') : null;
+  return button !== null && touchActionFor(button.dataset.action) !== null ? button : null;
+}
+
+function onTouchPointerDown(event) {
+  const button = touchButtonOf(event);
+  if (button === null || viewMode !== VIEW_FPS || isGameOver(gameState)) {
+    return;
+  }
+  event.preventDefault();
+  try {
+    button.setPointerCapture(event.pointerId);
+  } catch {
+    // Synthetic or already released pointer: capture is optional.
+  }
+  const action = touchActionFor(button.dataset.action);
+  if (action === ACTION.TOGGLE_MAP) {
+    toggleMap();
+    return;
+  }
+  touchState = pressTouch(touchState, event.pointerId, action);
+  button.classList.add('is-pressed');
+}
+
+function onTouchPointerEnd(event) {
+  touchState = releaseTouch(touchState, event.pointerId);
+  const button = touchButtonOf(event);
+  if (button !== null) {
+    button.classList.remove('is-pressed');
+  }
 }
 
 function onKeyDown(event) {
@@ -466,14 +535,21 @@ function init() {
   fpsExitButton.addEventListener('click', exitFps);
   replayButton.addEventListener('click', replay);
   endNewMazeButton.addEventListener('click', newMazeFromEndScreen);
+  for (const pad of touchPads) {
+    pad.addEventListener('pointerdown', onTouchPointerDown);
+    pad.addEventListener('pointerup', onTouchPointerEnd);
+    pad.addEventListener('pointercancel', onTouchPointerEnd);
+    pad.addEventListener('lostpointercapture', onTouchPointerEnd);
+    pad.addEventListener('contextmenu', (event) => event.preventDefault());
+  }
   window.addEventListener('keydown', onKeyDown);
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => {
-    pressedActions.clear();
+    clearHeldActions();
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
-      pressedActions.clear();
+      clearHeldActions();
       bongPlayer.suspend();
     } else if (viewMode === VIEW_FPS && !isGameOver(gameState)) {
       // Context already unlocked by the initial gesture; never created here outside FPS.

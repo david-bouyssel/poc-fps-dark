@@ -41,8 +41,16 @@
         <button id="fps-exit-button" type="button" class="button button-secondary" data-i18n="fps.exit" hidden></button>
       </div>
       <p id="fps-help" class="help" data-i18n="fps.help" hidden></p>
+      <p id="fps-help-touch" class="help" data-i18n="fps.helpTouch" hidden></p>
       <p id="fps-goal" class="help" data-i18n="fps.goal" hidden></p>
 
+      <div id="play-area" class="play-area">
+      <div id="touch-pad-move" class="touch-pad touch-pad-move" role="group" data-i18n-aria-label="touch.moveGroup" hidden>
+        <button type="button" class="touch-button" data-action="forward" data-i18n="touch.forward" data-i18n-aria-label="touch.forwardLabel"></button>
+        <button type="button" class="touch-button" data-action="backward" data-i18n="touch.backward" data-i18n-aria-label="touch.backwardLabel"></button>
+        <button type="button" class="touch-button" data-action="turnLeft" data-i18n="touch.turnLeft" data-i18n-aria-label="touch.turnLeftLabel"></button>
+        <button type="button" class="touch-button" data-action="turnRight" data-i18n="touch.turnRight" data-i18n-aria-label="touch.turnRightLabel"></button>
+      </div>
       <div id="maze-stage" class="stage">
         <canvas id="maze-canvas" role="img" data-i18n-aria-label="canvas.label"></canvas>
         <div id="end-screen" class="end-screen" role="alertdialog" aria-labelledby="end-title" aria-describedby="end-message" hidden>
@@ -53,6 +61,13 @@
             <button id="end-new-maze-button" type="button" class="button button-secondary" data-i18n="end.newMaze"></button>
           </div>
         </div>
+      </div>
+      <div id="touch-pad-actions" class="touch-pad touch-pad-actions" role="group" data-i18n-aria-label="touch.actionGroup" hidden>
+        <button type="button" class="touch-button" data-action="strafeLeft" data-i18n="touch.strafeLeft" data-i18n-aria-label="touch.strafeLeftLabel"></button>
+        <button type="button" class="touch-button" data-action="strafeRight" data-i18n="touch.strafeRight" data-i18n-aria-label="touch.strafeRightLabel"></button>
+        <button type="button" class="touch-button" data-action="run" data-i18n="touch.run" data-i18n-aria-label="touch.runLabel"></button>
+        <button type="button" class="touch-button" data-action="toggleMap" data-i18n="touch.map" data-i18n-aria-label="touch.mapLabel"></button>
+      </div>
       </div>
     </main>
   </body>

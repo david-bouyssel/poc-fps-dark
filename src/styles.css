@@ -232,3 +232,160 @@ body {
 .end-buttons {
   justify-content: center;
 }
+
+/* Touch controls: hidden by default, shown only on compact screens during the FPS view. */
+.play-area {
+  display: contents;
+}
+
+.touch-pad,
+#fps-help-touch {
+  display: none;
+}
+
+.touch-pad {
+  grid-template-columns: repeat(2, 56px);
+  grid-auto-rows: 56px;
+  gap: 8px;
+  justify-content: center;
+  align-content: center;
+}
+
+.touch-pad-move {
+  grid-template-columns: repeat(3, 56px);
+  grid-template-rows: repeat(3, 56px);
+  grid-auto-rows: auto;
+}
+
+.touch-pad-move [data-action="forward"] {
+  grid-area: 1 / 2;
+}
+
+.touch-pad-move [data-action="turnLeft"] {
+  grid-area: 2 / 1;
+}
+
+.touch-pad-move [data-action="turnRight"] {
+  grid-area: 2 / 3;
+}
+
+.touch-pad-move [data-action="backward"] {
+  grid-area: 3 / 2;
+}
+
+.touch-pad-actions {
+  grid-template-columns: repeat(2, minmax(56px, auto));
+}
+
+.touch-button {
+  min-width: 56px;
+  white-space: nowrap;
+  min-height: 56px;
+  padding: 0 8px;
+  border: 2px solid var(--color-wall);
+  border-radius: var(--radius);
+  background: var(--color-background);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 1.2rem;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+}
+
+.touch-button.is-pressed {
+  background: var(--color-accent);
+  border-color: var(--color-text);
+}
+
+@media (pointer: coarse), (max-width: 600px) {
+  #fps-help {
+    display: none;
+  }
+
+  #fps-help-touch:not([hidden]) {
+    display: block;
+  }
+
+  body.fps-active .app {
+    padding: 8px;
+    gap: 8px;
+  }
+
+  body.fps-active .app-header {
+    display: none;
+  }
+
+  body.fps-active .play-area {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-areas:
+      "stage stage"
+      "move actions";
+    gap: 8px;
+  }
+
+  body.fps-active #maze-stage {
+    grid-area: stage;
+    height: min(50vh, 100vw - 16px);
+    min-height: 0;
+    touch-action: none;
+  }
+
+  body.fps-active #touch-pad-move {
+    grid-area: move;
+  }
+
+  body.fps-active #touch-pad-actions {
+    grid-area: actions;
+  }
+
+  body.fps-active .touch-pad:not([hidden]) {
+    display: grid;
+  }
+
+  body.fps-active .help {
+    font-size: 0.8rem;
+  }
+}
+
+@media ((pointer: coarse), (max-width: 600px)) and (orientation: landscape) {
+  /* The page is exactly one viewport tall: the play area takes what the exit button,
+     the help and the goal leave, so nothing scrolls whatever the text wrapping. */
+  body.fps-active .app {
+    height: 100vh;
+    height: 100dvh;
+    padding: 4px 8px;
+    gap: 4px;
+  }
+
+  body.fps-active #fps-exit-button {
+    padding: 4px 14px;
+  }
+
+  body.fps-active .help {
+    font-size: 0.75rem;
+    line-height: 1.3;
+  }
+
+  body.fps-active .play-area {
+    flex: 1 1 0;
+    min-height: 0;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr);
+    grid-template-areas: "move stage actions";
+    align-items: center;
+  }
+
+  body.fps-active #maze-stage {
+    align-self: stretch;
+    height: auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: hidden;
+  }
+}

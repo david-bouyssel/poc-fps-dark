@@ -454,8 +454,12 @@ const ELEMENT_IDS = [
   'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'new-maze-button', 'maze-info',
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
 ];
-const HIDDEN_AT_LOAD = new Set(['fps-exit-button', 'fps-help', 'fps-goal', 'end-screen']);
+const HIDDEN_AT_LOAD = new Set([
+  'fps-exit-button', 'fps-help', 'fps-goal', 'end-screen',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+]);
 
 function fake2dContext() {
   const gradient = { addColorStop() {} };
@@ -518,6 +522,7 @@ describe('sécurité : câblage audio de src/main.js (DOM factice)', () => {
     hidden: false,
     activeElement: null,
     querySelectorAll: () => [],
+    body: { classList: { add() {}, remove() {} } },
   };
   const elements = new Map(ELEMENT_IDS.map((id) => [id, makeElement(id, fakeDocument)]));
   fakeDocument.getElementById = (id) => elements.get(id) ?? null;

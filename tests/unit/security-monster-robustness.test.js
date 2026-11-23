@@ -384,8 +384,12 @@ const ELEMENT_IDS = [
   'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'new-maze-button', 'maze-info',
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
 ];
-const HIDDEN_AT_LOAD = new Set(['fps-exit-button', 'fps-help', 'fps-goal', 'end-screen']);
+const HIDDEN_AT_LOAD = new Set([
+  'fps-exit-button', 'fps-help', 'fps-goal', 'end-screen',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+]);
 const htmlWrites = [];
 const endTitleWrites = [];
 
@@ -473,6 +477,7 @@ describe('main.js : câblage du monstre (DOM factice)', () => {
     activeElement: null,
     getElementById: (id) => elements.get(id) ?? null,
     querySelectorAll: () => [],
+    body: { classList: { add() {}, remove() {} } },
   };
   const frames = new Map();
   let nextFrameId = 1;

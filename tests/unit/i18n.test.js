@@ -165,3 +165,39 @@ test('sortie : index.html référence fps.goal, end.replay, end.newMaze via data
     assert.match(tag[0], new RegExp(`data-i18n=["']${key.replace('.', '\.')}["']`), id);
   }
 });
+
+// --- Mobile tactile (plan docs/design/mobile-tactile.md §5 et §6) ---
+
+const TOUCH_KEYS = [
+  'touch.moveGroup', 'touch.actionGroup',
+  'touch.forward', 'touch.forwardLabel', 'touch.backward', 'touch.backwardLabel',
+  'touch.turnLeft', 'touch.turnLeftLabel', 'touch.turnRight', 'touch.turnRightLabel',
+  'touch.strafeLeft', 'touch.strafeLeftLabel', 'touch.strafeRight', 'touch.strafeRightLabel',
+  'touch.run', 'touch.runLabel', 'touch.map', 'touch.mapLabel',
+  'fps.helpTouch',
+];
+
+test('tactile : clés touch.* et fps.helpTouch présentes et non vides', () => {
+  for (const key of TOUCH_KEYS) {
+    assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
+    assert.ok(fr[key].trim().length > 0, `clé vide : ${key}`);
+  }
+});
+
+test('tactile : textes clés du plan', () => {
+  assert.equal(fr['touch.forwardLabel'], 'Avancer');
+  assert.equal(fr['touch.run'], 'Courir');
+  assert.equal(fr['touch.map'], 'Carte');
+  assert.equal(fr['fps.help'], EXPECTED_FPS['fps.help']);
+});
+
+test('tactile : index.html, chaque data-i18n et data-i18n-aria-label a sa clé', () => {
+  const html = readFileSync(fileURLToPath(new URL('../../src/index.html', import.meta.url)), 'utf8');
+  for (const m of html.matchAll(/data-i18n(?:-aria-label)?=["']([^"']+)["']/g)) {
+    assert.equal(typeof fr[m[1]], 'string', `clé inconnue dans index.html : ${m[1]}`);
+  }
+  for (const key of ['touch.moveGroup', 'touch.actionGroup', 'touch.forwardLabel', 'touch.mapLabel']) {
+    assert.match(html, new RegExp(`data-i18n-aria-label=["']${key.replace('.', '\.')}["']`), key);
+  }
+  assert.match(html, /data-i18n=["']fps\.helpTouch["']/);
+});

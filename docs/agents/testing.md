@@ -27,6 +27,11 @@ DOM se vérifient manuellement (voir plus bas).
   `KeyQ`/`ArrowLeft` et `KeyE`/`ArrowRight` tourner, `KeyA`/`KeyD` pas de côté,
   `ShiftLeft` courir, `KeyM` carte plein écran, `Escape` retour à la vue de dessus.
 
+- Gestes tactiles (viewport 375 x 812, ou 812 x 375 en paysage) : `javascript_tool` envoie
+  un `PointerEvent` (`pointerType: 'touch'`, `pointerId` fixe, `bubbles: true`) sur un
+  bouton `[data-action="forward"]` etc. : `pointerdown`, attente, puis `pointerup`.
+  Les boutons ne sont visibles qu'en FPS sur écran compact.
+
 ## Écrire un test
 - Emplacement : `tests/unit/` (logique pure : `src/maze/`, `src/game/`,
   `src/render/maze-geometry.js`, `src/render/raycaster.js`, `src/render/wall-textures.js`,
@@ -166,6 +171,11 @@ l'instant même à la sortie FPS (Échap), au changement d'onglet et sur l'écra
 son de retour au retour sur l'onglet en FPS et à « Rejouer » ; console sans erreur ni
 avertissement d'autoplay bloquant ; navigateur sans Web Audio (ou fabrique forcée en
 échec) : le jeu fonctionne, muet.
+
+Tactile (vrai téléphone) : « Explorer en 3D » -> croix à gauche et actions à droite, en
+portrait comme en paysage, sans défilement ni zoom ; ▲ avance, ↺ ↻ tournent, plusieurs
+doigts ensemble (avancer + tourner, avancer + Courir) ; « Carte » bascule la carte ;
+lever le doigt arrête le mouvement ; pas de menu contextuel à l'appui long.
 
 ## Vérification en ligne
 Après un push sur `main` et un run « Publier sur GitHub Pages » vert, ouvrir

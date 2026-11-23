@@ -155,7 +155,7 @@ describe('sécurité statique : arborescence servie src/', () => {
       assert.match(attrs, /\btype\s*=\s*["']module["']/);
     }
     assert.doesNotMatch(html, /\son\w+\s*=/i, 'attribut on* interdit');
-    for (const m of html.matchAll(/\b(?:src|href|action)\s*=\s*["']([^"']*)["']/gi)) {
+    for (const m of html.matchAll(/(?<![\w-])(?:src|href|action)\s*=\s*["']([^"']*)["']/gi)) {
       assert.match(m[1], /^\.\/[\w./-]+$/, `ressource non locale : ${m[1]}`);
     }
     assert.doesNotMatch(html, /<(iframe|object|embed|base)\b/i);

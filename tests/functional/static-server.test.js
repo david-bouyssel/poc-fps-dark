@@ -250,3 +250,32 @@ test('sortie : écran de fin et objectif sans texte en dur', async () => {
   assert.ok(goal);
   assert.equal(goal[1].trim(), '');
 });
+
+// --- Mobile tactile (plan docs/design/mobile-tactile.md §6) ---
+
+test('tactile : GET /game/touch-input.js -> 200 text/javascript', async () => {
+  const res = await fetch(`${base}/game/touch-input.js`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/javascript; charset=utf-8/);
+  assert.ok((await res.text()).includes('touchActionFor'));
+});
+
+test('tactile : GET / contient les blocs de boutons, un bouton par action tactile', async () => {
+  const { TOUCH_ACTIONS, touchActionFor } = await import('../../src/game/touch-input.js');
+  const body = await (await fetch(`${base}/`)).text();
+  for (const id of ['play-area', 'touch-pad-move', 'touch-pad-actions', 'fps-help-touch']) {
+    assert.match(body, new RegExp(`id=["']${id}["']`), id);
+  }
+  const tagOf = (id) => body.match(new RegExp(`<[a-z0-9]+[^>]*id=["']${id}["'][^>]*>`))[0];
+  for (const id of ['touch-pad-move', 'touch-pad-actions', 'fps-help-touch']) {
+    assert.match(tagOf(id), /\shidden[\s>=]/, `${id} visible au chargement`);
+  }
+  const actions = [...body.matchAll(/<button[^>]*data-action=["']([^"']+)["'][^>]*>/g)].map((m) => m[1]);
+  const expected = Array.isArray(TOUCH_ACTIONS) ? TOUCH_ACTIONS : Object.values(TOUCH_ACTIONS);
+  for (const a of expected) assert.ok(actions.includes(a), `bouton manquant : ${a}`);
+  for (const a of actions) assert.notEqual(touchActionFor(a), null, `data-action inconnu : ${a}`);
+  for (const m of body.matchAll(/<button[^>]*data-action=[^>]*>/g)) {
+    assert.match(m[0], /type=["']button["']/);
+    assert.match(m[0], /data-i18n-aria-label=/);
+  }
+});
