@@ -1,5 +1,17 @@
 # Cris du monstre : cri strident et « sluuurp » (version sombre)
 
+> **Amendement (retour utilisateur après le premier commit).** Deux corrections :
+> - « Voit le joueur » veut maintenant dire **ligne de vue**, pas début de traque : le cri
+>   partait alors que le monstre traquait à travers les murs. `SPOT` est émis en fin de pas
+>   quand `seesPlayer` passe de `false` à `true` (distance euclidienne
+>   `<= MONSTER.sightDistance` = 12 tuiles et `hasLineOfSight` de `pathfinding.js` sans mur),
+>   après les `TURN`. La traque, le mode et les tirages ne changent pas. `MonsterState`
+>   gagne `seesPlayer` (booléen, `false` à l'apparition et pendant la grâce).
+> - `CRY.maxGain` passe de 0.5 à 0.2 : le cri aigu (dents de scie) couvrait les bongs graves.
+>
+> Les sections ci-dessous qui décrivent `SPOT` au passage `wander` -> `chase` sont remplacées
+> par ces règles.
+
 ## 1. Résumé
 
 Deux nouveaux sons du monstre, synthétisés en Web Audio comme le « bong bong »

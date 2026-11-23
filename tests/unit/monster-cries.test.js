@@ -63,7 +63,7 @@ describe('constantes', () => {
   });
 
   test('valeurs du contrat', () => {
-    assert.deepEqual({ ...CRY }, { maxGain: 0.5, nearDistance: 2, silenceDistance: 36, minInterval: 6 });
+    assert.deepEqual({ ...CRY }, { maxGain: 0.2, nearDistance: 2, silenceDistance: 36, minInterval: 6 });
     assert.equal(SLURP.gain, 0.6);
     assert.equal(CRY_SYNTH.baseFrequency, 1300);
     assert.equal(CRY_SYNTH.vibratoRate, 22);
@@ -131,10 +131,10 @@ describe('cri aigu, sluuurp grave', () => {
 // ---------------------------------------------------------------------------
 
 describe('cryGain', () => {
-  test('repères : 0 et 2 -> 0.5 ; 12 -> ~0.249 ; 36 et Infinity -> 0', () => {
-    assert.equal(cryGain(0), 0.5);
-    assert.equal(cryGain(2), 0.5);
-    assert.ok(Math.abs(cryGain(12) - 0.249) < 1e-3, `${cryGain(12)}`);
+  test('repères : 0 et 2 -> 0.2 ; 12 -> ~0.0997 ; 36 et Infinity -> 0', () => {
+    assert.equal(cryGain(0), 0.2);
+    assert.equal(cryGain(2), 0.2);
+    assert.ok(Math.abs(cryGain(12) - 0.0997) < 1e-3, `${cryGain(12)}`);
     assert.equal(cryGain(36), 0);
     assert.equal(cryGain(50), 0);
     assert.equal(cryGain(Infinity), 0);

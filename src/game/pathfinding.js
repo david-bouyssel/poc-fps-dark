@@ -168,3 +168,60 @@ export function tileAt(x, y) {
   }
   return Object.freeze({ tx: Math.floor(x), ty: Math.floor(y) });
 }
+
+/**
+ * Ligne de vue entre deux points monde : true si le segment ne traverse aucune tuile
+ * qui n'est pas du sol (parcours DDA des tuiles, Amanatides-Woo). Un point hors de la
+ * grille ou dans un mur -> false. Coût : O(longueur du segment en tuiles).
+ * @param {{ width: number, height: number, tiles: Uint8Array }} grid
+ * @param {number} x0
+ * @param {number} y0
+ * @param {number} x1
+ * @param {number} y1
+ * @returns {boolean}
+ * @throws {TypeError} grid mal formée ; coordonnée non finie
+ */
+export function hasLineOfSight(grid, x0, y0, x1, y1) {
+  validateGrid(grid);
+  for (const value of [x0, y0, x1, y1]) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) {
+      throw new TypeError('coordinates must be finite numbers');
+    }
+  }
+  const { width, height, tiles } = grid;
+  const isFloor = (tx, ty) => tx >= 0 && ty >= 0 && tx < width && ty < height
+    && tiles[ty * width + tx] === TILE.FLOOR;
+  let tx = Math.floor(x0);
+  let ty = Math.floor(y0);
+  const endTx = Math.floor(x1);
+  const endTy = Math.floor(y1);
+  if (!isFloor(tx, ty)) return false;
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const stepX = dx > 0 ? 1 : -1;
+  const stepY = dy > 0 ? 1 : -1;
+  const deltaX = dx === 0 ? Infinity : Math.abs(1 / dx);
+  const deltaY = dy === 0 ? Infinity : Math.abs(1 / dy);
+  let maxX = dx === 0 ? Infinity : (dx > 0 ? tx + 1 - x0 : x0 - tx) * deltaX;
+  let maxY = dy === 0 ? Infinity : (dy > 0 ? ty + 1 - y0 : y0 - ty) * deltaY;
+  const steps = Math.abs(endTx - tx) + Math.abs(endTy - ty);
+  for (let i = 0; i < steps; i += 1) {
+    if (maxX < maxY) {
+      tx += stepX;
+      maxX += deltaX;
+    } else if (maxY < maxX) {
+      ty += stepY;
+      maxY += deltaY;
+    } else {
+      // Exact corner: both neighbours must be open, the view does not slip between walls.
+      if (!isFloor(tx + stepX, ty) || !isFloor(tx, ty + stepY)) return false;
+      tx += stepX;
+      ty += stepY;
+      maxX += deltaX;
+      maxY += deltaY;
+      i += 1;
+    }
+    if (!isFloor(tx, ty)) return false;
+  }
+  return true;
+}

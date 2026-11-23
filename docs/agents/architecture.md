@@ -26,7 +26,7 @@ src/                             # racine servie au navigateur (et seulement ell
     touch-input.js               # TOUCH_ACTIONS, touchActionFor, TouchState (pressTouch/releaseTouch/touchActions) : doigts -> actions
     movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
     loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
-    pathfinding.js               # BFS sur la grille de tuiles : tileDistances, pathDistance, shortestPath, cellToTile, tileAt
+    pathfinding.js               # BFS sur la grille de tuiles : tileDistances, pathDistance, shortestPath, cellToTile, tileAt, hasLineOfSight
     exit.js                      # findExit(grid) (cul-de-sac le plus éloigné de (0, 0)), isAtExit
     game-state.js                # GAME_STATUS, createGameState, checkVictory, declareDefeat, isGameOver
     monster.js                   # monstre (pur) : createMonster, stepMonster, isCatching, monsterSprite, MONSTER
@@ -140,16 +140,17 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   la même référence ; le premier état final l'emporte.
 - **MonsterState** (`createMonster(grid, seed, { exit })`, objet gelé) : `{ tx, ty,
   nextTx, nextTy, fromTx, fromTy, progress, x, y, mode, heading, pathDistance,
-  graceRemaining, rngState }`. Déplacement de tuile en tuile (centre à centre) ; `x, y`
+  graceRemaining, rngState, seesPlayer }`. Déplacement de tuile en tuile (centre à centre) ; `x, y`
   en tuiles, même repère que le joueur. `mode` : `MONSTER_MODE` `wander | chase`
   (traque si distance de chemin `<= chaseDistance`, retour en errance au-delà de
   `chaseDistance + chaseHysteresis`) ; `heading` : `N | E | S | W | null` ;
   `graceRemaining > 0` : endormi. Le tirage d'errance n'est pas une fermeture stockée :
   `rngState` (uint32) est rejoué par `createRng` à chaque tirage. `stepMonster` renvoie
   `{ monster, events }` (événements `TURN` gelés `{ type, heading, pathDistance, x, y }`,
-  à chaque changement de cap, et `SPOT` gelé `{ type, pathDistance, x, y }` au passage
-  `wander` -> `chase`, avant le `TURN` de la même décision, au plus un par pas ; pour le
-  son ; `SPOT` n'ajoute aucun tirage). `monsterSprite(monster)` donne
+  à chaque changement de cap, et `SPOT` gelé `{ type, pathDistance, x, y }` quand le monstre
+  se met à voir le joueur : `seesPlayer` passe à `true` en fin de pas (distance euclidienne
+  `<= sightDistance` et `hasLineOfSight` sans mur), après les `TURN`, au plus un par pas ;
+  pour le son ; `SPOT` ne change ni le mode ni les tirages). `monsterSprite(monster)` donne
   `{ x, y, kind: 'monster' }` pour `drawFpsView` ; `monsterFrameSprite` le transforme en
   `{ x, y, kind: 'monster-<n>', worldSize }` selon `monsterFrame(time, mode, graceRemaining)`
   (mâchoire 0, 1, 2, 1 ; cycle de 0.8 s en errance, 0.4 s en traque ; image 0 pendant la

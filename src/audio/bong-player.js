@@ -1,7 +1,8 @@
 /**
- * Lecteur des sons du monstre (« bong bong », cri, « sluuurp ») : seul module qui appelle
- * l'API Web Audio. Noms historiques (createBongPlayer, BONG_PLAYER_STATE) conservés. Le contexte audio
- * vient uniquement de la fabrique injectée `createContext` (jamais d'accès global).
+ * Lecteur des sons du monstre (« bong bong », cri, « sluuurp ») : seul module
+ * qui appelle l'API Web Audio. Noms historiques (createBongPlayer, BONG_PLAYER_STATE)
+ * conservés. Le contexte audio vient uniquement de la fabrique injectée `createContext`
+ * (jamais d'accès global).
  * Aucune méthode ne lève d'exception : le son ne doit jamais casser le jeu.
  */
 import { BONG, bongGain, bongSchedule } from './bong.js';
@@ -239,7 +240,7 @@ export function createBongPlayer({ createContext, options } = {}) {
   }
 
   /**
-   * Programme un cri (début de traque). Délai propre au cri (CRY.minInterval).
+   * Programme un cri (le monstre voit le joueur). Délai propre au cri (CRY.minInterval).
    * @param {number} gain
    * @returns {boolean} true si un cri est programmé
    */

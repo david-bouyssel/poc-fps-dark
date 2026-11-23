@@ -13,10 +13,13 @@
 // (rngState). Each wander draw does r = createRng(rngState), choice = randomInt(r, n),
 // rngState' = randomInt(r, MAX_SEED + 1).
 //
-// Events: TURN on each change of heading, SPOT when the monster switches from wander to
-// chase (at most one SPOT per step). SPOT adds no draw: seeds are unchanged.
+// Events: TURN on each change of heading, SPOT when the monster starts seeing the player
+// (clear line of sight within sightDistance; at most one SPOT per step, after the TURNs).
+// SPOT adds no draw and does not change the mode: seeds and moves are unchanged.
 
-import { NEIGHBOR_OFFSETS, shortestPath, tileAt, tileDistances, UNREACHABLE } from './pathfinding.js';
+import {
+  hasLineOfSight, NEIGHBOR_OFFSETS, shortestPath, tileAt, tileDistances, UNREACHABLE,
+} from './pathfinding.js';
 import { createRng, MAX_SEED, randomInt } from '../maze/random.js';
 import { isWallTile } from '../maze/grid.js';
 
@@ -43,6 +46,7 @@ export const MONSTER = Object.freeze({
   graceDuration: 3, // s of stillness at the start of each round
   spawnMinFraction: 0.5, // spawn at >= ceil(0.5 * max distance) from tile (1, 1)
   maxDt: 0.1, // s, step bound (like MOVEMENT.maxDt)
+  sightDistance: 12, // euclidean tiles: sees the player within 12 tiles, no wall between
 });
 
 /** Caps dans l'ordre de NEIGHBOR_OFFSETS. */
@@ -70,6 +74,8 @@ const EMPTY_EVENTS = Object.freeze([]);
  *                                  (entier >= 0 ou Infinity)
  * @property {number} graceRemaining  s, >= 0
  * @property {number} rngState  uint32, état du tirage d'errance
+ * @property {boolean} seesPlayer  ligne de vue dégagée vers le joueur à la fin du dernier
+ *                                 pas (distance <= sightDistance) ; false pendant la grâce
  */
 
 /**
@@ -80,7 +86,8 @@ const EMPTY_EVENTS = Object.freeze([]);
 
 /**
  * @typedef {{ type: 'spot', pathDistance: number, x: number, y: number }} MonsterSpotEvent
- *  objet gelé ; x, y = centre de la tuile de la décision ; pathDistance = d de la décision
+ *  objet gelé ; x, y = position du monstre en fin de pas ; pathDistance = celle de la
+ *  dernière décision
  */
 
 /**
@@ -173,6 +180,7 @@ export function createMonster(grid, seed, placement = {}, options) {
     pathDistance: dist[chosen],
     graceRemaining: settings.graceDuration,
     rngState,
+    seesPlayer: false,
   });
 }
 
@@ -203,10 +211,11 @@ export function createMonster(grid, seed, placement = {}, options) {
  *   5. Si une tuile est visée et que son cap diffère de heading : événement TURN
  *      { heading, pathDistance: d, x: tx + 0.5, y: ty + 0.5 }, puis heading = cap. Le
  *      premier pas après la grâce émet donc un TURN.
- *   5 bis. Si le mode vient de passer de WANDER à CHASE (étape 2) : événement SPOT
- *      { pathDistance: d, x: tx + 0.5, y: ty + 0.5 }, poussé avant l'éventuel TURN de la
- *      même décision. Au plus un SPOT par pas ; jamais pendant la grâce, ni pour
- *      CHASE -> CHASE ou CHASE -> WANDER. Un pas compte donc au plus 8 TURN + 1 SPOT.
+ * - Vue, en fin de pas : seesPlayer = distance euclidienne monstre-joueur <= sightDistance
+ *   et hasLineOfSight(grid, monstre, joueur). Si seesPlayer passe de false à true :
+ *   événement SPOT { pathDistance, x, y } (position de fin de pas), après les TURN. Au plus
+ *   un SPOT par pas ; jamais pendant la grâce (seesPlayer y reste false). Un pas compte
+ *   donc au plus 8 TURN + 1 SPOT. La vue ne change ni le mode ni les tirages.
  * - x, y recalculés en fin de pas.
  * Coût : un BFS par décision, c'est-à-dire par arrivée sur une tuile (jamais à chaque
  * image, sauf monstre arrêté sur la tuile du joueur, cas de capture immédiate).
@@ -216,8 +225,8 @@ export function createMonster(grid, seed, placement = {}, options) {
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @param {Partial<typeof MONSTER>} [options]
  * @returns {{ monster: MonsterState,
- *             events: ReadonlyArray<MonsterEvent|MonsterSpotEvent> }}  objet gelé,
- *          events gelé, dans l'ordre chronologique
+ *             events: ReadonlyArray<MonsterEvent|MonsterSpotEvent> }}
+ *          objet gelé, events gelé, dans l'ordre chronologique
  * @throws {TypeError} monster, player ou grid mal formé
  * @throws {RangeError} options invalides
  */
@@ -243,10 +252,9 @@ export function stepMonster(monster, player, dt, grid, options) {
   const s = { ...monster };
   const events = [];
   let t = step;
-  let spotted = false;
   for (let i = 0; i < MAX_ITERATIONS && t > 0; i += 1) {
     if (s.nextTx === null) {
-      spotted = decide(s, player, grid, settings, events, !spotted) || spotted;
+      decide(s, player, grid, settings, events);
       if (s.nextTx === null) break;
     }
     const speed = s.mode === MONSTER_MODE.CHASE ? settings.chaseSpeed : settings.wanderSpeed;
@@ -267,8 +275,20 @@ export function stepMonster(monster, player, dt, grid, options) {
     }
   }
 
+  const next = makeState(s);
+  const sees = Math.hypot(next.x - player.x, next.y - player.y) <= settings.sightDistance
+    && hasLineOfSight(grid, next.x, next.y, player.x, player.y);
+  if (sees && !monster.seesPlayer) {
+    events.push(Object.freeze({
+      type: MONSTER_EVENT.SPOT,
+      pathDistance: next.pathDistance,
+      x: next.x,
+      y: next.y,
+    }));
+  }
+
   return Object.freeze({
-    monster: makeState(s),
+    monster: sees === next.seesPlayer ? next : makeState({ ...s, seesPlayer: sees }),
     events: events.length === 0 ? EMPTY_EVENTS : Object.freeze(events),
   });
 }
@@ -308,28 +328,16 @@ export function monsterSprite(monster) {
  * @param {{ x: number, y: number }} player
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @param {typeof MONSTER} settings
- * @param {Array<MonsterEvent|MonsterSpotEvent>} events
- * @param {boolean} canSpot  false si un SPOT a déjà été émis pendant ce pas
- * @returns {boolean}  true si un SPOT a été émis
+ * @param {MonsterEvent[]} events
  */
-function decide(s, player, grid, settings, events, canSpot) {
+function decide(s, player, grid, settings, events) {
   const { tx: ptx, ty: pty } = tileAt(player.x, player.y);
   const path = isWallTile(grid, ptx, pty) ? null : shortestPath(grid, s.tx, s.ty, ptx, pty);
   const d = path ? path.length - 1 : Infinity;
   s.pathDistance = d;
 
-  let spot = false;
   if (s.mode === MONSTER_MODE.WANDER && d <= settings.chaseDistance) {
     s.mode = MONSTER_MODE.CHASE;
-    if (canSpot) {
-      events.push(Object.freeze({
-        type: MONSTER_EVENT.SPOT,
-        pathDistance: d,
-        x: s.tx + 0.5,
-        y: s.ty + 0.5,
-      }));
-      spot = true;
-    }
   } else if (s.mode === MONSTER_MODE.CHASE
     && d > settings.chaseDistance + settings.chaseHysteresis) {
     s.mode = MONSTER_MODE.WANDER;
@@ -341,7 +349,7 @@ function decide(s, player, grid, settings, events, canSpot) {
   } else {
     target = wanderTarget(s, grid);
   }
-  if (target === null) return spot;
+  if (target === null) return;
 
   const offsetIndex = NEIGHBOR_OFFSETS.findIndex(
     (offset) => offset.dx === target.tx - s.tx && offset.dy === target.ty - s.ty,
@@ -359,7 +367,6 @@ function decide(s, player, grid, settings, events, canSpot) {
     }));
     s.heading = heading;
   }
-  return spot;
 }
 
 /**
@@ -419,6 +426,7 @@ function makeState(s) {
     pathDistance: s.pathDistance,
     graceRemaining: s.graceRemaining,
     rngState: s.rngState,
+    seesPlayer: s.seesPlayer === true,
   });
 }
 
@@ -482,6 +490,9 @@ function validateMonster(monster, grid) {
   }
   if (!Number.isInteger(rngState) || rngState < 0 || rngState > MAX_SEED) {
     throw new TypeError('monster rngState must be an uint32');
+  }
+  if (monster.seesPlayer !== undefined && typeof monster.seesPlayer !== 'boolean') {
+    throw new TypeError('monster seesPlayer must be a boolean');
   }
 }
 

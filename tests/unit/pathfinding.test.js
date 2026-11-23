@@ -11,6 +11,7 @@ import {
   shortestPath,
   cellToTile,
   tileAt,
+  hasLineOfSight,
 } from '../../src/game/pathfinding.js';
 import { gridFromRows } from './fps-test-grids.js';
 
@@ -182,6 +183,78 @@ describe('cellToTile et tileAt', () => {
   test('tileAt : TypeError non fini', () => {
     for (const [x, y] of [[NaN, 0], [0, Infinity], ['1', 0], [undefined, 0], [0, null]]) {
       assert.throws(() => tileAt(x, y), TypeError, `(${x}, ${y})`);
+    }
+  });
+});
+
+describe('hasLineOfSight', () => {
+  // Couloir en L : (1, 1) -> (3, 1) puis (3, 2) -> (3, 3) ; poche (1, 3).
+  const L = gridFromRows([
+    '#####',
+    '#...#',
+    '###.#',
+    '#.#.#',
+    '#####',
+  ]);
+  // Salle 3 x 3 ouverte.
+  const ROOM = gridFromRows([
+    '#####',
+    '#...#',
+    '#...#',
+    '#...#',
+    '#####',
+  ]);
+  // Deux tuiles en diagonale séparées par deux murs qui se touchent par un coin.
+  const CORNER = gridFromRows([
+    '####',
+    '#.##',
+    '##.#',
+    '####',
+  ]);
+
+  test('couloir droit : vue dégagée, dans les deux sens', () => {
+    assert.equal(hasLineOfSight(L, 1.5, 1.5, 3.5, 1.5), true);
+    assert.equal(hasLineOfSight(L, 3.5, 1.5, 1.5, 1.5), true);
+    assert.equal(hasLineOfSight(L, 3.5, 1.5, 3.5, 3.5), true);
+  });
+
+  test('derrière un angle : vue bloquée', () => {
+    assert.equal(hasLineOfSight(L, 1.5, 1.5, 3.5, 3.5), false);
+    assert.equal(hasLineOfSight(L, 3.5, 3.5, 1.5, 1.5), false);
+  });
+
+  test('même tuile et salle ouverte (diagonale) : vue dégagée', () => {
+    assert.equal(hasLineOfSight(L, 1.2, 1.2, 1.8, 1.7), true);
+    assert.equal(hasLineOfSight(ROOM, 1.5, 1.5, 3.5, 3.5), true);
+    assert.equal(hasLineOfSight(ROOM, 1.1, 3.9, 3.9, 1.1), true);
+  });
+
+  test('coin exact entre deux murs : vue bloquée', () => {
+    assert.equal(hasLineOfSight(CORNER, 1.5, 1.5, 2.5, 2.5), false);
+  });
+
+  test('point dans un mur ou hors de la grille : false', () => {
+    assert.equal(hasLineOfSight(L, 0.5, 0.5, 1.5, 1.5), false);
+    assert.equal(hasLineOfSight(L, 1.5, 1.5, 1.5, 3.5), false);
+    assert.equal(hasLineOfSight(L, -3, 1.5, 1.5, 1.5), false);
+  });
+
+  test('erreurs -> TypeError', () => {
+    assert.throws(() => hasLineOfSight(null, 1, 1, 2, 2), TypeError);
+    for (const bad of [NaN, Infinity, '1', undefined]) {
+      assert.throws(() => hasLineOfSight(L, bad, 1.5, 1.5, 1.5), TypeError);
+      assert.throws(() => hasLineOfSight(L, 1.5, 1.5, 1.5, bad), TypeError);
+    }
+  });
+
+  test('symétrique sur un labyrinthe réel', () => {
+    const grid = toTileGrid(generateMaze({ width: 8, height: 8, seed: 5 }));
+    for (let a = 1; a < grid.width; a += 2) {
+      for (let b = 1; b < grid.height; b += 4) {
+        const p = [a + 0.5, 1.5];
+        const q = [1.5, b + 0.5];
+        assert.equal(hasLineOfSight(grid, ...p, ...q), hasLineOfSight(grid, ...q, ...p), `${p} ${q}`);
+      }
     }
   });
 });

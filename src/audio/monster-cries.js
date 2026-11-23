@@ -1,6 +1,7 @@
 /**
- * Cris du monstre : cri strident (début de traque) et « sluuurp » (capture). Calcul pur
- * des gains et des partitions. Aucun DOM, aucune API Web Audio ; n'importe que ./bong.js.
+ * Cris du monstre : cri strident (le monstre voit le joueur) et « sluuurp » (capture).
+ * Calcul pur des gains et des partitions. Aucun DOM, aucune API Web Audio ;
+ * n'importe que ./bong.js.
  */
 import { bongGain } from './bong.js';
 
@@ -9,7 +10,7 @@ export const SPOT_EVENT_TYPE = 'spot';
 
 /** Réglages du cri. Distances en tuiles de chemin, temps en secondes. */
 export const CRY = Object.freeze({
-  maxGain: 0.5, // crête à courte distance
+  maxGain: 0.2, // crête à courte distance : bas, le cri aigu ne doit pas couvrir les bongs graves
   nearDistance: 2,
   silenceDistance: 36, // même courbe que les bongs, crête plus basse (son aigu, perçu fort)
   minInterval: 6, // s entre deux débuts de cri
@@ -174,7 +175,7 @@ function vibratoPoints(startTime, from, to, rate, depth, scale, contour) {
 
 /**
  * Gain d'un cri : même courbe que bongGain avec CRY (maxGain, nearDistance,
- * silenceDistance). Repère : d = 12 -> ~0.249.
+ * silenceDistance). Repère : d = 12 -> ~0.0997.
  * @param {number} pathDistance  entier >= 0 ou Infinity (MonsterSpotEvent.pathDistance)
  * @returns {number} dans [0, CRY.maxGain]
  * @throws {TypeError} pathDistance non numérique ou NaN
