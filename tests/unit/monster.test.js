@@ -845,9 +845,9 @@ describe('événements SPOT', () => {
     assert.equal(r.monster.seesPlayer, true);
   });
 
-  test('SPOT placé après les TURN du pas', () => {
+  test('SPOT placé après les TURN du pas (HUNT avant le TURN de la décision)', () => {
     const r = stepMonster(monsterAt(1, 1), center(5, 1), 0.01, LONG);
-    assert.deepEqual(r.events.map((e) => e.type), ['turn', 'spot']);
+    assert.deepEqual(r.events.map((e) => e.type), ['hunt', 'turn', 'spot']);
   });
 
   test('mur entre les deux : aucun SPOT, même en traque toute proche', () => {
@@ -928,6 +928,65 @@ describe('événements SPOT', () => {
       }
       assert.deepEqual([m.tx, m.ty, m.rngState, m.mode], end, `errance, graine ${seed}`);
       assert.equal(turnCount, turns, `virages, graine ${seed}`);
+    }
+  });
+});
+
+// Événement HUNT : début de traque (reniflement)
+
+describe('événements HUNT', () => {
+  const huntsOf = (events) => events.filter((e) => e.type === MONSTER_EVENT.HUNT);
+
+  test('MONSTER_EVENT.HUNT === \'hunt\'', () => {
+    assert.equal(MONSTER_EVENT.HUNT, 'hunt');
+  });
+
+  test('passage wander -> chase : forme exacte, centre de tuile, avant le TURN', () => {
+    const r = stepMonster(monsterAt(1, 1), center(7, 1), 0.01, LONG);
+    assert.equal(r.monster.mode, MONSTER_MODE.CHASE);
+    const hunts = huntsOf(r.events);
+    assert.equal(hunts.length, 1);
+    assert.ok(Object.isFrozen(hunts[0]));
+    assert.deepEqual({ ...hunts[0] }, { type: 'hunt', pathDistance: 6, x: 1.5, y: 1.5 });
+    assert.ok(r.events.indexOf(hunts[0]) < r.events.findIndex((e) => e.type === 'turn'));
+  });
+
+  test('traque à travers un mur : HUNT sans SPOT', () => {
+    const r = stepMonster(monsterAt(1, 1), center(3, 3), 0.01, L_GRID);
+    assert.equal(huntsOf(r.events).length, 1);
+    assert.equal(r.events.filter((e) => e.type === MONSTER_EVENT.SPOT).length, 0);
+  });
+
+  test('aucun HUNT : traque qui continue, hors portée, grâce', () => {
+    const cases = [
+      ['traque qui continue', monsterAt(1, 1, { mode: MONSTER_MODE.CHASE }), center(7, 1)],
+      ['hors portée', monsterAt(1, 1), center(14, 1)],
+      ['grâce', monsterAt(1, 1, { graceRemaining: 3 }), center(3, 1)],
+    ];
+    for (const [label, m, player] of cases) {
+      assert.equal(huntsOf(stepMonster(m, player, 0.05, LONG).events).length, 0, label);
+    }
+  });
+
+  test('retour en errance puis nouvelle traque : nouveau HUNT', () => {
+    let r = stepMonster(monsterAt(1, 1, { mode: MONSTER_MODE.CHASE }), center(20, 1), 0.01, LONG);
+    assert.equal(r.monster.mode, MONSTER_MODE.WANDER);
+    const { monster, events } = runSteps(r.monster, center(6, 1), LONG, 2, 0.05);
+    assert.equal(monster.mode, MONSTER_MODE.CHASE);
+    assert.equal(huntsOf(events).length, 1);
+  });
+
+  test('au plus un HUNT par pas (labyrinthes réels, pas énormes)', () => {
+    for (const seed of [1, 2, 3]) {
+      const grid = realGrid(8, 8, seed);
+      let monster = createMonster(grid, seed, { exit: findExit(grid), graceDuration: 0 });
+      const rng = createRng(seed);
+      for (let i = 0; i < 300; i++) {
+        const player = center(1 + 2 * randomInt(rng, 8), 1 + 2 * randomInt(rng, 8));
+        const step = stepMonster(monster, player, 0.5, grid, { wanderSpeed: 40, chaseSpeed: 40, maxDt: 0.5 });
+        assert.ok(huntsOf(step.events).length <= 1, `graine ${seed}, pas ${i}`);
+        monster = step.monster;
+      }
     }
   });
 });

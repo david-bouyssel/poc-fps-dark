@@ -45,8 +45,8 @@ src/                             # racine servie au navigateur (et seulement ell
     monster-sprite.js            # sprite du monstre (pur) : generateMonsterSprite (3 images RGBA), monsterFrame (cycle de mâchoire), monsterFrameSprite
   audio/
     bong.js                      # son « bong bong » (pur) : BONG, BONG_SYNTH, bongGain (distance de chemin -> gain), selectBongGain, bongSchedule
-    monster-cries.js             # cris du monstre (pur) : CRY, SLURP, CRY_SYNTH, SLURP_SYNTH, cryGain, selectCryGain, crySchedule, slurpSchedule
-    bong-player.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createBongPlayer (play, playCry, playSlurp), BONG_PLAYER_STATE
+    monster-cries.js             # cris du monstre (pur) : SNIFF, CRY, SLURP, SNIFF_SYNTH, CRY_SYNTH, SLURP_SYNTH, sniffGain, selectSniffGain, sniffSchedule, cryGain, selectCryGain, crySchedule, slurpSchedule
+    bong-player.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createBongPlayer (play, playSniff, playCry, playSlurp), BONG_PLAYER_STATE
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -147,7 +147,8 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   `graceRemaining > 0` : endormi. Le tirage d'errance n'est pas une fermeture stockée :
   `rngState` (uint32) est rejoué par `createRng` à chaque tirage. `stepMonster` renvoie
   `{ monster, events }` (événements `TURN` gelés `{ type, heading, pathDistance, x, y }`,
-  à chaque changement de cap, et `SPOT` gelé `{ type, pathDistance, x, y }` quand le monstre
+  à chaque changement de cap, `HUNT` gelé `{ type, pathDistance, x, y }` au passage `wander` ->
+  `chase` (avant le `TURN` de la même décision, au plus un par pas), et `SPOT` gelé `{ type, pathDistance, x, y }` quand le monstre
   se met à voir le joueur : `seesPlayer` passe à `true` en fin de pas (distance euclidienne
   `<= sightDistance` et `hasLineOfSight` sans mur), après les `TURN`, au plus un par pas ;
   pour le son ; `SPOT` ne change ni le mode ni les tirages). `monsterSprite(monster)` donne
@@ -239,6 +240,7 @@ et de l'ordre des tirages (jamais le labyrinthe).
    ensuite, seulement si `!isGameOver(gameState)` : `monster = stepMonster(monster,
    player, dt, currentGrid).monster` (pas borné à `MONSTER.maxDt`), puis
    `bongPlayer.play(selectBongGain(step.events))` si le gain est `> 0`, puis
+   `bongPlayer.playSniff(selectSniffGain(step.events))` si le gain est `> 0`, puis
    `bongPlayer.playCry(selectCryGain(step.events))` si le gain est `> 0`, puis
    `declareDefeat` si `isCatching(monster, player)` (le contact compte aussi pendant la
    grâce ; sortie et contact dans la même image -> victoire). Partie finie -> rien dans

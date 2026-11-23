@@ -9,6 +9,12 @@ import { findExit } from '../../src/game/exit.js';
 import { MONSTER_EVENT, createMonster, stepMonster } from '../../src/game/monster.js';
 import {
   SPOT_EVENT_TYPE,
+  HUNT_EVENT_TYPE,
+  SNIFF,
+  SNIFF_SYNTH,
+  sniffGain,
+  selectSniffGain,
+  sniffSchedule,
   CRY,
   SLURP,
   CRY_SYNTH,
@@ -351,5 +357,71 @@ describe('slurpSchedule', () => {
     assert.throws(() => slurpSchedule(-1), RangeError);
     assert.throws(() => slurpSchedule(0, 2), RangeError);
     assert.throws(() => slurpSchedule(0, -1), RangeError);
+  });
+});
+
+describe('reniflement', () => {
+  test('constantes gelées ; HUNT_EVENT_TYPE === MONSTER_EVENT.HUNT', () => {
+    assert.equal(HUNT_EVENT_TYPE, MONSTER_EVENT.HUNT);
+    assert.deepEqual({ ...SNIFF }, { maxGain: 0.5, nearDistance: 2, silenceDistance: 36, minInterval: 4 });
+    assert.ok(Object.isFrozen(SNIFF));
+    assert.ok(Object.isFrozen(SNIFF_SYNTH));
+    assert.ok(Object.isFrozen(SNIFF_SYNTH.inhales));
+    assert.ok(Object.isFrozen(SNIFF_SYNTH.components));
+  });
+
+  test('sniffGain : 0 et 2 -> maxGain ; décroissant ; 36 et Infinity -> 0 ; erreurs', () => {
+    assert.equal(sniffGain(0), SNIFF.maxGain);
+    assert.equal(sniffGain(2), SNIFF.maxGain);
+    assert.equal(sniffGain(36), 0);
+    assert.equal(sniffGain(Infinity), 0);
+    let previous = Infinity;
+    for (let d = 0; d <= 40; d += 1) {
+      const g = sniffGain(d);
+      assert.ok(g <= previous && g >= 0 && g <= SNIFF.maxGain, `d = ${d}`);
+      previous = g;
+    }
+    assert.throws(() => sniffGain(NaN), TypeError);
+    assert.throws(() => sniffGain(-1), RangeError);
+  });
+
+  test('selectSniffGain : seuls les HUNT comptent, maximum, erreurs', () => {
+    assert.equal(selectSniffGain([]), 0);
+    assert.equal(selectSniffGain([{ type: 'turn', pathDistance: 0 }, { type: 'spot', pathDistance: 0 }]), 0);
+    assert.equal(selectSniffGain([{ type: 'hunt', pathDistance: 12 }, { type: 'hunt', pathDistance: 4 }]),
+      sniffGain(4));
+    assert.throws(() => selectSniffGain(null), TypeError);
+    assert.throws(() => selectSniffGain([null]), TypeError);
+  });
+
+  test('sniffSchedule : 3 inspirations x 4 composantes, passe-bande montant, bornes', () => {
+    const voices = sniffSchedule(2, 0.3);
+    assert.ok(Object.isFrozen(voices));
+    assert.equal(voices.length, SNIFF_SYNTH.inhales.length * SNIFF_SYNTH.components.length);
+    for (const v of voices) {
+      assert.ok(Object.isFrozen(v));
+      assert.equal(v.filter.type, 'bandpass');
+      const [f0, f1] = v.filter.frequency;
+      assert.ok(f1.value > f0.value, 'le filtre monte');
+      for (const list of [v.frequency, v.gain, v.filter.frequency]) {
+        assert.equal(list[0].ramp, 'set');
+        assert.equal(list[0].time, v.start);
+        for (let i = 1; i < list.length; i += 1) assert.ok(list[i].time >= list[i - 1].time - 1e-9);
+        assert.ok(list.at(-1).time <= v.stop + 1e-9);
+      }
+      for (const p of v.gain) assert.ok(p.value >= 0 && p.value <= 0.3 + 1e-9);
+      for (const p of v.frequency) assert.ok(p.value > 500 && p.value < 20000);
+    }
+    // inspirations disjointes, la dernière la plus longue
+    const starts = [...new Set(voices.map((v) => v.start))];
+    assert.equal(starts.length, 3);
+    assert.deepEqual(starts, SNIFF_SYNTH.inhales.map((h) => 2 + h.offset));
+  });
+
+  test('sniffSchedule : gain 0 -> vide ; erreurs', () => {
+    assert.deepEqual([...sniffSchedule(0, 0)], []);
+    assert.throws(() => sniffSchedule(NaN, 0.3), TypeError);
+    assert.throws(() => sniffSchedule(-1, 0.3), RangeError);
+    assert.throws(() => sniffSchedule(0, 1.5), RangeError);
   });
 });

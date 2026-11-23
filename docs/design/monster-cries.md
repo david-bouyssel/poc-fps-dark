@@ -9,6 +9,13 @@
 >   gagne `seesPlayer` (booléen, `false` à l'apparition et pendant la grâce).
 > - `CRY.maxGain` passe de 0.5 à 0.2 : le cri aigu (dents de scie) couvrait les bongs graves.
 >
+> - **Reniflement** au début de traque : `stepMonster` émet `HUNT` `{ pathDistance, x, y }`
+>   au passage `wander` -> `chase` (avant le `TURN` de la décision, au plus un par pas, sans
+>   tirage). `monster-cries.js` ajoute `SNIFF` (crête 0.5, délai 4 s), `SNIFF_SYNTH` (trois
+>   inspirations de dents de scie inharmoniques en passe-bande montant, sans bruit
+>   aléatoire), `sniffGain`, `selectSniffGain`, `sniffSchedule` ; le lecteur gagne
+>   `playSniff`.
+>
 > Les sections ci-dessous qui décrivent `SPOT` au passage `wander` -> `chase` sont remplacées
 > par ces règles.
 

@@ -7,7 +7,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { BONG, bongSchedule } from '../../src/audio/bong.js';
 import { BONG_PLAYER_STATE, createBongPlayer } from '../../src/audio/bong-player.js';
-import { CRY, crySchedule, slurpSchedule } from '../../src/audio/monster-cries.js';
+import {
+  CRY, crySchedule, slurpSchedule, SNIFF, sniffSchedule,
+} from '../../src/audio/monster-cries.js';
 
 const EPS = 1e-9;
 
@@ -650,5 +652,71 @@ describe('pannes pendant la programmation des cris', () => {
     assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
     assert.equal(ctx.oscillators.length, 2);
     for (const osc of ctx.oscillators) assert.ok(osc.stopCalls.length >= 2, 'voix non arrêtée');
+  });
+});
+
+describe('playSniff', () => {
+  test('en RUNNING : true, 12 oscillateurs en passe-bande, conformes à sniffSchedule', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    ctx.currentTime = 5;
+    assert.equal(player.playSniff(0.3), true);
+    assert.equal(ctx.oscillators.length, 12);
+    assert.equal(ctx.filters.length, 12);
+    assert.ok(ctx.filters.every((f) => f.type === 'bandpass'));
+    assertMatchesSchedule(ctx, ctx.oscillators, sniffSchedule(5, 0.3));
+  });
+
+  test('gain invalide -> false ; gain > 1 borné à 1', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    for (const g of [0, -1, NaN, Infinity, '0.5', undefined, null]) {
+      assert.equal(player.playSniff(g), false, String(g));
+    }
+    assert.equal(ctx.oscillators.length, 0);
+    assert.equal(player.playSniff(3), true);
+    assertMatchesSchedule(ctx, ctx.oscillators, sniffSchedule(0, 1));
+  });
+
+  test('délai SNIFF.minInterval, indépendant du cri et du bong', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    ctx.currentTime = 1;
+    assert.equal(player.playSniff(0.3), true);
+    assert.equal(player.playCry(0.2), true);
+    assert.equal(player.play(0.5), true);
+    ctx.currentTime = 1 + SNIFF.minInterval / 2;
+    assert.equal(player.playSniff(0.3), false);
+    ctx.currentTime = 1 + SNIFF.minInterval;
+    assert.equal(player.playSniff(0.3), true);
+  });
+
+  test('hors RUNNING (IDLE, SUSPENDED, FINALE) -> false', () => {
+    const idle = setup();
+    assert.equal(idle.player.playSniff(0.3), false);
+    const suspended = setup();
+    suspended.player.resume();
+    suspended.player.suspend();
+    assert.equal(suspended.player.playSniff(0.3), false);
+    const { player } = inFinale();
+    assert.equal(player.playSniff(0.3), false);
+  });
+
+  test('filtre qui lève : false, aucune exception, voix créées arrêtées', () => {
+    const { ctx, player } = setup({ failFilterAt: 2 });
+    player.resume();
+    let result;
+    assert.doesNotThrow(() => { result = player.playSniff(0.3); });
+    assert.equal(result, false);
+    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    for (const osc of ctx.oscillators) assert.ok(osc.stopCalls.length >= 1 || osc.disconnected > 0);
+  });
+
+  test('suspend coupe un reniflement en cours', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    player.playSniff(0.3);
+    player.suspend();
+    for (const osc of ctx.oscillators) assert.equal(osc.stopCalls.length, 2);
   });
 });

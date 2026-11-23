@@ -13,9 +13,11 @@
 // (rngState). Each wander draw does r = createRng(rngState), choice = randomInt(r, n),
 // rngState' = randomInt(r, MAX_SEED + 1).
 //
-// Events: TURN on each change of heading, SPOT when the monster starts seeing the player
-// (clear line of sight within sightDistance; at most one SPOT per step, after the TURNs).
-// SPOT adds no draw and does not change the mode: seeds and moves are unchanged.
+// Events: TURN on each change of heading, HUNT when the monster switches from wander to
+// chase (before the TURN of the same decision, at most one per step), SPOT when the monster
+// starts seeing the player (clear line of sight within sightDistance; at most one SPOT per
+// step, after the TURNs).
+// HUNT and SPOT add no draw and do not change the mode: seeds and moves are unchanged.
 
 import {
   hasLineOfSight, NEIGHBOR_OFFSETS, shortestPath, tileAt, tileDistances, UNREACHABLE,
@@ -34,7 +36,7 @@ export const MONSTER_MODE = Object.freeze({ WANDER: 'wander', CHASE: 'chase' });
 /** Caps cardinaux, alignés sur NEIGHBOR_OFFSETS (N, E, S, W). */
 export const HEADING = Object.freeze({ N: 'N', E: 'E', S: 'S', W: 'W' });
 
-export const MONSTER_EVENT = Object.freeze({ TURN: 'turn', SPOT: 'spot' });
+export const MONSTER_EVENT = Object.freeze({ TURN: 'turn', SPOT: 'spot', HUNT: 'hunt' });
 
 /** Réglages (surcharge partielle possible dans options, tests). Unités : tuiles, secondes. */
 export const MONSTER = Object.freeze({
@@ -88,6 +90,11 @@ const EMPTY_EVENTS = Object.freeze([]);
  * @typedef {{ type: 'spot', pathDistance: number, x: number, y: number }} MonsterSpotEvent
  *  objet gelé ; x, y = position du monstre en fin de pas ; pathDistance = celle de la
  *  dernière décision
+ */
+
+/**
+ * @typedef {{ type: 'hunt', pathDistance: number, x: number, y: number }} MonsterHuntEvent
+ *  objet gelé ; x, y = centre de la tuile de la décision ; pathDistance = d de la décision
  */
 
 /**
@@ -208,6 +215,9 @@ export function createMonster(grid, seed, placement = {}, options) {
  *   4. WANDER : voisins sols dans l'ordre NEIGHBOR_OFFSETS, sauf la tuile from. Si vide,
  *      tous les voisins sols (cul-de-sac -> demi-tour). Si vide encore, pas de tuile visée.
  *      Un seul voisin : pas de tirage. Plusieurs : tirage, rngState mis à jour.
+ *   2 bis. Si le mode vient de passer de WANDER à CHASE : événement HUNT
+ *      { pathDistance: d, x: tx + 0.5, y: ty + 0.5 }, poussé avant l'éventuel TURN de la
+ *      même décision. Au plus un HUNT par pas ; jamais pendant la grâce.
  *   5. Si une tuile est visée et que son cap diffère de heading : événement TURN
  *      { heading, pathDistance: d, x: tx + 0.5, y: ty + 0.5 }, puis heading = cap. Le
  *      premier pas après la grâce émet donc un TURN.
@@ -225,7 +235,7 @@ export function createMonster(grid, seed, placement = {}, options) {
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @param {Partial<typeof MONSTER>} [options]
  * @returns {{ monster: MonsterState,
- *             events: ReadonlyArray<MonsterEvent|MonsterSpotEvent> }}
+ *             events: ReadonlyArray<MonsterEvent|MonsterHuntEvent|MonsterSpotEvent> }}
  *          objet gelé, events gelé, dans l'ordre chronologique
  * @throws {TypeError} monster, player ou grid mal formé
  * @throws {RangeError} options invalides
@@ -252,9 +262,10 @@ export function stepMonster(monster, player, dt, grid, options) {
   const s = { ...monster };
   const events = [];
   let t = step;
+  let hunted = false;
   for (let i = 0; i < MAX_ITERATIONS && t > 0; i += 1) {
     if (s.nextTx === null) {
-      decide(s, player, grid, settings, events);
+      hunted = decide(s, player, grid, settings, events, !hunted) || hunted;
       if (s.nextTx === null) break;
     }
     const speed = s.mode === MONSTER_MODE.CHASE ? settings.chaseSpeed : settings.wanderSpeed;
@@ -328,16 +339,28 @@ export function monsterSprite(monster) {
  * @param {{ x: number, y: number }} player
  * @param {{ width: number, height: number, tiles: Uint8Array }} grid
  * @param {typeof MONSTER} settings
- * @param {MonsterEvent[]} events
+ * @param {Array<MonsterEvent|MonsterHuntEvent>} events
+ * @param {boolean} canHunt  false si un HUNT a déjà été émis pendant ce pas
+ * @returns {boolean}  true si un HUNT a été émis
  */
-function decide(s, player, grid, settings, events) {
+function decide(s, player, grid, settings, events, canHunt) {
   const { tx: ptx, ty: pty } = tileAt(player.x, player.y);
   const path = isWallTile(grid, ptx, pty) ? null : shortestPath(grid, s.tx, s.ty, ptx, pty);
   const d = path ? path.length - 1 : Infinity;
   s.pathDistance = d;
 
+  let hunt = false;
   if (s.mode === MONSTER_MODE.WANDER && d <= settings.chaseDistance) {
     s.mode = MONSTER_MODE.CHASE;
+    if (canHunt) {
+      events.push(Object.freeze({
+        type: MONSTER_EVENT.HUNT,
+        pathDistance: d,
+        x: s.tx + 0.5,
+        y: s.ty + 0.5,
+      }));
+      hunt = true;
+    }
   } else if (s.mode === MONSTER_MODE.CHASE
     && d > settings.chaseDistance + settings.chaseHysteresis) {
     s.mode = MONSTER_MODE.WANDER;
@@ -349,7 +372,7 @@ function decide(s, player, grid, settings, events) {
   } else {
     target = wanderTarget(s, grid);
   }
-  if (target === null) return;
+  if (target === null) return hunt;
 
   const offsetIndex = NEIGHBOR_OFFSETS.findIndex(
     (offset) => offset.dx === target.tx - s.tx && offset.dy === target.ty - s.ty,
@@ -367,6 +390,7 @@ function decide(s, player, grid, settings, events) {
     }));
     s.heading = heading;
   }
+  return hunt;
 }
 
 /**

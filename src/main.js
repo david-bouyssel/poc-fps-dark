@@ -38,7 +38,7 @@ import {
 } from './render/monster-sprite.js';
 import { applyTranslations, t } from './i18n/i18n.js';
 import { selectBongGain } from './audio/bong.js';
-import { selectCryGain } from './audio/monster-cries.js';
+import { selectCryGain, selectSniffGain } from './audio/monster-cries.js';
 import { createBongPlayer } from './audio/bong-player.js';
 
 const DEFAULT_SIZE = 16;
@@ -127,6 +127,10 @@ const gameLoop = createGameLoop({
       const bongGainValue = selectBongGain(step.events);
       if (bongGainValue > 0) {
         bongPlayer.play(bongGainValue);
+      }
+      const sniffGainValue = selectSniffGain(step.events);
+      if (sniffGainValue > 0) {
+        bongPlayer.playSniff(sniffGainValue);
       }
       const cryGainValue = selectCryGain(step.events);
       if (cryGainValue > 0) {

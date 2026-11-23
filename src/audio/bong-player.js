@@ -1,12 +1,14 @@
 /**
- * Lecteur des sons du monstre (« bong bong », cri, « sluuurp ») : seul module
+ * Lecteur des sons du monstre (« bong bong », reniflement, cri, « sluuurp ») : seul module
  * qui appelle l'API Web Audio. Noms historiques (createBongPlayer, BONG_PLAYER_STATE)
  * conservés. Le contexte audio vient uniquement de la fabrique injectée `createContext`
  * (jamais d'accès global).
  * Aucune méthode ne lève d'exception : le son ne doit jamais casser le jeu.
  */
 import { BONG, bongGain, bongSchedule } from './bong.js';
-import { CRY, crySchedule, slurpSchedule } from './monster-cries.js';
+import {
+  CRY, crySchedule, slurpSchedule, SNIFF, sniffSchedule,
+} from './monster-cries.js';
 
 /** États du lecteur. */
 export const BONG_PLAYER_STATE = Object.freeze({
@@ -74,7 +76,8 @@ function applyPoints(param, points) {
  * @param {{ createContext: () => (AudioContext | null | undefined),
  *           options?: Partial<typeof BONG> }} deps
  * @returns {{ resume(): void, suspend(): void, play(gain: number): boolean,
- *             playCry(gain: number): boolean, playSlurp(): boolean,
+ *             playCry(gain: number): boolean, playSniff(gain: number): boolean,
+ *             playSlurp(): boolean,
  *             readonly state: string }}  objet gelé
  * @throws {TypeError} createContext n'est pas une fonction
  * @throws {RangeError} options invalides (mêmes règles que bongGain)
@@ -92,6 +95,7 @@ export function createBongPlayer({ createContext, options } = {}) {
   let ctx = null;
   let lastStart = -Infinity;
   let lastCryStart = -Infinity;
+  let lastSniffStart = -Infinity;
   /** @type {Set<{ osc: any, env: any, filter?: any }>} */
   const voices = new Set();
   /** Voix du sluuurp en cours (null si aucun) : sa fin naturelle suspend le contexte. */
@@ -263,6 +267,29 @@ export function createBongPlayer({ createContext, options } = {}) {
   }
 
   /**
+   * Programme un reniflement (début de traque). Délai propre (SNIFF.minInterval).
+   * @param {number} gain
+   * @returns {boolean} true si un reniflement est programmé
+   */
+  function playSniff(gain) {
+    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
+    const created = [];
+    try {
+      const now = ctx.currentTime;
+      if (now - lastSniffStart < SNIFF.minInterval - INTERVAL_EPSILON) return false;
+      for (const voice of sniffSchedule(now, Math.min(gain, 1))) {
+        scheduleSynthVoice(voice, created);
+      }
+      lastSniffStart = now;
+      return true;
+    } catch {
+      discard(created);
+      return false;
+    }
+  }
+
+  /**
    * Coupe toutes les voix, joue le sluuurp et passe en FINALE. À la fin naturelle de la
    * dernière voix du sluuurp, le contexte est suspendu (état SUSPENDED).
    * @returns {boolean} true si le sluuurp est programmé
@@ -303,6 +330,7 @@ export function createBongPlayer({ createContext, options } = {}) {
     suspend,
     play,
     playCry,
+    playSniff,
     playSlurp,
     get state() {
       return state;
