@@ -8,7 +8,7 @@ export const TURN_EVENT_TYPE = 'turn';
 
 /** Réglages du gain. Distances en tuiles de chemin, temps en secondes. */
 export const BONG = Object.freeze({
-  maxGain: 0.7, // gain de crête à courte distance (dans [0, 1])
+  maxGain: 0.75, // gain de crête à courte distance (dans [0, 1])
   nearDistance: 2, // d <= 2 : gain maximal
   silenceDistance: 36, // d >= 36 (18 cellules) : silence
   minInterval: 0.9, // s entre deux débuts de bong (>= durée d'un bong bong)
@@ -80,9 +80,9 @@ function resolveSettings(options) {
  * - d === Infinity ou d >= silenceDistance -> 0 ;
  * - d <= nearDistance -> maxGain ;
  * - sinon u = (d - nearDistance) / (silenceDistance - nearDistance),
- *   gain = maxGain * (1 - u) ** 2 (décroissance quadratique, plus naturelle à l'oreille).
+ *   gain = maxGain * (1 - u) (décroissance linéaire).
  * Strictement décroissante sur [nearDistance, silenceDistance], continue aux bornes.
- * Repères (valeurs par défaut) : d = 12 -> ~0.349 ; d = 18 -> ~0.196 ; d = 30 -> ~0.022.
+ * Repères (valeurs par défaut) : d = 12 -> ~0.529 ; d = 18 -> ~0.397 ; d = 30 -> ~0.132.
  * @param {number} pathDistance  entier >= 0 ou Infinity (MonsterEvent.pathDistance)
  * @param {Partial<typeof BONG>} [options]  surcharge partielle (tests)
  * @returns {number} gain dans [0, maxGain]
@@ -102,7 +102,7 @@ export function bongGain(pathDistance, options) {
   const u =
     (pathDistance - settings.nearDistance) /
     (settings.silenceDistance - settings.nearDistance);
-  return settings.maxGain * (1 - u) ** 2;
+  return settings.maxGain * (1 - u);
 }
 
 /**

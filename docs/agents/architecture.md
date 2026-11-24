@@ -158,8 +158,8 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   grâce). `monsterClock` (`main.js`) avance dans `update` et repart à 0 à chaque manche. Sans
   image `monster-<n>` dans `spriteImages`, le sprite est ignoré. Réglages dans `MONSTER` (surcharge partielle
   par `options`). Lié à la manche : recréé par `startRound()`, `null` après génération.
-- **Bong** : `bongGain(pathDistance)` vaut `BONG.maxGain` (0.7) jusqu'à 2 tuiles de
-  chemin, décroît en `(1 - u) ** 2` jusqu'au silence à 36 tuiles (et `Infinity`).
+- **Bong** : `bongGain(pathDistance)` vaut `BONG.maxGain` (0.75) jusqu'à 2 tuiles de
+  chemin, décroît linéairement en `(1 - u)` jusqu'au silence à 36 tuiles (et `Infinity`).
   `selectBongGain(events)` garde le maximum des événements `turn` d'un pas (un bong par
   image). `bongSchedule(startTime, gain)` donne 4 voix gelées (2 coups graves 98 Hz puis
   73.42 Hz à 0.3 s, chacun fondamentale `sine` + partiel `triangle` x2.76). Le lecteur

@@ -137,10 +137,11 @@ describe('cri aigu, sluuurp grave', () => {
 // ---------------------------------------------------------------------------
 
 describe('cryGain', () => {
-  test('repères : 0 et 2 -> 0.2 ; 12 -> ~0.0997 ; 36 et Infinity -> 0', () => {
+  test('repères : 0 et 2 -> 0.2 ; 12 -> ~0.141 (0.2 * (1 - 10/34)) ; 36 et Infinity -> 0', () => {
     assert.equal(cryGain(0), 0.2);
     assert.equal(cryGain(2), 0.2);
-    assert.ok(Math.abs(cryGain(12) - 0.0997) < 1e-3, `${cryGain(12)}`);
+    assert.ok(Math.abs(cryGain(12) - 0.141) < 1e-3, `${cryGain(12)}`);
+    assert.ok(Math.abs(cryGain(12) - CRY.maxGain * (1 - 10 / 34)) < EPS, `${cryGain(12)}`);
     assert.equal(cryGain(36), 0);
     assert.equal(cryGain(50), 0);
     assert.equal(cryGain(Infinity), 0);
@@ -387,6 +388,7 @@ describe('alerte (début de traque)', () => {
     assert.equal(alertGain(2), ALERT.maxGain);
     assert.equal(alertGain(36), 0);
     assert.equal(alertGain(Infinity), 0);
+    assert.ok(Math.abs(alertGain(12) - ALERT.maxGain * (1 - 10 / 34)) < EPS, `${alertGain(12)}`);
     let previous = Infinity;
     for (let d = 0; d <= 40; d += 1) {
       const g = alertGain(d);

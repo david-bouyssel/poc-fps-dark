@@ -37,7 +37,7 @@ describe('constantes', () => {
   });
 
   test('valeurs du plan', () => {
-    assert.equal(BONG.maxGain, 0.7);
+    assert.equal(BONG.maxGain, 0.75);
     assert.equal(BONG.nearDistance, 2);
     assert.equal(BONG.silenceDistance, 36);
     assert.equal(BONG.minInterval, 0.9);
@@ -85,16 +85,28 @@ describe('bongGain', () => {
   });
 
   test('valeurs repères 12, 18, 30 (tolérance 1e-3)', () => {
-    near(bongGain(12), 0.349, 1e-3, 'd=12');
-    near(bongGain(18), 0.196, 1e-3, 'd=18');
-    near(bongGain(30), 0.022, 1e-3, 'd=30');
+    near(bongGain(12), 0.529, 1e-3, 'd=12');
+    near(bongGain(18), 0.397, 1e-3, 'd=18');
+    near(bongGain(30), 0.132, 1e-3, 'd=30');
   });
 
-  test('formule quadratique maxGain * (1 - u)^2', () => {
+  test('formule linéaire maxGain * (1 - u)', () => {
     for (let d = 2; d <= 36; d += 0.5) {
       const u = (d - 2) / 34;
-      near(bongGain(d), 0.7 * (1 - u) ** 2, 1e-12, `d=${d}`);
+      near(bongGain(d), BONG.maxGain * (1 - u), 1e-12, `d=${d}`);
     }
+  });
+
+  test('non-régression : crête cumulée d\'un coup (fondamentale + partiel) <= 1 à d = 0', () => {
+    const sums = new Map();
+    for (const v of bongSchedule(0, bongGain(0))) {
+      sums.set(v.start, (sums.get(v.start) ?? 0) + v.peak);
+    }
+    assert.equal(sums.size, BONG_SYNTH.hits.length, 'un groupe de voix par coup');
+    for (const [start, sum] of sums) {
+      assert.ok(sum <= 1, `coup à ${start} s : crête cumulée ${sum}`);
+    }
+    near(sums.get(0), BONG.maxGain * (1 + BONG_SYNTH.partialLevel), EPS, 'coup 1');
   });
 
   test('strictement décroissante entre 2 et 36, toujours dans [0, maxGain]', () => {
@@ -118,9 +130,9 @@ describe('bongGain', () => {
 
   test('surcharge partielle des options', () => {
     assert.equal(bongGain(10, { silenceDistance: 10 }), 0);
-    near(bongGain(6, { silenceDistance: 10 }), 0.7 * 0.5 ** 2, EPS, 'silence 10');
+    near(bongGain(6, { silenceDistance: 10 }), BONG.maxGain * 0.5, EPS, 'silence 10');
     assert.equal(bongGain(0, { maxGain: 1 }), 1);
-    assert.equal(bongGain(4, { nearDistance: 4 }), 0.7);
+    assert.equal(bongGain(4, { nearDistance: 4 }), BONG.maxGain);
     // clé inconnue ignorée
     assert.equal(bongGain(0, { foo: -5 }), BONG.maxGain);
     // la constante n'est pas modifiée par la surcharge
