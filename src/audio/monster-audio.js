@@ -75,7 +75,8 @@ function applyPoints(param, points) {
  * Lecteur des sons du monstre. Ne crée aucun contexte à la construction.
  * @param {{ createContext: () => (AudioContext | null | undefined),
  *           options?: Partial<typeof BONG> }} deps
- * @returns {{ resume(): void, suspend(): void, play(gain: number): boolean,
+ * @returns {{ resume(): void, suspend(): void, setMuted(value: boolean): void,
+ *             isMuted(): boolean, play(gain: number): boolean,
  *             playCry(gain: number): boolean, playAlert(gain: number): boolean,
  *             playSlurp(): boolean,
  *             readonly state: string }}  objet gelé
@@ -101,29 +102,64 @@ export function createMonsterAudio({ createContext, options } = {}) {
   /** Voix du sluuurp en cours (null si aucun) : sa fin naturelle suspend le contexte. */
   /** @type {Set<object> | null} */
   let slurpVoices = null;
+  /** Drapeau suspend/resume (pause, page cachée, fin de partie) : indépendant de muted. */
+  let suspended = false;
+  /** Drapeau de coupure (setMuted) : indépendant de suspended. */
+  let muted = false;
 
-  function resume() {
-    if (state === MONSTER_AUDIO_STATE.UNAVAILABLE) return;
-    if (ctx === null) {
-      let created = null;
-      try {
-        created = createContext();
-      } catch {
-        created = null;
-      }
-      if (created === null || created === undefined) {
-        state = MONSTER_AUDIO_STATE.UNAVAILABLE;
-        return;
-      }
-      ctx = created;
+  /**
+   * Crée le contexte à la demande (fabrique injectée, une seule fois).
+   * @returns {boolean} false si le contexte est indisponible (muet définitif)
+   */
+  function ensureContext() {
+    if (state === MONSTER_AUDIO_STATE.UNAVAILABLE) return false;
+    if (ctx !== null) return true;
+    let created = null;
+    try {
+      created = createContext();
+    } catch {
+      created = null;
     }
-    if (state === MONSTER_AUDIO_STATE.FINALE) stopAllVoices();
-    state = MONSTER_AUDIO_STATE.RUNNING;
+    if (created === null || created === undefined) {
+      state = MONSTER_AUDIO_STATE.UNAVAILABLE;
+      return false;
+    }
+    ctx = created;
+    return true;
+  }
+
+  /**
+   * Applique au contexte l'état voulu : il tourne si et seulement si le lecteur n'est
+   * ni suspendu ni coupé. Sans contexte, ne fait rien (le drapeau sera appliqué à la création).
+   */
+  function syncContext() {
+    if (ctx === null || state === MONSTER_AUDIO_STATE.UNAVAILABLE) return;
+    if (suspended || muted) {
+      stopAllVoices();
+      state = MONSTER_AUDIO_STATE.SUSPENDED;
+      try {
+        if (typeof ctx.suspend === 'function') absorb(ctx.suspend());
+      } catch {
+        // Suspend refused: voices are already stopped.
+      }
+      return;
+    }
+    if (state !== MONSTER_AUDIO_STATE.FINALE) state = MONSTER_AUDIO_STATE.RUNNING;
     try {
       if (typeof ctx.resume === 'function') absorb(ctx.resume());
     } catch {
       // Resume refused: the game stays silent.
     }
+  }
+
+  function resume() {
+    suspended = false;
+    if (!ensureContext()) return;
+    if (state === MONSTER_AUDIO_STATE.FINALE) {
+      stopAllVoices();
+      state = MONSTER_AUDIO_STATE.SUSPENDED;
+    }
+    syncContext();
   }
 
   function stopAllVoices() {
@@ -135,14 +171,23 @@ export function createMonsterAudio({ createContext, options } = {}) {
   }
 
   function suspend() {
-    if (ctx === null) return;
-    state = MONSTER_AUDIO_STATE.SUSPENDED;
-    stopAllVoices();
-    try {
-      if (typeof ctx.suspend === 'function') absorb(ctx.suspend());
-    } catch {
-      // Suspend refused: voices are already stopped.
-    }
+    suspended = true;
+    syncContext();
+  }
+
+  /**
+   * Coupe (true) ou rétablit (false) le son. Coupé : aucun son ne se programme et les sons en
+   * cours sont arrêtés. Indépendant de suspend/resume.
+   * @param {boolean} value
+   */
+  function setMuted(value) {
+    muted = value === true;
+    syncContext();
+  }
+
+  /** @returns {boolean} true si le son est coupé par setMuted */
+  function isMuted() {
+    return muted;
   }
 
   /**
@@ -305,6 +350,7 @@ export function createMonsterAudio({ createContext, options } = {}) {
         current.delete(entry);
         if (current.size > 0 || state !== MONSTER_AUDIO_STATE.FINALE) return;
         slurpVoices = null;
+        suspended = true;
         state = MONSTER_AUDIO_STATE.SUSPENDED;
         try {
           if (typeof ctx.suspend === 'function') absorb(ctx.suspend());
@@ -328,6 +374,8 @@ export function createMonsterAudio({ createContext, options } = {}) {
   return Object.freeze({
     resume,
     suspend,
+    setMuted,
+    isMuted,
     play,
     playCry,
     playAlert,

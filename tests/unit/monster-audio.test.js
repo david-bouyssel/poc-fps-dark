@@ -767,3 +767,142 @@ describe('renommage bong-player -> monster-audio', () => {
     assert.deepEqual(hits, []);
   });
 });
+
+// Couper le son (T9, plan docs/design/couper-son.md, section Tests 2 à 5).
+describe('couper le son : setMuted / isMuted', () => {
+  /** Mémorise le dernier appel du contexte : 'resume' = le contexte tourne. */
+  function trackContext(ctx) {
+    ctx.lastCall = null;
+    const { resume, suspend } = ctx;
+    ctx.resume = () => { ctx.lastCall = 'resume'; return resume(); };
+    ctx.suspend = () => { ctx.lastCall = 'suspend'; return suspend(); };
+    return ctx;
+  }
+
+  test('isMuted faux par défaut, suit setMuted', () => {
+    const { player } = setup();
+    assert.equal(player.isMuted(), false);
+    player.setMuted(true);
+    assert.equal(player.isMuted(), true);
+    player.setMuted(false);
+    assert.equal(player.isMuted(), false);
+  });
+
+  test('table de vérité suspended x muted : le contexte tourne si et seulement si aucun des deux', () => {
+    for (const suspended of [false, true]) {
+      for (const muted of [false, true]) {
+        const label = `suspended=${suspended} muted=${muted}`;
+        const { ctx, player } = setup();
+        trackContext(ctx);
+        player.resume();
+        player.setMuted(muted);
+        if (suspended) player.suspend();
+        else player.resume();
+        const running = !suspended && !muted;
+        assert.equal(ctx.lastCall, running ? 'resume' : 'suspend', label);
+        assert.equal(player.state, running ? MONSTER_AUDIO_STATE.RUNNING : MONSTER_AUDIO_STATE.SUSPENDED, label);
+      }
+    }
+  });
+
+  test('setMuted(true) avant création du contexte : appliqué à la création, contexte jamais repris', () => {
+    const { ctx, player, factoryCalls } = setup();
+    trackContext(ctx);
+    player.setMuted(true);
+    player.resume();
+    assert.equal(factoryCalls(), 1);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
+    assert.equal(ctx.lastCall, 'suspend');
+    assert.equal(ctx.resumeCalls, 0);
+    assert.equal(player.play(0.5), false);
+    assert.equal(player.isMuted(), true);
+  });
+
+  test('coupé : play, playCry, playAlert et playSlurp ne programment rien', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    player.setMuted(true);
+    ctx.currentTime = 10;
+    assert.equal(player.play(0.5), false);
+    assert.equal(player.playCry(0.5), false);
+    assert.equal(player.playAlert(0.3), false);
+    assert.equal(player.playSlurp(), false);
+    assert.equal(ctx.oscillators.length, 0);
+    assert.equal(ctx.filters.length, 0);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
+  });
+
+  test('coupé : sons en cours arrêtés immédiatement ; rétabli : le bong reprend', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    assert.equal(player.play(0.5), true);
+    player.setMuted(true);
+    for (const osc of ctx.oscillators) assert.equal(osc.stopCalls.length, 2, 'voix non arrêtée');
+    player.setMuted(false);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
+    ctx.currentTime = 10;
+    assert.equal(player.play(0.5), true);
+  });
+
+  test('coupé pendant le sluuurp : voix coupées, état SUSPENDED, rétablir ne rejoue pas le sluuurp', () => {
+    const { ctx, player, slurpOscs } = inFinale();
+    player.setMuted(true);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
+    for (const osc of slurpOscs) assert.equal(osc.stopCalls.length, 2, 'sluuurp non coupé');
+    const count = ctx.oscillators.length;
+    player.setMuted(false);
+    assert.equal(ctx.oscillators.length, count, 'aucune voix nouvelle au rétablissement');
+  });
+
+  test('resume() pendant la coupure ne lève pas la coupure et ne relance pas le contexte', () => {
+    const { ctx, player } = setup();
+    trackContext(ctx);
+    player.resume();
+    player.setMuted(true);
+    const before = ctx.resumeCalls;
+    player.resume();
+    assert.equal(ctx.resumeCalls, before);
+    assert.equal(ctx.lastCall, 'suspend');
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
+    assert.equal(player.isMuted(), true);
+  });
+
+  test('sortie de pause alors que coupé : suspend/resume répétés ne relancent pas le contexte, isMuted stable', () => {
+    const { ctx, player } = setup();
+    trackContext(ctx);
+    player.resume();
+    player.setMuted(true);
+    const before = ctx.resumeCalls;
+    player.suspend();
+    player.resume();
+    player.suspend();
+    player.resume();
+    assert.equal(ctx.resumeCalls, before);
+    assert.equal(ctx.lastCall, 'suspend');
+    assert.equal(player.isMuted(), true);
+  });
+
+  test('pause, coupure puis rétablissement pendant la pause : reste muet jusqu\'à la reprise', () => {
+    const { ctx, player } = setup();
+    trackContext(ctx);
+    player.resume();
+    player.suspend();
+    player.setMuted(true);
+    player.setMuted(false);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
+    assert.equal(ctx.lastCall, 'suspend');
+    assert.equal(player.play(0.5), false);
+    player.resume();
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
+    assert.equal(player.play(0.5), true);
+  });
+
+  test('aucun stockage : src/audio, src/main.js et src/game/input.js n\'utilisent ni localStorage, ni sessionStorage, ni indexedDB, ni cookie', () => {
+    const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+    const files = ['src/audio/monster-audio.js', 'src/main.js', 'src/game/input.js'];
+    const STORAGE = /localStorage|sessionStorage|indexedDB|document\.cookie|caches\./;
+    for (const rel of files) {
+      assert.equal(STORAGE.test(readFileSync(path.join(root, rel), 'utf8')), false, rel);
+    }
+  });
+});

@@ -22,7 +22,7 @@ src/                             # racine servie au navigateur (et seulement ell
     grid.js                      # grille de tuiles (toTileGrid) + isWallTile
   game/                          # logique pure du jeu (vue FPS)
     player.js                    # createPlayer(grid), normalizeAngle, PLAYER_RADIUS
-    input.js                     # ACTION, KEY_BINDINGS (KeyboardEvent.code), computeIntent
+    input.js                     # ACTION (dont TOGGLE_SOUND, KeyX), KEY_BINDINGS (KeyboardEvent.code), computeIntent
     touch-input.js               # TOUCH_ACTIONS, touchActionFor, TouchState (pressTouch/releaseTouch/touchActions) : doigts -> actions
     movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
     loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
@@ -48,7 +48,7 @@ src/                             # racine servie au navigateur (et seulement ell
   audio/
     bong.js                      # son « bong bong » (pur) : BONG, BONG_SYNTH, bongGain (distance de chemin -> gain), selectBongGain, bongSchedule
     monster-cries.js             # cris du monstre (pur) : ALERT, CRY, SLURP, ALERT_SYNTH, CRY_SYNTH, SLURP_SYNTH, alertGain, selectAlertGain, alertSchedule, cryGain, selectCryGain, crySchedule, slurpSchedule
-    monster-audio.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createMonsterAudio (play, playAlert, playCry, playSlurp), MONSTER_AUDIO_STATE
+    monster-audio.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createMonsterAudio (play, playAlert, playCry, playSlurp, setMuted/isMuted : coupure indépendante de suspend/resume), MONSTER_AUDIO_STATE
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -120,6 +120,10 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   labyrinthe courant (remise à zéro à chaque génération, conservée en quittant le FPS).
   `ACTION.TOGGLE_MAP` (`KeyM` et `Semicolon`, M sur QWERTY et AZERTY) bascule
   `AUTOMAP_MODE.MINI` / `FULL` ; `drawAutomap` est appelé après `drawFpsView`.
+  `ACTION.TOGGLE_SOUND` (`KeyX`, bouton `#sound-toggle-button`) appelle `toggleSound()` :
+  `monsterAudio.setMuted(!isMuted())`, libellé et `aria-pressed` mis à jour. Actif en FPS,
+  en pause (`PAUSED_KEY_HANDLERS`) et sur l'écran de fin ; l'état n'est pas réinitialisé
+  entre parties. Non stocké (perdu au rechargement).
 - **État de pause** (`pause.js`) : `{ paused, reason }` gelé, `reason` dans
   `PAUSE_REASON` (`manual`, `blur`, `hidden`) ou `null`. `pauseGame` garde la première
   raison, `resumeGame` et `pauseGame` renvoient la même référence si rien ne change,

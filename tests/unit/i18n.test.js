@@ -86,7 +86,7 @@ test('index.html : aucun texte alphabétique visible en dur', () => {
 const EXPECTED_FPS = {
   'fps.enter': 'Explorer en 3D',
   'fps.exit': 'Revenir à la vue de dessus',
-  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Carte : M — Pause : P — Quitter : Échap',
+  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Carte : M — Pause : P — Son : X — Quitter : Échap',
   'canvas.labelFps': 'Vue à la première personne dans le labyrinthe',
   'canvas.labelFpsMap': 'Carte des zones explorées du labyrinthe',
 };
@@ -203,6 +203,16 @@ test('tactile : index.html, chaque data-i18n et data-i18n-aria-label a sa clé',
   assert.match(html, /data-i18n=["']fps\.helpTouch["']/);
 });
 
+// Couper le son (T9, plan docs/design/couper-son.md, section Textes) : libellés du bouton.
+test('couper le son : sound.mute et sound.unmute au texte du plan, bouton en data-i18n', () => {
+  assert.equal(fr['sound.mute'], 'Couper le son (X)');
+  assert.equal(fr['sound.unmute'], 'Rétablir le son (X)');
+  assert.equal(t('sound.mute'), 'Couper le son (X)');
+  assert.equal(t('sound.unmute'), 'Rétablir le son (X)');
+  const html = readFileSync(fileURLToPath(new URL('../../src/index.html', import.meta.url)), 'utf8');
+  assert.match(html, /id=["']sound-toggle-button["'][^>]*data-i18n=["']sound\.mute["']/);
+});
+
 // Message d'erreur dédié (T4, todolist-ameliorations) : `errors.round` pour l'échec de
 // création du joueur ou du monstre dans startRound(), `errors.generic` réservé à la
 // génération du labyrinthe. main.js touche au DOM : on vérifie le câblage par source.
@@ -257,8 +267,8 @@ test('pause : clés pause.*, touch.pause et touch.pauseLabel avec les textes du 
   }
 });
 
-test('pause : fps.help cite P avant Quitter, fps.helpTouch se termine par « Pause »', () => {
-  assert.match(fr['fps.help'], /Pause : P — Quitter : Échap$/);
+test('pause : fps.help cite P puis X (son) avant Quitter, fps.helpTouch se termine par « Pause »', () => {
+  assert.match(fr['fps.help'], /Pause : P — Son : X — Quitter : Échap$/);
   assert.ok(fr['fps.helpTouch'].endsWith(' « Pause » arrête la partie.'), fr['fps.helpTouch']);
 });
 

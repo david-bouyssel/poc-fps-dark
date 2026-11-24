@@ -70,6 +70,7 @@ const errorElement = document.getElementById('maze-error');
 const canvas = document.getElementById('maze-canvas');
 const fpsEnterButton = document.getElementById('fps-enter-button');
 const fpsExitButton = document.getElementById('fps-exit-button');
+const soundToggleButton = document.getElementById('sound-toggle-button');
 const fpsHelp = document.getElementById('fps-help');
 const fpsHelpTouch = document.getElementById('fps-help-touch');
 const touchPads = [
@@ -474,6 +475,7 @@ function enterFps() {
   form.hidden = true;
   fpsEnterButton.hidden = true;
   fpsExitButton.hidden = false;
+  soundToggleButton.hidden = false;
   fpsHelp.hidden = false;
   fpsHelpTouch.hidden = false;
   setTouchPadsHidden(false);
@@ -501,6 +503,7 @@ function exitFps() {
   form.hidden = false;
   fpsEnterButton.hidden = false;
   fpsExitButton.hidden = true;
+  soundToggleButton.hidden = true;
   fpsHelp.hidden = true;
   fpsHelpTouch.hidden = true;
   setTouchPadsHidden(true);
@@ -530,6 +533,17 @@ function toggleMap() {
   const full = mapMode === AUTOMAP_MODE.MINI;
   mapMode = full ? AUTOMAP_MODE.FULL : AUTOMAP_MODE.MINI;
   canvas.setAttribute('aria-label', t(full ? 'canvas.labelFpsMap' : 'canvas.labelFps'));
+}
+
+/**
+ * Coupe ou rétablit le son du monstre (état conservé entre parties et vues).
+ * Le libellé et aria-pressed suivent l'état : pressé = son coupé.
+ */
+function toggleSound() {
+  monsterAudio.setMuted(!monsterAudio.isMuted());
+  const muted = monsterAudio.isMuted();
+  soundToggleButton.textContent = t(muted ? 'sound.unmute' : 'sound.mute');
+  soundToggleButton.setAttribute('aria-pressed', String(muted));
 }
 
 /** Relâche toutes les actions maintenues (clavier et tactile). */
@@ -601,6 +615,11 @@ const PAUSED_KEY_HANDLERS = Object.freeze({
     }
   },
   [ACTION.EXIT]: () => exitFps(),
+  [ACTION.TOGGLE_SOUND]: (event) => {
+    if (!event.repeat) {
+      toggleSound();
+    }
+  },
 });
 
 function onKeyDown(event) {
@@ -608,9 +627,9 @@ function onKeyDown(event) {
   if (action === null) {
     return;
   }
-  // Round over: only Escape is handled; other keys keep their default behaviour
-  // (Tab, Enter and Space stay usable on the end screen buttons).
-  if (isGameOver(gameState) && action !== ACTION.EXIT) {
+  // Round over: only Escape and the sound key are handled; other keys keep their default
+  // behaviour (Tab, Enter and Space stay usable on the end screen buttons).
+  if (isGameOver(gameState) && action !== ACTION.EXIT && action !== ACTION.TOGGLE_SOUND) {
     return;
   }
   // Paused: only the keys of PAUSED_KEY_HANDLERS are handled; others keep their default
@@ -637,6 +656,12 @@ function onKeyDown(event) {
   if (action === ACTION.TOGGLE_MAP) {
     if (!event.repeat) {
       toggleMap();
+    }
+    return;
+  }
+  if (action === ACTION.TOGGLE_SOUND) {
+    if (!event.repeat) {
+      toggleSound();
     }
     return;
   }
@@ -682,6 +707,7 @@ function init() {
 
   fpsEnterButton.addEventListener('click', enterFps);
   fpsExitButton.addEventListener('click', exitFps);
+  soundToggleButton.addEventListener('click', toggleSound);
   replayButton.addEventListener('click', replay);
   endNewMazeButton.addEventListener('click', newMazeFromEndScreen);
   resumeButton.addEventListener('click', resumeRound);

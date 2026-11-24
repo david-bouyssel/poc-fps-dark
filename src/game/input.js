@@ -14,6 +14,7 @@ export const ACTION = Object.freeze({
   EXIT: 'exit',
   TOGGLE_MAP: 'toggleMap',
   PAUSE: 'pause',
+  TOGGLE_SOUND: 'toggleSound',
 });
 
 /** Table gelée KeyboardEvent.code -> action. */
@@ -34,6 +35,7 @@ export const KEY_BINDINGS = Object.freeze({
   KeyM: ACTION.TOGGLE_MAP, // M on QWERTY
   Semicolon: ACTION.TOGGLE_MAP, // M on AZERTY
   KeyP: ACTION.PAUSE, // P on AZERTY and QWERTY
+  KeyX: ACTION.TOGGLE_SOUND, // X on AZERTY and QWERTY
 });
 
 /**
@@ -58,8 +60,8 @@ export function actionForCode(code) {
 
 /**
  * Intention de mouvement à partir de l'ensemble des actions enfoncées.
- * Deux actions opposées enfoncées ensemble s'annulent (0). EXIT, TOGGLE_MAP, PAUSE et
- * les valeurs inconnues sont ignorés.
+ * Deux actions opposées enfoncées ensemble s'annulent (0). EXIT, TOGGLE_MAP, PAUSE,
+ * TOGGLE_SOUND et les valeurs inconnues sont ignorés.
  * @param {Iterable<string>} pressedActions par exemple un Set ou un tableau
  * @returns {Intent}
  * @throws {TypeError} pressedActions non itérable

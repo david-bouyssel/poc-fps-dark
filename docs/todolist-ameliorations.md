@@ -39,7 +39,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [x] **Indicateur de danger** [courte] : un voile rouge ou une vignette sur les bords du
   canvas, plus forte quand la distance de chemin au monstre baisse. On réutilise
   `pathDistance`, déjà calculé. Aide aussi à jouer sans le son.
-- [ ] **Bouton « Couper le son »** [courte] : aucun réglage du son aujourd'hui. Ajouter
+- [x] **Bouton « Couper le son »** [courte] : aucun réglage du son aujourd'hui. Ajouter
   une bascule (bouton et touche) qui coupe le lecteur, sans stockage : l'état est perdu au
   rechargement.
 - [ ] **Difficulté** [complète] : choix « Facile / Normal / Cauchemar » dans le formulaire.

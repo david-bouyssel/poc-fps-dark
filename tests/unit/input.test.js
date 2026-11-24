@@ -13,6 +13,7 @@ const EXPECTED_ACTION = {
   EXIT: 'exit',
   TOGGLE_MAP: 'toggleMap',
   PAUSE: 'pause',
+  TOGGLE_SOUND: 'toggleSound',
 };
 
 const EXPECTED_BINDINGS = {
@@ -32,6 +33,7 @@ const EXPECTED_BINDINGS = {
   KeyM: 'toggleMap',
   Semicolon: 'toggleMap',
   KeyP: 'pause',
+  KeyX: 'toggleSound',
 };
 
 describe('ACTION et KEY_BINDINGS', () => {
@@ -107,6 +109,12 @@ describe('computeIntent', () => {
     assert.equal(actionForCode('KeyP'), 'pause');
     assert.deepEqual({ ...intent([ACTION.PAUSE]) }, { move: 0, strafe: 0, turn: 0, run: false });
     assert.deepEqual({ ...intent(['forward', ACTION.PAUSE]) }, { move: 1, strafe: 0, turn: 0, run: false });
+  });
+
+  test('toggleSound ignoré (intention nulle, couper le son ne bouge pas le joueur)', () => {
+    assert.equal(actionForCode('KeyX'), 'toggleSound');
+    assert.deepEqual({ ...intent([ACTION.TOGGLE_SOUND]) }, { move: 0, strafe: 0, turn: 0, run: false });
+    assert.deepEqual({ ...intent(['forward', ACTION.TOGGLE_SOUND]) }, { move: 1, strafe: 0, turn: 0, run: false });
   });
 
   test('combinaison complète', () => {
