@@ -128,7 +128,7 @@ fakeDocument.exitPointerLock = () => {
 const frames = new Map();
 let nextFrameId = 1;
 const saved = {};
-const GLOBALS = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame'];
+const GLOBALS = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame', 'crypto'];
 
 function press(type, code) {
   const event = {
@@ -203,6 +203,11 @@ describe('rotation à la souris : main.js sous DOM factice', () => {
     globalThis.document = fakeDocument;
     globalThis.requestAnimationFrame = (cb) => { const id = nextFrameId++; frames.set(id, cb); return id; };
     globalThis.cancelAnimationFrame = (id) => { frames.delete(id); };
+    // main.js tire la graine via crypto.getRandomValues (chargement) : on la fixe.
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { getRandomValues(buffer) { buffer[0] = 42; return buffer; } },
+    });
     process.on('unhandledRejection', onRejection);
     el('maze-width').value = '8';
     el('maze-height').value = '8';

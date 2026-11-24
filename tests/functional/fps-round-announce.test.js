@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { fr } from '../../src/i18n/fr.js';
 
 const TEXT = fr['round.huntAnnouncement'];
-const GLOBALS = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame'];
+const GLOBALS = ['window', 'document', 'requestAnimationFrame', 'cancelAnimationFrame', 'crypto'];
 const saved = {};
 
 // Identifiants et attribut hidden lus depuis index.html (même DOM que la page réelle).
@@ -154,10 +154,16 @@ describe('annonce de l\'état de manche : main.js sous DOM factice', () => {
     globalThis.document = fakeDocument;
     globalThis.requestAnimationFrame = (cb) => { const id = nextFrameId++; frames.set(id, cb); return id; };
     globalThis.cancelAnimationFrame = (id) => { frames.delete(id); };
+    // main.js tire la graine via crypto.getRandomValues (chargement, « Nouveau labyrinthe ») :
+    // on la fixe pour que chaque manche joue le même labyrinthe.
+    Object.defineProperty(globalThis, 'crypto', {
+      configurable: true,
+      value: { getRandomValues(buffer) { buffer[0] = 1; return buffer; } },
+    });
     process.on('unhandledRejection', onRejection);
     el('maze-width').value = '8';
     el('maze-height').value = '8';
-    el('maze-seed').value = '11';
+    el('maze-seed').value = '1';
     await import('../../src/main.js');
     watchStatus();
     el('maze-form').dispatch('submit', { preventDefault() {} });
