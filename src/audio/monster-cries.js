@@ -1,5 +1,5 @@
 /**
- * Cris du monstre : reniflement (début de traque), cri strident (le monstre voit le
+ * Cris du monstre : alerte (début de traque), cri strident (le monstre voit le
  * joueur) et « sluuurp » (capture).
  * Calcul pur des gains et des partitions. Aucun DOM, aucune API Web Audio ;
  * n'importe que ./bong.js.
@@ -12,41 +12,35 @@ export const SPOT_EVENT_TYPE = 'spot';
 /** Type d'événement consommé (MonsterHuntEvent) ; recopié, pas importé. */
 export const HUNT_EVENT_TYPE = 'hunt';
 
-/** Réglages du reniflement. Distances en tuiles de chemin, temps en secondes. */
-export const SNIFF = Object.freeze({
-  maxGain: 0.5, // crête à courte distance (passe-bande : perçu plus doux que le bong)
+/** Réglages de l'alerte. Distances en tuiles de chemin, temps en secondes. */
+export const ALERT = Object.freeze({
+  maxGain: 0.3, // crête à courte distance : court et net, sans couvrir les bongs
   nearDistance: 2,
   silenceDistance: 36, // même courbe que les bongs
-  minInterval: 4, // s entre deux débuts de reniflement
+  minInterval: 4, // s entre deux débuts d'alerte
 });
 
 /**
- * Synthèse du reniflement : trois inspirations brèves. Chaque inspiration superpose des
- * dents de scie à hauteurs inharmoniques, agitées d'un vibrato rapide (souffle rugueux),
- * dans un passe-bande qui monte (l'air qui entre). Aucun bruit aléatoire : tout est
- * déterministe. Fréquences en Hz, temps en secondes relatifs au début.
+ * Synthèse de l'alerte : deux bips courts et montants (quarte juste, sans recouvrement).
+ * Chaque note superpose une onde sinus (niveau 1) et un triangle à l'octave (niveau 0.3),
+ * dans un passe-bande fixe (fréquence de la note x 1.5). Aucun bruit aléatoire, aucun
+ * buffer : tout est déterministe. Fréquences en Hz, temps en secondes relatifs au début.
  */
-export const SNIFF_SYNTH = Object.freeze({
-  inhales: Object.freeze([
-    Object.freeze({ offset: 0, duration: 0.12, level: 0.8 }),
-    Object.freeze({ offset: 0.19, duration: 0.12, level: 0.9 }),
-    Object.freeze({ offset: 0.38, duration: 0.22, level: 1 }), // la plus longue
+export const ALERT_SYNTH = Object.freeze({
+  notes: Object.freeze([
+    Object.freeze({ offset: 0, duration: 0.09, frequency: 880, level: 1 }),
+    Object.freeze({ offset: 0.13, duration: 0.12, frequency: 1175, level: 1 }),
   ]),
   components: Object.freeze([
-    Object.freeze({ wave: 'sawtooth', frequency: 1130, level: 1 }),
-    Object.freeze({ wave: 'sawtooth', frequency: 1547, level: 0.8 }),
-    Object.freeze({ wave: 'sawtooth', frequency: 2069, level: 0.6 }),
-    Object.freeze({ wave: 'square', frequency: 2731, level: 0.4 }),
+    Object.freeze({ wave: 'sine', ratio: 1, level: 1 }),
+    Object.freeze({ wave: 'triangle', ratio: 2, level: 0.3 }), // l'octave, timbre doux
   ]),
-  jitterRate: 70, // Hz, vibrato en triangle (grain du souffle)
-  jitterDepth: 0.18,
   filter: Object.freeze({
     type: 'bandpass',
-    q: 1.8,
-    startFrequency: 1600,
-    endFrequency: 3600, // l'air qui entre : le filtre monte
+    q: 0.8, // large : pas de résonance, son propre
+    frequencyRatio: 1.5, // fréquence fixe = fréquence de la note x 1.5
   }),
-  attack: 0.04, // montée linéaire 0 -> crête
+  attack: 0.01, // montée linéaire 0 -> crête
   floorGain: 0.0001,
   release: 0.02,
 });
@@ -233,28 +227,28 @@ export function cryGain(pathDistance) {
 }
 
 /**
- * Gain d'un reniflement : même courbe que bongGain avec SNIFF.
+ * Gain d'une alerte : même courbe que bongGain avec ALERT.
  * @param {number} pathDistance  entier >= 0 ou Infinity (MonsterHuntEvent.pathDistance)
- * @returns {number} dans [0, SNIFF.maxGain]
+ * @returns {number} dans [0, ALERT.maxGain]
  * @throws {TypeError} pathDistance non numérique ou NaN
  * @throws {RangeError} pathDistance < 0
  */
-export function sniffGain(pathDistance) {
+export function alertGain(pathDistance) {
   return bongGain(pathDistance, {
-    maxGain: SNIFF.maxGain,
-    nearDistance: SNIFF.nearDistance,
-    silenceDistance: SNIFF.silenceDistance,
+    maxGain: ALERT.maxGain,
+    nearDistance: ALERT.nearDistance,
+    silenceDistance: ALERT.silenceDistance,
   });
 }
 
 /**
- * Maximum des sniffGain des événements de type HUNT_EVENT_TYPE ; autres types ignorés ;
+ * Maximum des alertGain des événements de type HUNT_EVENT_TYPE ; autres types ignorés ;
  * aucun -> 0.
  * @param {ReadonlyArray<{ type: string, pathDistance: number }>} events
  * @returns {number}
- * @throws {TypeError} events non tableau, élément non objet ; erreurs de sniffGain
+ * @throws {TypeError} events non tableau, élément non objet ; erreurs de alertGain
  */
-export function selectSniffGain(events) {
+export function selectAlertGain(events) {
   if (!Array.isArray(events)) {
     throw new TypeError('events must be an array');
   }
@@ -264,48 +258,43 @@ export function selectSniffGain(events) {
       throw new TypeError('each event must be an object');
     }
     if (event.type !== HUNT_EVENT_TYPE) continue;
-    gain = Math.max(gain, sniffGain(event.pathDistance));
+    gain = Math.max(gain, alertGain(event.pathDistance));
   }
   return gain;
 }
 
 /**
- * Partition du reniflement : pour chaque inspiration, une voix par composante
- * (3 x 4 = 12 voix), toutes en passe-bande.
- * Inspiration i de début s = startTime + offset et de durée D :
- *   hauteur : f, puis vibrato en triangle (jitterRate, jitterDepth) jusqu'à s + D ;
- *   filtre : startFrequency -> endFrequency en rampe exponentielle sur D ;
- *   gain : 0, rampe linéaire à peak = gain * inhale.level * component.level en attack,
+ * Partition de l'alerte : pour chaque note, une voix par composante (2 x 2 = 4 voix),
+ * toutes en passe-bande à fréquence fixe.
+ * Note i de début s = startTime + offset et de durée D :
+ *   hauteur : frequency x component.ratio, constante ;
+ *   filtre : fréquence fixe = frequency x filter.frequencyRatio ;
+ *   gain : 0, rampe linéaire à peak = gain * note.level * component.level en attack,
  *          rampe exponentielle à floorGain en s + D ; stop = s + D + release.
  * gain === 0 -> tableau vide.
  * @param {number} startTime  s, temps du contexte audio (>= 0)
  * @param {number} gain  dans [0, 1]
- * @param {typeof SNIFF_SYNTH} [synth=SNIFF_SYNTH]
+ * @param {typeof ALERT_SYNTH} [synth=ALERT_SYNTH]
  * @returns {ReadonlyArray<SynthVoice>}  tableau gelé d'objets gelés
  * @throws {TypeError} startTime ou gain non fini
  * @throws {RangeError} startTime < 0 ; gain hors [0, 1]
  */
-export function sniffSchedule(startTime, gain, synth = SNIFF_SYNTH) {
+export function alertSchedule(startTime, gain, synth = ALERT_SYNTH) {
   validateSchedule(startTime, gain);
   if (gain === 0) return Object.freeze([]);
 
-  const flat = Object.freeze([Object.freeze({ time: 0, multiplier: 1 })]);
   const voices = [];
-  for (const inhale of synth.inhales) {
-    const start = startTime + inhale.offset;
-    const end = start + inhale.duration;
+  for (const note of synth.notes) {
+    const start = startTime + note.offset;
+    const end = start + note.duration;
+    const filterFrequency = note.frequency * synth.filter.frequencyRatio;
     for (const component of synth.components) {
-      const frequency = [
-        point(start, component.frequency, 'set'),
-        ...vibratoPoints(start, 0, inhale.duration, synth.jitterRate, synth.jitterDepth,
-          component.frequency, flat),
-      ];
-      const peak = gain * inhale.level * component.level;
+      const peak = gain * note.level * component.level;
       voices.push(Object.freeze({
         wave: component.wave,
         start,
         stop: end + synth.release,
-        frequency: Object.freeze(frequency),
+        frequency: Object.freeze([point(start, note.frequency * component.ratio, 'set')]),
         gain: Object.freeze([
           point(start, 0, 'set'),
           point(start + synth.attack, peak, 'linear'),
@@ -314,10 +303,7 @@ export function sniffSchedule(startTime, gain, synth = SNIFF_SYNTH) {
         filter: Object.freeze({
           type: synth.filter.type,
           q: synth.filter.q,
-          frequency: Object.freeze([
-            point(start, synth.filter.startFrequency, 'set'),
-            point(end, synth.filter.endFrequency, 'exponential'),
-          ]),
+          frequency: Object.freeze([point(start, filterFrequency, 'set')]),
         }),
       }));
     }

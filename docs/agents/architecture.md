@@ -45,8 +45,8 @@ src/                             # racine servie au navigateur (et seulement ell
     monster-sprite.js            # sprite du monstre (pur) : generateMonsterSprite (3 images RGBA), monsterFrame (cycle de mâchoire), monsterFrameSprite
   audio/
     bong.js                      # son « bong bong » (pur) : BONG, BONG_SYNTH, bongGain (distance de chemin -> gain), selectBongGain, bongSchedule
-    monster-cries.js             # cris du monstre (pur) : SNIFF, CRY, SLURP, SNIFF_SYNTH, CRY_SYNTH, SLURP_SYNTH, sniffGain, selectSniffGain, sniffSchedule, cryGain, selectCryGain, crySchedule, slurpSchedule
-    bong-player.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createBongPlayer (play, playSniff, playCry, playSlurp), BONG_PLAYER_STATE
+    monster-cries.js             # cris du monstre (pur) : ALERT, CRY, SLURP, ALERT_SYNTH, CRY_SYNTH, SLURP_SYNTH, alertGain, selectAlertGain, alertSchedule, cryGain, selectCryGain, crySchedule, slurpSchedule
+    bong-player.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createBongPlayer (play, playAlert, playCry, playSlurp), BONG_PLAYER_STATE
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -240,7 +240,7 @@ et de l'ordre des tirages (jamais le labyrinthe).
    ensuite, seulement si `!isGameOver(gameState)` : `monster = stepMonster(monster,
    player, dt, currentGrid).monster` (pas borné à `MONSTER.maxDt`), puis
    `bongPlayer.play(selectBongGain(step.events))` si le gain est `> 0`, puis
-   `bongPlayer.playSniff(selectSniffGain(step.events))` si le gain est `> 0`, puis
+   `bongPlayer.playAlert(selectAlertGain(step.events))` si le gain est `> 0`, puis
    `bongPlayer.playCry(selectCryGain(step.events))` si le gain est `> 0`, puis
    `declareDefeat` si `isCatching(monster, player)` (le contact compte aussi pendant la
    grâce ; sortie et contact dans la même image -> victoire). Partie finie -> rien dans

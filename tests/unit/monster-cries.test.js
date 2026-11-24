@@ -10,11 +10,11 @@ import { MONSTER_EVENT, createMonster, stepMonster } from '../../src/game/monste
 import {
   SPOT_EVENT_TYPE,
   HUNT_EVENT_TYPE,
-  SNIFF,
-  SNIFF_SYNTH,
-  sniffGain,
-  selectSniffGain,
-  sniffSchedule,
+  ALERT,
+  ALERT_SYNTH,
+  alertGain,
+  selectAlertGain,
+  alertSchedule,
   CRY,
   SLURP,
   CRY_SYNTH,
@@ -360,68 +360,122 @@ describe('slurpSchedule', () => {
   });
 });
 
-describe('reniflement', () => {
+describe('alerte (début de traque)', () => {
   test('constantes gelées ; HUNT_EVENT_TYPE === MONSTER_EVENT.HUNT', () => {
     assert.equal(HUNT_EVENT_TYPE, MONSTER_EVENT.HUNT);
-    assert.deepEqual({ ...SNIFF }, { maxGain: 0.5, nearDistance: 2, silenceDistance: 36, minInterval: 4 });
-    assert.ok(Object.isFrozen(SNIFF));
-    assert.ok(Object.isFrozen(SNIFF_SYNTH));
-    assert.ok(Object.isFrozen(SNIFF_SYNTH.inhales));
-    assert.ok(Object.isFrozen(SNIFF_SYNTH.components));
+    assert.deepEqual({ ...ALERT }, { maxGain: 0.3, nearDistance: 2, silenceDistance: 36, minInterval: 4 });
+    assertDeepFrozen(ALERT);
+    assertDeepFrozen(ALERT_SYNTH);
   });
 
-  test('sniffGain : 0 et 2 -> maxGain ; décroissant ; 36 et Infinity -> 0 ; erreurs', () => {
-    assert.equal(sniffGain(0), SNIFF.maxGain);
-    assert.equal(sniffGain(2), SNIFF.maxGain);
-    assert.equal(sniffGain(36), 0);
-    assert.equal(sniffGain(Infinity), 0);
+  test('ALERT_SYNTH : 2 notes sans recouvrement (quarte montante), sinus + triangle à l\'octave, passe-bande', () => {
+    const { notes, components, filter } = ALERT_SYNTH;
+    assert.deepEqual(notes.map((n) => n.offset), [0, 0.13]);
+    assert.deepEqual(notes.map((n) => n.frequency), [880, 1175]);
+    assert.ok(notes.every((n) => n.level === 1), 'niveau de note 1');
+    assert.ok(notes[0].offset + notes[0].duration + ALERT_SYNTH.release < notes[1].offset,
+      'enveloppes sans recouvrement');
+    assert.deepEqual(components.map((c) => [c.wave, c.ratio, c.level]),
+      [['sine', 1, 1], ['triangle', 2, 0.3]]);
+    assert.equal(filter.type, 'bandpass');
+    assert.equal(filter.q, 0.8);
+    assert.equal(filter.frequencyRatio, 1.5);
+  });
+
+  test('alertGain : 0 et 2 -> maxGain ; décroissant ; 36 et Infinity -> 0 ; bornes ; erreurs', () => {
+    assert.equal(alertGain(0), ALERT.maxGain);
+    assert.equal(alertGain(2), ALERT.maxGain);
+    assert.equal(alertGain(36), 0);
+    assert.equal(alertGain(Infinity), 0);
     let previous = Infinity;
     for (let d = 0; d <= 40; d += 1) {
-      const g = sniffGain(d);
-      assert.ok(g <= previous && g >= 0 && g <= SNIFF.maxGain, `d = ${d}`);
+      const g = alertGain(d);
+      assert.ok(g <= previous && g >= 0 && g <= ALERT.maxGain, `d = ${d}`);
       previous = g;
     }
-    assert.throws(() => sniffGain(NaN), TypeError);
-    assert.throws(() => sniffGain(-1), RangeError);
+    assert.throws(() => alertGain(NaN), TypeError);
+    assert.throws(() => alertGain(-1), RangeError);
   });
 
-  test('selectSniffGain : seuls les HUNT comptent, maximum, erreurs', () => {
-    assert.equal(selectSniffGain([]), 0);
-    assert.equal(selectSniffGain([{ type: 'turn', pathDistance: 0 }, { type: 'spot', pathDistance: 0 }]), 0);
-    assert.equal(selectSniffGain([{ type: 'hunt', pathDistance: 12 }, { type: 'hunt', pathDistance: 4 }]),
-      sniffGain(4));
-    assert.throws(() => selectSniffGain(null), TypeError);
-    assert.throws(() => selectSniffGain([null]), TypeError);
+  test('selectAlertGain : seuls les HUNT comptent, maximum, erreurs', () => {
+    assert.equal(selectAlertGain([]), 0);
+    assert.equal(selectAlertGain([{ type: 'turn', pathDistance: 0 }, { type: 'spot', pathDistance: 0 }]), 0);
+    assert.equal(selectAlertGain([{ type: 'hunt', pathDistance: 12 }, { type: 'hunt', pathDistance: 4 }]),
+      alertGain(4));
+    assert.throws(() => selectAlertGain(null), TypeError);
+    assert.throws(() => selectAlertGain([null]), TypeError);
   });
 
-  test('sniffSchedule : 3 inspirations x 4 composantes, passe-bande montant, bornes', () => {
-    const voices = sniffSchedule(2, 0.3);
+  test('alertSchedule : 4 voix (2 notes x 2 composantes), ondes, fréquences, passe-bande fixe', () => {
+    const voices = alertSchedule(2, 0.3);
     assert.ok(Object.isFrozen(voices));
-    assert.equal(voices.length, SNIFF_SYNTH.inhales.length * SNIFF_SYNTH.components.length);
-    for (const v of voices) {
-      assert.ok(Object.isFrozen(v));
-      assert.equal(v.filter.type, 'bandpass');
-      const [f0, f1] = v.filter.frequency;
-      assert.ok(f1.value > f0.value, 'le filtre monte');
-      for (const list of [v.frequency, v.gain, v.filter.frequency]) {
-        assert.equal(list[0].ramp, 'set');
-        assert.equal(list[0].time, v.start);
-        for (let i = 1; i < list.length; i += 1) assert.ok(list[i].time >= list[i - 1].time - 1e-9);
-        assert.ok(list.at(-1).time <= v.stop + 1e-9);
-      }
-      for (const p of v.gain) assert.ok(p.value >= 0 && p.value <= 0.3 + 1e-9);
-      for (const p of v.frequency) assert.ok(p.value > 500 && p.value < 20000);
-    }
-    // inspirations disjointes, la dernière la plus longue
+    assertDeepFrozen(voices);
+    assert.equal(voices.length, 4);
+    assert.deepEqual(voices.map((v) => v.wave), ['sine', 'triangle', 'sine', 'triangle']);
+    assert.deepEqual(voices.map((v) => v.frequency[0].value), [880, 1760, 1175, 2350]);
     const starts = [...new Set(voices.map((v) => v.start))];
-    assert.equal(starts.length, 3);
-    assert.deepEqual(starts, SNIFF_SYNTH.inhales.map((h) => 2 + h.offset));
+    assert.equal(starts.length, 2, 'deux débuts de note');
+    assert.ok(Math.abs(starts[0] - 2) < EPS && Math.abs(starts[1] - 2.13) < EPS);
+    for (const v of voices) {
+      assert.equal(v.filter.type, 'bandpass');
+      assert.equal(v.filter.q, 0.8);
+      assert.equal(v.filter.frequency.length, 1, 'fréquence de filtre fixe');
+      assert.equal(v.filter.frequency[0].ramp, 'set');
+      assert.ok(Math.abs(v.filter.frequency[0].time - v.start) < EPS);
+      for (const p of v.frequency) assert.ok(p.value > 200 && p.value < 8000, `hauteur ${p.value}`);
+      assert.equal(v.frequency.length, 1, 'hauteur constante');
+    }
+    assert.deepEqual(voices.map((v) => v.filter.frequency[0].value), [1320, 1320, 1762.5, 1762.5]);
   });
 
-  test('sniffSchedule : gain 0 -> vide ; erreurs', () => {
-    assert.deepEqual([...sniffSchedule(0, 0)], []);
-    assert.throws(() => sniffSchedule(NaN, 0.3), TypeError);
-    assert.throws(() => sniffSchedule(-1, 0.3), RangeError);
-    assert.throws(() => sniffSchedule(0, 1.5), RangeError);
+  test('alertSchedule : enveloppe linéaire puis exponentielle, crête = gain x niveaux, stop = fin + release', () => {
+    const voices = alertSchedule(0, 0.3);
+    voices.forEach((v, i) => {
+      assert.deepEqual(v.gain.map((p) => p.ramp), ['set', 'linear', 'exponential'], `voix ${i}`);
+      assert.equal(v.gain[0].value, 0);
+      const level = v.wave === 'sine' ? 1 : 0.3;
+      assert.ok(Math.abs(v.gain[1].value - 0.3 * level) < EPS, `voix ${i} : crête`);
+      assert.ok(Math.abs(v.gain[1].time - v.start - ALERT_SYNTH.attack) < EPS, `voix ${i} : attaque`);
+      assert.equal(v.gain[2].value, ALERT_SYNTH.floorGain);
+      assert.ok(Math.abs(v.stop - v.gain[2].time - ALERT_SYNTH.release) < EPS, `voix ${i} : release`);
+    });
+  });
+
+  test('alertSchedule : crête cumulée <= 1 au gain maximal, notes sans chevauchement', () => {
+    const voices = alertSchedule(0, ALERT.maxGain);
+    const groups = new Map();
+    for (const v of voices) {
+      const peak = Math.max(...v.gain.map((p) => p.value));
+      assert.ok(peak >= 0 && peak <= 1, `crête ${peak}`);
+      groups.set(v.start, (groups.get(v.start) ?? 0) + peak);
+    }
+    const [first, second] = [...groups.keys()].sort((a, b) => a - b);
+    for (const sum of groups.values()) {
+      assert.ok(sum <= ALERT.maxGain * 1.3 + EPS, `somme d'une note ${sum}`);
+      assert.ok(sum <= 1);
+    }
+    const firstStop = Math.max(...voices.filter((v) => v.start === first).map((v) => v.stop));
+    assert.ok(firstStop <= second, 'la note 1 finit avant le début de la note 2');
+  });
+
+  test('alertSchedule : gain 0 -> vide ; erreurs', () => {
+    assert.deepEqual([...alertSchedule(0, 0)], []);
+    assert.throws(() => alertSchedule(NaN, 0.3), TypeError);
+    assert.throws(() => alertSchedule(0, NaN), TypeError);
+    assert.throws(() => alertSchedule(-1, 0.3), RangeError);
+    assert.throws(() => alertSchedule(0, 1.5), RangeError);
+    assert.throws(() => alertSchedule(0, -0.1), RangeError);
+  });
+
+  test('alertSchedule : déterministe, Math.random non appelé', () => {
+    const original = Math.random;
+    let calls = 0;
+    Math.random = () => { calls += 1; return 0.5; };
+    try {
+      assert.deepEqual(alertSchedule(1, 0.2), alertSchedule(1, 0.2));
+      assert.equal(calls, 0);
+    } finally {
+      Math.random = original;
+    }
   });
 });

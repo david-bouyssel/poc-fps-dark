@@ -932,7 +932,7 @@ describe('événements SPOT', () => {
   });
 });
 
-// Événement HUNT : début de traque (reniflement)
+// Événement HUNT : début de traque (alerte)
 
 describe('événements HUNT', () => {
   const huntsOf = (events) => events.filter((e) => e.type === MONSTER_EVENT.HUNT);

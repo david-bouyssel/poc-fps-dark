@@ -22,7 +22,7 @@ import {
   CRY_SYNTH,
   SLURP,
   SLURP_SYNTH,
-  SNIFF,
+  ALERT,
   SPOT_EVENT_TYPE,
   cryGain,
   selectCryGain,
@@ -146,10 +146,10 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
       'victoire (ou sluuurp refusé) : suspend immédiat');
     assert.equal([...main.matchAll(/\bplayCry\s*\(/g)].length, 1, 'un seul appel de playCry');
     assert.match(main, /bongPlayer\.playCry\(\s*cryGainValue\s*\)/);
-    assert.equal([...main.matchAll(/\bplaySniff\s*\(/g)].length, 1, 'un seul appel de playSniff');
-    assert.match(main, /bongPlayer\.playSniff\(\s*sniffGainValue\s*\)/);
+    assert.equal([...main.matchAll(/\bplayAlert\s*\(/g)].length, 1, 'un seul appel de playAlert');
+    assert.match(main, /bongPlayer\.playAlert\(\s*alertGainValue\s*\)/);
     assert.match(main,
-      /import\s*\{\s*selectCryGain,\s*selectSniffGain\s*\}\s*from\s*'\.\/audio\/monster-cries\.js'/);
+      /import\s*\{[^}]*\bselectAlertGain\b[^}]*\}\s*from\s*'\.\/audio\/monster-cries\.js'/);
   });
 
   test('AudioContext / webkitAudioContext lus uniquement dans src/main.js, une seule construction', () => {
@@ -1005,10 +1005,10 @@ describe('sécurité : câblage audio de src/main.js (DOM factice)', () => {
     assert.equal(contexts.length, 1);
   });
 
-  /** Classe un oscillateur du faux contexte : 'bong', 'sniff', 'cry' ou 'slurp'. */
+  /** Classe un oscillateur du faux contexte : 'bong', 'alert', 'cry' ou 'slurp'. */
   function voiceKind(ctx, osc) {
     const filter = osc.connectedTo.find((n) => ctx.filters.includes(n));
-    if (filter) return filter.type === 'bandpass' ? 'sniff' : 'slurp';
+    if (filter) return filter.type === 'bandpass' ? 'alert' : 'slurp';
     const first = osc.frequencyLog.find((e) => e[0] === 'setValueAtTime');
     const f0 = first ? first[1] : NaN;
     if ((osc.type === 'sawtooth' || osc.type === 'square') && f0 >= 1000) return 'cry';
@@ -1049,7 +1049,7 @@ describe('sécurité : câblage audio de src/main.js (DOM factice)', () => {
     // Rampes lues séparément : gains d'enveloppe bornés, fréquences dans l'audible.
     const gains = rampValues(ctx.log, 'env.gain');
     assert.ok(gains.length > 0);
-    const maxGain = Math.max(BONG.maxGain, CRY.maxGain, SNIFF.maxGain, SLURP.gain);
+    const maxGain = Math.max(BONG.maxGain, CRY.maxGain, ALERT.maxGain, SLURP.gain);
     for (const g of gains) assert.ok(Number.isFinite(g) && g >= 0 && g <= maxGain, `gain ${g}`);
     for (const kind of ['osc.frequency', 'filter.frequency', 'filter.Q']) {
       for (const f of rampValues(ctx.log, kind)) assert.ok(Number.isFinite(f) && f > 0 && f < 20000, `${kind} ${f}`);
@@ -1062,13 +1062,13 @@ describe('sécurité : câblage audio de src/main.js (DOM factice)', () => {
       assert.ok(bongs[i].startAt - bongs[i - 4].startAt >= BONG.minInterval - 1e-6,
         `bongs trop rapprochés : ${bongs[i - 4].startAt} -> ${bongs[i].startAt}`);
     }
-    // Reniflements : 12 voix chacun, espacés d'au moins SNIFF.minInterval.
-    const sniffs = ctx.oscillators.filter((o) => voiceKind(ctx, o) === 'sniff');
-    assert.ok(sniffs.length > 0, 'au moins un reniflement au début d\'une traque');
-    assert.equal(sniffs.length % 12, 0, '12 voix par reniflement');
-    for (let i = 12; i < sniffs.length; i += 12) {
-      assert.ok(sniffs[i].startAt - sniffs[i - 12].startAt >= SNIFF.minInterval - 1e-6,
-        `reniflements trop rapprochés : ${sniffs[i - 12].startAt} -> ${sniffs[i].startAt}`);
+    // Alertes : 4 voix chacune, espacées d'au moins ALERT.minInterval.
+    const alerts = ctx.oscillators.filter((o) => voiceKind(ctx, o) === 'alert');
+    assert.ok(alerts.length > 0, 'au moins une alerte au début d\'une traque');
+    assert.equal(alerts.length % 4, 0, '4 voix par alerte');
+    for (let i = 4; i < alerts.length; i += 4) {
+      assert.ok(alerts[i].startAt - alerts[i - 4].startAt >= ALERT.minInterval - 1e-6,
+        `alertes trop rapprochées : ${alerts[i - 4].startAt} -> ${alerts[i].startAt}`);
     }
     // Cris : 3 voix par cri, espacés d'au moins CRY.minInterval.
     const cries = ctx.oscillators.filter((o) => voiceKind(ctx, o) === 'cry');

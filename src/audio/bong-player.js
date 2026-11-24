@@ -1,5 +1,5 @@
 /**
- * Lecteur des sons du monstre (« bong bong », reniflement, cri, « sluuurp ») : seul module
+ * Lecteur des sons du monstre (« bong bong », alerte, cri, « sluuurp ») : seul module
  * qui appelle l'API Web Audio. Noms historiques (createBongPlayer, BONG_PLAYER_STATE)
  * conservés. Le contexte audio vient uniquement de la fabrique injectée `createContext`
  * (jamais d'accès global).
@@ -7,7 +7,7 @@
  */
 import { BONG, bongGain, bongSchedule } from './bong.js';
 import {
-  CRY, crySchedule, slurpSchedule, SNIFF, sniffSchedule,
+  ALERT, alertSchedule, CRY, crySchedule, slurpSchedule,
 } from './monster-cries.js';
 
 /** États du lecteur. */
@@ -76,7 +76,7 @@ function applyPoints(param, points) {
  * @param {{ createContext: () => (AudioContext | null | undefined),
  *           options?: Partial<typeof BONG> }} deps
  * @returns {{ resume(): void, suspend(): void, play(gain: number): boolean,
- *             playCry(gain: number): boolean, playSniff(gain: number): boolean,
+ *             playCry(gain: number): boolean, playAlert(gain: number): boolean,
  *             playSlurp(): boolean,
  *             readonly state: string }}  objet gelé
  * @throws {TypeError} createContext n'est pas une fonction
@@ -95,7 +95,7 @@ export function createBongPlayer({ createContext, options } = {}) {
   let ctx = null;
   let lastStart = -Infinity;
   let lastCryStart = -Infinity;
-  let lastSniffStart = -Infinity;
+  let lastAlertStart = -Infinity;
   /** @type {Set<{ osc: any, env: any, filter?: any }>} */
   const voices = new Set();
   /** Voix du sluuurp en cours (null si aucun) : sa fin naturelle suspend le contexte. */
@@ -267,21 +267,21 @@ export function createBongPlayer({ createContext, options } = {}) {
   }
 
   /**
-   * Programme un reniflement (début de traque). Délai propre (SNIFF.minInterval).
+   * Programme une alerte (début de traque). Délai propre (ALERT.minInterval).
    * @param {number} gain
-   * @returns {boolean} true si un reniflement est programmé
+   * @returns {boolean} true si une alerte est programmée
    */
-  function playSniff(gain) {
+  function playAlert(gain) {
     if (state !== BONG_PLAYER_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
     try {
       const now = ctx.currentTime;
-      if (now - lastSniffStart < SNIFF.minInterval - INTERVAL_EPSILON) return false;
-      for (const voice of sniffSchedule(now, Math.min(gain, 1))) {
+      if (now - lastAlertStart < ALERT.minInterval - INTERVAL_EPSILON) return false;
+      for (const voice of alertSchedule(now, Math.min(gain, 1))) {
         scheduleSynthVoice(voice, created);
       }
-      lastSniffStart = now;
+      lastAlertStart = now;
       return true;
     } catch {
       discard(created);
@@ -330,7 +330,7 @@ export function createBongPlayer({ createContext, options } = {}) {
     suspend,
     play,
     playCry,
-    playSniff,
+    playAlert,
     playSlurp,
     get state() {
       return state;
