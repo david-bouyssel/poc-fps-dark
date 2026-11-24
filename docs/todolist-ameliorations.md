@@ -19,7 +19,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [x] **Bornes du formulaire en un seul endroit** [courte] : `src/index.html` fixe en dur
   `min="2" max="64"` et `max="4294967295"`, ce qui double `MAZE_LIMITS` et `MAX_SEED`.
   Les poser depuis `main.js` à l'init, avec un test qui vérifie l'accord.
-- [ ] **Message d'erreur dédié** [express] : `errors.generic` (« Impossible de générer le
+- [x] **Message d'erreur dédié** [express] : `errors.generic` (« Impossible de générer le
   labyrinthe ») s'affiche aussi quand la création du joueur ou du monstre échoue dans
   `startRound()` (`src/main.js`). Ajouter une clé `errors.round` dans `src/i18n/fr.js`.
 - [ ] **Renommer le lecteur audio** [courte] : `createBongPlayer` et `BONG_PLAYER_STATE`

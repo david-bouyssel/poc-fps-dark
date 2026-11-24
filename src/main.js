@@ -309,7 +309,7 @@ function startRound() {
     nextPlayer = createPlayer(currentGrid);
     nextMonster = createMonster(currentGrid, currentMaze.seed, { exit: currentExit });
   } catch {
-    showError('errors.generic');
+    showError('errors.round');
     return false;
   }
   player = nextPlayer;

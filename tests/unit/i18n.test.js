@@ -201,3 +201,35 @@ test('tactile : index.html, chaque data-i18n et data-i18n-aria-label a sa clé',
   }
   assert.match(html, /data-i18n=["']fps\.helpTouch["']/);
 });
+
+// Message d'erreur dédié (T4, todolist-ameliorations) : `errors.round` pour l'échec de
+// création du joueur ou du monstre dans startRound(), `errors.generic` réservé à la
+// génération du labyrinthe. main.js touche au DOM : on vérifie le câblage par source.
+const MAIN_SRC = readFileSync(fileURLToPath(new URL('../../src/main.js', import.meta.url)), 'utf8');
+
+function functionBody(name) {
+  const start = MAIN_SRC.indexOf(`\nfunction ${name}(`);
+  assert.notEqual(start, -1, `fonction absente de main.js : ${name}`);
+  const end = MAIN_SRC.indexOf('\n}\n', start);
+  assert.notEqual(end, -1, `fin de fonction introuvable : ${name}`);
+  return MAIN_SRC.slice(start, end + 3);
+}
+
+test('errors.round : clé présente, chaîne non vide, distincte de errors.generic', () => {
+  assert.equal(typeof fr['errors.round'], 'string', 'clé manquante : errors.round');
+  assert.ok(fr['errors.round'].trim().length > 0, 'clé vide : errors.round');
+  assert.notEqual(fr['errors.round'], fr['errors.generic']);
+  assert.equal(t('errors.round'), fr['errors.round']);
+});
+
+test('startRound : le catch affiche errors.round, pas errors.generic', () => {
+  const body = functionBody('startRound');
+  assert.match(body, /catch\s*\{\s*showError\('errors\.round'\)\s*;?\s*return false;?\s*\}/);
+  assert.doesNotMatch(body, /errors\.generic/);
+});
+
+test('génération : le catch de generateFromForm garde errors.generic', () => {
+  const body = functionBody('generateFromForm');
+  assert.match(body, /catch\s*\{\s*showError\('errors\.generic'\)\s*;?\s*return false;?\s*\}/);
+  assert.doesNotMatch(body, /errors\.round/);
+});
