@@ -42,8 +42,8 @@ export const MONSTER_EVENT = Object.freeze({ TURN: 'turn', SPOT: 'spot', HUNT: '
 export const MONSTER = Object.freeze({
   wanderSpeed: 1.6, // tiles / s (< walk 2.5)
   chaseSpeed: 3.4, // tiles / s: walk 2.5 < 3.4 < run 2.5 * 1.8 = 4.5
-  chaseDistance: 12, // path tiles (= 6 cells): chase if d <= 12
-  chaseHysteresis: 6, // back to wander if d > 12 + 6 = 18
+  chaseDistance: 8, // path tiles (= 4 cells): chase if d <= 8
+  chaseHysteresis: 6, // back to wander if d > 8 + 6 = 14
   catchRadius: 0.6, // monster-player euclidean distance, defeat if <= 0.6
   graceDuration: 3, // s of stillness at the start of each round
   spawnMinFraction: 0.5, // spawn at >= ceil(0.5 * max distance) from tile (1, 1)

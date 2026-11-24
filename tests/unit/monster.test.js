@@ -132,7 +132,7 @@ describe('constantes', () => {
     assert.deepEqual({ ...HEADING }, { N: 'N', E: 'E', S: 'S', W: 'W' });
     assert.equal(MONSTER_EVENT.TURN, 'turn');
     assert.equal(MONSTER.graceDuration, 3);
-    assert.equal(MONSTER.chaseDistance, 12);
+    assert.equal(MONSTER.chaseDistance, 8);
     assert.equal(MONSTER.chaseHysteresis, 6);
     assert.equal(MONSTER.maxDt, 0.1);
   });
@@ -601,12 +601,18 @@ describe('traque et hystérésis', () => {
     return stepMonster(m, center(1 + d, 1), 0.01, LONG).monster;
   }
 
-  test('errance, d <= 12 -> chase', () => {
-    for (const d of [1, 6, 12]) {
+  test('errance, d <= 8 -> chase', () => {
+    for (const d of [1, 6, 8]) {
       const s = decide(MONSTER_MODE.WANDER, d);
       assert.equal(s.mode, 'chase', `d = ${d}`);
       assert.equal(s.pathDistance, d);
     }
+  });
+
+  test('errance, d = 9 -> reste wander (chaseDistance réduit de 12 à 8)', () => {
+    const s = decide(MONSTER_MODE.WANDER, 9);
+    assert.equal(s.mode, 'wander');
+    assert.equal(s.pathDistance, 9);
   });
 
   test('errance, d = 13 -> reste wander', () => {
@@ -615,14 +621,14 @@ describe('traque et hystérésis', () => {
     assert.equal(s.pathDistance, 13);
   });
 
-  test('traque, d dans ]12, 18] -> reste chase', () => {
-    for (const d of [13, 15, 18]) {
+  test('traque, d dans ]8, 14] -> reste chase', () => {
+    for (const d of [9, 11, 14]) {
       assert.equal(decide(MONSTER_MODE.CHASE, d).mode, 'chase', `d = ${d}`);
     }
   });
 
-  test('traque, d > 18 -> wander', () => {
-    for (const d of [19, 30]) {
+  test('traque, d > 14 -> wander', () => {
+    for (const d of [15, 30]) {
       const s = decide(MONSTER_MODE.CHASE, d);
       assert.equal(s.mode, 'wander', `d = ${d}`);
       assert.equal(s.pathDistance, d);
@@ -916,13 +922,17 @@ describe('événements SPOT', () => {
       { seed: 11, init: [11, 1, 2559396496], end: [13, 12, 1271350810, 'wander'], turns: 8 },
       { seed: 42, init: [3, 15, 3302223415], end: [1, 1, 1963512754, 'chase'], turns: 6 },
     ];
+    // chaseDistance passé à 12 explicitement : ces valeurs datent d'avant la
+    // réduction à 8 (demande « diminue la distance de traque »). Le test prouve
+    // que SPOT/HUNT n'ajoutent aucun tirage, pas le réglage de la traque.
+    const legacy = { chaseDistance: 12 };
     for (const { seed, init, end, turns } of expected) {
       const grid = realGrid(8, 8, seed);
-      let m = createMonster(grid, seed, { exit: findExit(grid) });
+      let m = createMonster(grid, seed, { exit: findExit(grid) }, legacy);
       assert.deepEqual([m.tx, m.ty, m.rngState], init, `apparition, graine ${seed}`);
       let turnCount = 0;
       for (let i = 0; i < 1200; i++) {
-        const r = stepMonster(m, center(1, 1), 1 / 60, grid);
+        const r = stepMonster(m, center(1, 1), 1 / 60, grid, legacy);
         turnCount += turnsOf(r.events).length;
         m = r.monster;
       }
