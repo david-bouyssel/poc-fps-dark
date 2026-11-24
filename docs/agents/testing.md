@@ -146,8 +146,8 @@ vue de dessus ; réentrée -> mini-carte, exploration conservée ; « Nouveau la
 exploration remise à zéro ; redimensionnement -> carte toujours en bas à gauche, nette ;
 fluidité correcte en 64 x 64 carte ouverte ; console sans erreur.
 
-Sol et plafond (vue FPS) : `npm start`, « Explorer en 3D » ; sol carrelé rose et plafond
-bleu pâle étoilé, sans trou ni décalage à la jonction avec les murs ; motif fixe dans le
+Sol et plafond (vue FPS) : `npm start`, « Explorer en 3D » ; sol carrelé sombre et plafond
+sombre à panneaux (bordures de panneau un peu plus claires), sans trou ni décalage à la jonction avec les murs ; motif fixe dans le
 monde quand on avance ou tourne (il ne glisse pas avec la caméra) ; brouillard du sol
 raccordé à celui des murs au loin, moiré faible ; redimensionnement -> rendu net ;
 fluidité correcte en 64 x 64 et en plein écran ; console sans erreur.

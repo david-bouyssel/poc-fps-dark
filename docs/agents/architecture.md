@@ -107,7 +107,7 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   tuile mur = `textureIndexForTile(tileX, tileY)` (hachage entier déterministe, sans
   aléa) : mêmes coordonnées -> même motif, donc même graine -> mêmes textures.
 - **TextureData sol/plafond** (`generateSurfaceTexture(kind, palette, size)`, `kind` de
-  `SURFACE_TEXTURE` : `floor` carrelé, `ceiling` à panneaux étoilés) : même forme que les
+  `SURFACE_TEXTURE` : `floor` carrelé, `ceiling` à panneaux sombres) : même forme que les
   murs. `castSurfaces` applique ces textures par floor casting dans un tampon RGBA réduit
   (`SURFACE_SCALE = 2`, au plus `MAX_SURFACE_PIXELS`), avec le même brouillard que les
   murs. `fps-renderer.js` dessine ce tampon (agrandi sans lissage) avant les murs ; repli

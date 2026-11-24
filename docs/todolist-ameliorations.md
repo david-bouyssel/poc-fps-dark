@@ -14,7 +14,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
   (`M`). Elle dit aussi « clavier uniquement », alors que les boutons tactiles existent.
   La section « État actuel » ne cite ni la sortie, ni le monstre, ni les sons, ni
   l'automap. Ajouter une table des commandes tactiles.
-- [ ] **Résumé d'`AGENTS.md`** [express] : « commandes au clavier uniquement » est faux
+- [x] **Résumé d'`AGENTS.md`** [express] : « commandes au clavier uniquement » est faux
   depuis `mobile-tactile`. Mentionner les commandes tactiles.
 - [ ] **Bornes du formulaire en un seul endroit** [courte] : `src/index.html` fixe en dur
   `min="2" max="64"` et `max="4294967295"`, ce qui double `MAZE_LIMITS` et `MAX_SEED`.
