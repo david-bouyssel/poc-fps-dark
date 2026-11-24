@@ -148,6 +148,8 @@ const FPS_MODULES = [
   ['/audio/monster-audio.js', 'createMonsterAudio'],
   // Cris du monstre (plan docs/design/monster-cries.md §6)
   ['/audio/monster-cries.js', 'selectCryGain'],
+  // Rotation à la souris (plan docs/design/souris-pointer-lock.md §6)
+  ['/game/mouse-look.js', 'applyMouseTurn'],
 ];
 
 for (const [path, symbol] of FPS_MODULES) {

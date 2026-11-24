@@ -86,7 +86,7 @@ test('index.html : aucun texte alphabétique visible en dur', () => {
 const EXPECTED_FPS = {
   'fps.enter': 'Explorer en 3D',
   'fps.exit': 'Revenir à la vue de dessus',
-  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Carte : M — Pause : P — Son : X — Quitter : Échap',
+  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E (ou souris après un clic dans la vue, Échap la libère) — Pas de côté : Q D — Courir : Maj — Carte : M — Pause : P — Son : X — Quitter : Échap',
   'canvas.labelFps': 'Vue à la première personne dans le labyrinthe',
   'canvas.labelFpsMap': 'Carte des zones explorées du labyrinthe',
 };
@@ -328,4 +328,11 @@ test('difficulté : <option> de #maze-difficulty = DIFFICULTY_IDS dans l\'ordre,
   const buttons = html.indexOf('class="buttons"');
   assert.ok(form >= 0 && form < seed && seed < select, 'select avant la graine ou hors formulaire');
   if (buttons >= 0) assert.ok(select < buttons, 'select après .buttons');
+});
+
+// Rotation à la souris (plan docs/design/souris-pointer-lock.md §5, §6.6)
+test('souris : fps.help mentionne la souris après un clic, fps.helpTouch sans souris', () => {
+  assert.match(fr['fps.help'], /Tourner : ← → ou A E \(ou souris après un clic dans la vue, Échap la libère\) — /);
+  assert.ok(fr['fps.help'].includes('souris'));
+  assert.ok(!fr['fps.helpTouch'].includes('souris'));
 });

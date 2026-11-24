@@ -30,6 +30,8 @@ Commandes en vue FPS (touches physiques : AZERTY et QWERTY) :
 |---|---|
 | Avancer / reculer | ↑ ↓ ou Z S |
 | Tourner | ← → ou A E |
+| Tourner à la souris | Clic dans la vue, puis bouger la souris (sensibilité fixe) |
+| Libérer la souris | Échap (la partie se met alors en pause) |
 | Pas de côté | Q D |
 | Courir | Maj (gauche ou droite) |
 | Carte plein écran (zones explorées) | M (sur AZERTY : la touche M à droite de L) |

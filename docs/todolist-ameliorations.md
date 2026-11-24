@@ -45,7 +45,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [x] **Difficulté** [complète] : choix « Facile / Normal / Cauchemar » dans le formulaire.
   Il agit sur `MONSTER` (vitesse de traque, seuil de traque, durée de grâce, portée de
   vue) et sur la portée du brouillard. La graine et le labyrinthe ne changent pas.
-- [ ] **Tourner à la souris** [complète] : Pointer Lock en vue FPS, sensibilité fixe,
+- [x] **Tourner à la souris** [complète] : Pointer Lock en vue FPS, sensibilité fixe,
   sortie par Échap (comportement natif du navigateur). Le clavier reste complet.
 - [ ] **Partager une partie par URL** [complète] : lire `?seed=&w=&h=` au chargement et
   proposer un lien copiable. Surface sensible (entrée utilisateur) : validation stricte

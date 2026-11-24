@@ -11,6 +11,7 @@ import {
   touchActions,
 } from './game/touch-input.js';
 import { stepPlayer } from './game/movement.js';
+import { accumulateTurn, applyMouseTurn, mouseTurnDelta } from './game/mouse-look.js';
 import { createGameLoop } from './game/loop.js';
 import { findExit } from './game/exit.js';
 import {
@@ -127,6 +128,8 @@ let roundSettings = difficultySettings(DEFAULT_DIFFICULTY);
 const pressedActions = new Set();
 /** Doigts posés sur les boutons tactiles (TouchState gelé, remplacé à chaque changement). */
 let touchState = createTouchState();
+/** Rotation à la souris (rad) cumulée depuis la dernière image ; vidée par clearHeldActions(). */
+let pendingMouseTurn = 0;
 let resizeFrame = 0;
 
 /**
@@ -147,6 +150,9 @@ const gameLoop = createGameLoop({
       return;
     }
     monsterClock += dt;
+    // Mouse look: absolute turn applied before stepPlayer, so this frame's move follows it.
+    player = applyMouseTurn(player, pendingMouseTurn);
+    pendingMouseTurn = 0;
     const previousPlayer = player;
     player = stepPlayer(player, computeIntent([...pressedActions, ...touchActions(touchState)]), dt, currentGrid);
     roundStats = advanceStats(roundStats, dt, previousPlayer, player);
@@ -432,6 +438,8 @@ function endRound() {
     value: formatDistance(roundStats.distance),
   });
   endScreen.hidden = false;
+  // State already over: the pointerlockchange that follows does nothing.
+  releasePointerLock();
   replayButton.focus();
 }
 
@@ -445,6 +453,8 @@ function pauseRound(reason) {
     return;
   }
   pauseState = pauseGame(pauseState, reason);
+  // State already paused: the pointerlockchange that follows does nothing.
+  releasePointerLock();
   gameLoop.stop();
   monsterAudio.suspend();
   clearHeldActions();
@@ -533,6 +543,8 @@ function exitFps() {
   monsterAudio.suspend();
   clearHeldActions();
   viewMode = VIEW_TOP;
+  // View already top: the pointerlockchange that follows does nothing.
+  releasePointerLock();
   mapMode = AUTOMAP_MODE.MINI;
   form.hidden = false;
   fpsEnterButton.hidden = false;
@@ -580,10 +592,11 @@ function toggleSound() {
   soundToggleButton.setAttribute('aria-pressed', String(muted));
 }
 
-/** Relâche toutes les actions maintenues (clavier et tactile). */
+/** Relâche toutes les actions maintenues (clavier, tactile et rotation souris en attente). */
 function clearHeldActions() {
   pressedActions.clear();
   touchState = createTouchState();
+  pendingMouseTurn = 0;
   for (const button of document.querySelectorAll('.touch-button.is-pressed')) {
     button.classList.remove('is-pressed');
   }
@@ -641,6 +654,69 @@ function onTouchPointerEnd(event) {
   }
 }
 
+/** @returns {boolean} vrai si le canvas détient le verrou du pointeur */
+function isPointerLocked() {
+  return document.pointerLockElement === canvas;
+}
+
+/** Peut-on tourner à la souris ? FPS, partie en cours et hors pause. */
+function isMouseLookActive() {
+  return viewMode === VIEW_FPS && !isGameOver(gameState) && !isPaused(pauseState);
+}
+
+/** Libère le verrou du pointeur s'il est tenu par le canvas (sans effet sinon, ne lève jamais). */
+function releasePointerLock() {
+  if (typeof document.exitPointerLock !== 'function' || !isPointerLocked()) {
+    return;
+  }
+  try {
+    document.exitPointerLock();
+  } catch {
+    // Release refused: nothing else to do.
+  }
+}
+
+/**
+ * Clic sur le canvas : prend le verrou du pointeur (FPS, partie en cours, hors pause, souris).
+ * Un refus du navigateur est silencieux : le clavier reste complet.
+ * @param {MouseEvent} event
+ */
+function onCanvasClick(event) {
+  if (
+    !isMouseLookActive()
+    || isPointerLocked()
+    || event.pointerType === 'touch'
+    || event.pointerType === 'pen'
+    || typeof canvas.requestPointerLock !== 'function'
+  ) {
+    return;
+  }
+  try {
+    const result = canvas.requestPointerLock();
+    if (result !== null && typeof result === 'object' && typeof result.catch === 'function') {
+      result.catch(() => {});
+    }
+  } catch {
+    // Lock refused (sandboxed iframe, unsupported): keyboard play goes on.
+  }
+}
+
+/** @param {MouseEvent} event */
+function onMouseMove(event) {
+  if (!isPointerLocked() || !isMouseLookActive()) {
+    return;
+  }
+  pendingMouseTurn = accumulateTurn(pendingMouseTurn, mouseTurnDelta(event.movementX));
+}
+
+/** Perte du verrou pendant une manche en cours (Échap, typiquement) : mise en pause. */
+function onPointerLockChange() {
+  if (isPointerLocked() || !isMouseLookActive()) {
+    return;
+  }
+  pauseRound(PAUSE_REASON.MANUAL);
+}
+
 /** Touches traitées pendant la pause : action -> gestionnaire (event). */
 const PAUSED_KEY_HANDLERS = Object.freeze({
   [ACTION.PAUSE]: (event) => {
@@ -678,6 +754,12 @@ function onKeyDown(event) {
   }
   event.preventDefault();
   if (action === ACTION.EXIT) {
+    // Locked (browser delivered Escape anyway): free the mouse and stay in FPS; the
+    // pointerlockchange that follows pauses the round.
+    if (isPointerLocked()) {
+      releasePointerLock();
+      return;
+    }
     exitFps();
     return;
   }
@@ -746,6 +828,7 @@ function init() {
   replayButton.addEventListener('click', replay);
   endNewMazeButton.addEventListener('click', newMazeFromEndScreen);
   resumeButton.addEventListener('click', resumeRound);
+  canvas.addEventListener('click', onCanvasClick);
   for (const pad of touchPads) {
     pad.addEventListener('pointerdown', onTouchPointerDown);
     pad.addEventListener('pointerup', onTouchPointerEnd);
@@ -759,6 +842,10 @@ function init() {
     clearHeldActions();
     pauseRound(PAUSE_REASON.BLUR);
   });
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('pointerlockchange', onPointerLockChange);
+  // Lock refused: no effect (listener only so that no error is left unhandled).
+  document.addEventListener('pointerlockerror', () => {});
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       clearHeldActions();

@@ -213,6 +213,11 @@ body {
   box-shadow: var(--shadow);
 }
 
+/* FPS view: discreet hint that a click captures the mouse (desktop). */
+body.fps-active #maze-canvas {
+  cursor: crosshair;
+}
+
 
 /* End-of-round and pause screens, overlaid on the canvas inside .stage. */
 .end-screen,

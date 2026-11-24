@@ -179,7 +179,8 @@ describe('sécurité du câblage clavier de main.js (DOM factice)', () => {
 
   test('initialisation : seuls les écouteurs globaux attendus sont posés', () => {
     assert.deepEqual([...fakeWindow.listeners.keys()].sort(), ['blur', 'keydown', 'keyup', 'resize']);
-    assert.deepEqual([...fakeDocument.listeners.keys()].sort(), ['visibilitychange']);
+    assert.deepEqual([...fakeDocument.listeners.keys()].sort(),
+      ['mousemove', 'pointerlockchange', 'pointerlockerror', 'visibilitychange']);
     assert.equal(elements.get('maze-error').textContent, '', 'aucune erreur au démarrage');
     assert.notEqual(elements.get('maze-info').textContent, '');
   });

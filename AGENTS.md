@@ -6,7 +6,7 @@ fichiers liés dans `docs/agents/`.
 ## Résumé du projet
 FPS « sombre » qui s'exécute dans le navigateur (version sombre). Génération et affichage (vue de dessus, canvas 2D, palette sombre)
 d'un labyrinthe aléatoire à boucles (plusieurs chemins pour semer le monstre), reproductible par graine. Balade en vue à la première
-personne (raycasting sur canvas 2D, commandes au clavier ZQSD/WASD + flèches, et boutons tactiles à l'écran pour mobile)
+personne (raycasting sur canvas 2D, commandes au clavier ZQSD/WASD + flèches, rotation à la souris après un clic dans la vue (Échap libère la souris), et boutons tactiles à l'écran pour mobile)
 dans le labyrinthe généré, avec retour à la vue de dessus. Murs de la vue FPS texturés
 procéduralement (motifs générés en code, sans fichier image), sol carrelé et plafond
 à panneaux sombres texturés (floor casting). Automap en vue FPS (mini-carte en bas à gauche, carte

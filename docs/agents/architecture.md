@@ -25,6 +25,7 @@ src/                             # racine servie au navigateur (et seulement ell
     input.js                     # ACTION (dont TOGGLE_SOUND, KeyX), KEY_BINDINGS (KeyboardEvent.code), computeIntent
     touch-input.js               # TOUCH_ACTIONS, touchActionFor, TouchState (pressTouch/releaseTouch/touchActions) : doigts -> actions
     movement.js                  # stepPlayer (rotation, déplacement, collisions), MOVEMENT
+    mouse-look.js                # rotation à la souris (pur) : MOUSE_LOOK, mouseTurnDelta, accumulateTurn, applyMouseTurn
     loop.js                      # createGameLoop (requestFrame/cancelFrame injectés)
     pathfinding.js               # BFS sur la grille de tuiles : tileDistances, pathDistance, shortestPath, cellToTile, tileAt, hasLineOfSight
     exit.js                      # findExit(grid) (cul-de-sac le plus éloigné de (0, 0)), isAtExit
@@ -66,12 +67,12 @@ tests/
 | Couche | Rôle | Règles |
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
-| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `danger.js` et `difficulty.js` sont purs et n'importent rien. Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
+| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `mouse-look.js` n'importe que `./player.js` (`normalizeAngle`) ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `danger.js` et `difficulty.js` sont purs et n'importent rien. Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
 | `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`), `exit-texture.js` (n'importe au plus `./wall-textures.js`), `monster-sprite.js` (n'importe rien : kind et modes recopiés de `game/monster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/audio/` | Son | `bong.js` est pur : aucun DOM, `window`, `Math.random`, `Date`, `performance`, aucune API Web Audio ; n'importe rien. `monster-cries.js` est pur au même titre et n'importe que `./bong.js` (réutilise `bongGain`). `monster-audio.js` n'importe que `./bong.js` et `./monster-cries.js`, ne crée que des nœuds `createOscillator`, `createGain` et `createBiquadFilter` (jamais `createBuffer` ni worklet), et reçoit le contexte par la fabrique injectée `createContext` (création paresseuse au premier `resume()`) : jamais de `window`, `AudioContext` ou `webkitAudioContext` global, ni `fetch`, `decodeAudioData`, élément `<audio>`, `MediaStream` ou micro. Ses méthodes ne lèvent jamais. N'importe jamais `src/game/` : l'événement est lu par sa forme `{ type, pathDistance }` (`'turn'` recopié dans `TURN_EVENT_TYPE`, `'spot'` dans `SPOT_EVENT_TYPE`). Un seul `AudioContext` dans l'application : le cri et le sluuurp passent par le même lecteur. Aucun fichier son. |
 | `src/game/touch-input.js` | Suivi des doigts (pur) | Aucun DOM, `window`, `document`, `performance`, `Date` ; n'importe que `./input.js`. Seul `main.js` lit les `PointerEvent` et passe par `touchActionFor` (liste blanche). |
 | `src/i18n/` | Ressources texte | Pur. `applyTranslations(root)` ne touche qu'au `root` reçu. |
-| `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global (en `textContent` uniquement), tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange`, fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle et la fabrique d'`AudioContext` au lecteur de bongs (seul fichier qui lit `window.AudioContext`, repli `window.webkitAudioContext`). |
+| `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global (en `textContent` uniquement), tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange`, souris (`click` sur le canvas, `mousemove`, `pointerlockchange`, `pointerlockerror` sur `document`, Pointer Lock API), fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle et la fabrique d'`AudioContext` au lecteur de bongs (seul fichier qui lit `window.AudioContext`, repli `window.webkitAudioContext`). |
 | `scripts/` | Outillage Node | Serveur de dev générique ; ne connaît aucun fichier de `src/` hormis `/` -> `index.html`. |
 
 Sens des dépendances : `main.js` -> `game/`, `render/`, `maze/`, `i18n/`, `audio/` ;
@@ -258,6 +259,20 @@ et de l'ordre des tirages (jamais le labyrinthe).
    (clavier + tactile) remplace le vidage seul de l'ensemble (`startRound`, `endRound`,
    entrée/sortie FPS, `blur`, `visibilitychange`). `body.fps-active` active la mise en
    page compacte.
+8 ter. Souris (Pointer Lock) : `click` sur le canvas en FPS, partie en cours, hors pause,
+   non verrouillé, `pointerType` ni `touch` ni `pen` -> `canvas.requestPointerLock()`
+   (garde `typeof`, `try/catch`, promesse rejetée absorbée ; refus silencieux), jamais
+   automatique. `mousemove` sur `document`, verrouillé, FPS, partie en cours, hors pause :
+   `pendingMouseTurn = accumulateTurn(pendingMouseTurn, mouseTurnDelta(event.movementX))`
+   (`movementX` non fini -> 0, borné à `MOUSE_LOOK.maxEventDelta` px, cumul borné à
+   `maxFrameTurn`) ; `movementY` ignoré. `update(dt)` applique `applyMouseTurn(player,
+   pendingMouseTurn)` avant `stepPlayer`, puis vide le cumul ; `clearHeldActions()` le vide
+   aussi. `pointerlockchange` : verrou perdu en FPS, partie en cours, hors pause ->
+   `pauseRound('manual')` (Échap consommé par le navigateur). `pointerlockerror` : sans
+   effet. Échap livré alors que le verrou est actif : `preventDefault()`, verrou libéré, on
+   reste en FPS. `releasePointerLock()` (garde `typeof`, `try/catch`) est appelée après le
+   changement d'état (vue, statut, pause), si bien que le `pointerlockchange` qui suit ne
+   fait rien. La reprise après pause ne reprend pas le verrou : un clic le reprend.
 9. Chaque image (`createGameLoop`, horodatage rAF) : `update(dt)` ->
    `player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid)`
    (`dt` borné à `MOVEMENT.maxDt`, collisions par axes séparés avec glissement),
@@ -290,18 +305,22 @@ et de l'ordre des tirages (jamais le labyrinthe).
     `monsterAudio.resume()` puis `gameLoop.start()` (même labyrinthe, même sortie). « Nouveau labyrinthe » de l'écran
     de fin : génération avec une graine aléatoire et la taille courante des champs ; si
     succès, on reste en FPS (`startRound()`, `monsterAudio.resume()`, `gameLoop.start()`), sinon l'erreur
-    s'affiche et l'écran de fin reste.
+    s'affiche et l'écran de fin reste. Le verrou du pointeur est libéré une fois l'écran
+    de fin affiché (boutons cliquables).
 11. Sortie (bouton ou Échap) : `gameLoop.stop()`, `monsterAudio.suspend()`, actions vidées, écran de fin et
     objectif masqués, vue de dessus restaurée (`drawMaze`, `aria-label` d'origine), focus
     sur le bouton d'entrée. La position du joueur est conservée tant que le labyrinthe ne
     change pas et que la partie n'est pas finie. L'état de pause est remis à zéro et
-    l'écran de pause masqué : une réentrée reprend la manche hors pause.
+    l'écran de pause masqué : une réentrée reprend la manche hors pause. Le verrou du
+    pointeur est libéré après le retour à la vue de dessus.
 12. `blur` de la fenêtre ou `visibilitychange` (page cachée) : actions vidées (pas de
     touche « collée »), puis `pauseRound('blur')` ou `pauseRound('hidden')` (sans effet
     hors FPS ou partie finie : le sluuurp n'est jamais coupé par `blur`). Page cachée :
     `monsterAudio.suspend()` aussi hors FPS. Page de nouveau visible en FPS, partie en
     cours et hors pause : `monsterAudio.resume()` (contexte déjà débloqué par le geste
-    initial). En pause, rien ne repart : la reprise est toujours explicite.
+    initial). En pause, rien ne repart : la reprise est toujours explicite. Toute entrée
+    en pause (touche, bouton, `blur`, page cachée, perte du verrou) libère le verrou du
+    pointeur.
 13. Pause (`pauseRound(reason)`, FPS et `canPause` vrai) : `pauseGame`, `gameLoop.stop()`,
     `monsterAudio.suspend()`, actions vidées, dernière image dessinée (`mapMode`
     conservé), message `pause.message` (manuel) ou `pause.messageAuto` (`blur`, page

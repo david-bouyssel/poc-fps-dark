@@ -133,7 +133,11 @@ describe('sécurité du câblage tactile de main.js (DOM factice)', () => {
         ['contextmenu', 'lostpointercapture', 'pointercancel', 'pointerdown', 'pointerup']);
     }
     for (const host of [fakeWindow, fakeDocument]) {
-      for (const type of host.listeners.keys()) assert.ok(!/^(pointer|touch|lostpointer)/.test(type), type);
+      for (const type of host.listeners.keys()) {
+        // T11 : pointerlockchange/pointerlockerror (API Pointer Lock) sont attendus sur document.
+        if (host === fakeDocument && (type === 'pointerlockchange' || type === 'pointerlockerror')) continue;
+        assert.ok(!/^(pointer|touch|lostpointer)/.test(type), type);
+      }
     }
     assert.deepEqual([...fakeWindow.listeners.keys()].sort(), ['blur', 'keydown', 'keyup', 'resize']);
   });

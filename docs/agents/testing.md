@@ -29,6 +29,11 @@ DOM se vérifient manuellement (voir plus bas).
   HTML), `Escape` retour à la vue de dessus. Si le navigateur piloté perd le focus, la
   manche se met en pause (`blur`) : vérifier que `#pause-screen` est masqué avant de
   juger un critère, un `KeyP` le referme.
+- Souris (Pointer Lock) : clic `computer` au centre du canvas en FPS, puis vérifier
+  `document.pointerLockElement === document.querySelector('canvas')` par
+  `javascript_tool`. Rotation : `document.dispatchEvent(new MouseEvent('mousemove',
+  { movementX: 200 }))` (sans effet hors verrou). Le navigateur automatisé peut refuser le
+  verrou : les critères qui l'exigent sont alors `non concluant`.
 
 - Gestes tactiles (viewport 375 x 812, ou 812 x 375 en paysage) : `javascript_tool` envoie
   un `PointerEvent` (`pointerType: 'touch'`, `pointerId` fixe, `bubbles: true`) sur un
@@ -88,6 +93,8 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/monster-cries.test.js` | constantes `CRY`, `SLURP`, `CRY_SYNTH`, `SLURP_SYNTH` (gel, `SPOT_EVENT_TYPE` égal à `MONSTER_EVENT.SPOT`), cri aigu (>= 1000 Hz jusqu'à 0.35 s, >= 500 Hz partout), sluuurp grave (fin <= 100 Hz, coupure décroissante), durées, `cryGain`, `selectCryGain`, `crySchedule` et `slurpSchedule` (voix, invariants, vibrato, filtres, gel, erreurs) |
 | `tests/functional/fps-monster-cries.test.js` | simulation de `update` et `endRound` : un seul cri au début de la traque, défaite -> sluuurp sans `suspend` immédiat puis `SUSPENDED`, victoire -> `suspend` sans sluuurp, « Rejouer » et sortie FPS pendant le sluuurp |
 | `tests/functional/fps-bong.test.js` | simulation de `update` : premier bong à la fin de la grâce, gains croissants à l'approche, silence au-delà de la portée, cycle `resume`/`suspend` (entrée, sortie, retour, fin de partie) |
+| `tests/unit/mouse-look.test.js` | `MOUSE_LOOK` (gel, valeurs finies positives), `mouseTurnDelta` (signe, valeur, borne `maxEventDelta`, valeurs non finies ou non nombres -> 0, surcharge et erreurs d'`options`), `accumulateTurn` (somme, borne `maxFrameTurn`, `delta` non fini ignoré, `pending` non fini -> 0), `applyMouseTurn` (x et y inchangés, normalisation, gel, même référence pour 0 ou non fini, erreurs, pureté), même sens que `stepPlayer` avec `turn: 1` |
+| `tests/functional/fps-mouse-look.test.js` | `main.js` réel sous faux DOM (`requestPointerLock`, `exitPointerLock`, `pointerLockElement` espionnés) : verrou au clic en FPS seulement (pas en tactile, partie finie, pause), refus absorbés, rotation verrouillée seulement, cumul vidé par `blur`/`startRound`, perte du verrou -> pause, libération à la sortie, en fin de manche et en pause sans double pause, Échap verrouillé, non-régression clavier |
 | `tests/unit/pause.test.js` | `PAUSE_REASON` (gel, 3 valeurs), `createPauseState`, `pauseGame` (première raison conservée, même référence), `resumeGame`, `isPaused`, `canPause` (pause, `WON`, `LOST`), erreurs |
 | `tests/functional/fps-pause.test.js` | simulation de la boucle : monstre figé et premier `dt` nul à la reprise, pas de défaite en pause, `suspend`/`resume` une seule fois, pas de pause en fin de partie, reprise déterministe, câblage de `main.js` (source : `blur`, `visibilitychange`, `startRound`, `exitFps`) |
 | `tests/functional/fps-monster-appearance.test.js` | sans DOM (faux canvas) : monstre derrière un mur non dessiné par `drawFpsView`, image dessinée = image de `monsterFrame`, grâce -> `monster-0`, aucun monstre dans `drawAutomap` ni `drawMaze` (source de `main.js`) |
@@ -143,6 +150,13 @@ retour ; changement d'onglet -> manche en pause au retour, muette jusqu'à la re
 Échap en pause -> vue de dessus, réentrée hors pause ; Tab en pause atteint
 « Reprendre » ; le bouton tactile « Pause » met en pause et reprend ; console sans
 erreur.
+
+Souris (vue FPS, ordinateur) : clic dans la vue -> curseur capturé ; souris à droite ->
+la vue tourne à droite, à gauche -> à gauche ; mouvement vertical sans effet ; clavier
+toujours complet ; Échap -> souris libérée et écran « En pause » (on reste en FPS), puis
+la règle de la pause s'applique ; « Reprendre » ne recapture pas la souris, un clic dans
+la vue la reprend ; écran de fin et sortie FPS -> curseur libre, boutons cliquables ;
+clic en vue de dessus -> rien ; sur téléphone, aucun verrou ; console sans erreur.
 
 Textures des murs (vue FPS) : murs texturés (briques majoritaires, quelques lames, pois
 et cœurs) ; faces est/ouest plus claires que nord/sud ; brouillard visible au loin ;
