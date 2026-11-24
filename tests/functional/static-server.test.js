@@ -145,7 +145,7 @@ const FPS_MODULES = [
   ['/render/monster-sprite.js', 'generateMonsterSprite'],
   // Son « bong bong » (plan docs/design/dark-son-bong.md §6)
   ['/audio/bong.js', 'selectBongGain'],
-  ['/audio/bong-player.js', 'createBongPlayer'],
+  ['/audio/monster-audio.js', 'createMonsterAudio'],
   // Cris du monstre (plan docs/design/monster-cries.md §6)
   ['/audio/monster-cries.js', 'selectCryGain'],
 ];

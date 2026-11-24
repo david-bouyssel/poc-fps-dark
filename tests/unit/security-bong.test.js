@@ -1,6 +1,6 @@
 // Tests de sécurité du son « bong bong » (testeur-securite, T7) : scan statique de
 // src/audio/ et de l'accès à Web Audio, robustesse de bong.js face à des entrées
-// hostiles, lecteur bong-player.js avec un faux contexte audio hostile, et câblage réel
+// hostiles, lecteur monster-audio.js avec un faux contexte audio hostile, et câblage réel
 // de src/main.js sous un DOM factice (aucun contexte audio avant le geste « Explorer en
 // 3D », suspension hors FPS, en fin de partie et page cachée). Aucun accès réseau.
 import { test, describe, before, after } from 'node:test';
@@ -16,7 +16,7 @@ import {
   selectBongGain,
   bongSchedule,
 } from '../../src/audio/bong.js';
-import { BONG_PLAYER_STATE, createBongPlayer } from '../../src/audio/bong-player.js';
+import { MONSTER_AUDIO_STATE, createMonsterAudio } from '../../src/audio/monster-audio.js';
 import {
   CRY,
   CRY_SYNTH,
@@ -70,9 +70,9 @@ function hitsFor(files, patterns) {
 describe('sécurité statique : src/audio/ et accès Web Audio', () => {
   const audioFiles = listFiles(audioDir);
 
-  test('src/audio/ ne contient que bong.js, bong-player.js et monster-cries.js', () => {
+  test('src/audio/ ne contient que bong.js, monster-audio.js et monster-cries.js', () => {
     assert.deepEqual(audioFiles.map(rel).sort(),
-      ['src/audio/bong-player.js', 'src/audio/bong.js', 'src/audio/monster-cries.js']);
+      ['src/audio/bong.js', 'src/audio/monster-audio.js', 'src/audio/monster-cries.js']);
   });
 
   test('src/audio/ : aucun createBuffer, Math.random, Date ni performance (sons synthétisés, déterministes)', () => {
@@ -85,8 +85,8 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
     assert.deepEqual(hits, [], `Motifs interdits :\n${hits.join('\n')}`);
   });
 
-  test('bong-player.js : seuls nœuds créés createOscillator, createGain, createBiquadFilter', () => {
-    const code = stripComments(readFileSync(path.join(audioDir, 'bong-player.js'), 'utf8'));
+  test('monster-audio.js : seuls nœuds créés createOscillator, createGain, createBiquadFilter', () => {
+    const code = stripComments(readFileSync(path.join(audioDir, 'monster-audio.js'), 'utf8'));
     const created = [...new Set([...code.matchAll(/\bctx\.(create\w+)\s*\(/g)].map((m) => m[1]))].sort();
     assert.deepEqual(created, ['createBiquadFilter', 'createGain', 'createOscillator']);
     // Aucune autre méthode create* appelée sur quoi que ce soit.
@@ -97,7 +97,7 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
   test('monster-cries.js : pur (aucune API Web Audio, aucun import de src/game/)', () => {
     const code = stripComments(readFileSync(path.join(audioDir, 'monster-cries.js'), 'utf8'));
     assert.doesNotMatch(code, /\.create\w+\s*\(|\bctx\b|AudioParam|\.connect\s*\(|\.start\s*\(/);
-    for (const name of ['bong.js', 'bong-player.js', 'monster-cries.js']) {
+    for (const name of ['bong.js', 'monster-audio.js', 'monster-cries.js']) {
       const src = stripComments(readFileSync(path.join(audioDir, name), 'utf8'));
       assert.doesNotMatch(src, /from\s*['"][^'"]*game\//, `${name} importe src/game/`);
     }
@@ -124,14 +124,14 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
     assert.deepEqual(hits, [], `Motifs interdits :\n${hits.join('\n')}`);
   });
 
-  test('imports de src/audio/ : bong.js rien, monster-cries.js ./bong.js, bong-player.js ./bong.js et ./monster-cries.js', () => {
+  test('imports de src/audio/ : bong.js rien, monster-cries.js ./bong.js, monster-audio.js ./bong.js et ./monster-cries.js', () => {
     const importsOf = (name) =>
       [...stripComments(readFileSync(path.join(audioDir, name), 'utf8')).matchAll(/^\s*import\b[^;]*?from\s*['"]([^'"]+)['"]/gm)]
         .map((m) => m[1]);
     assert.deepEqual(importsOf('bong.js'), []);
     assert.deepEqual(importsOf('monster-cries.js'), ['./bong.js']);
-    assert.deepEqual(importsOf('bong-player.js').sort(), ['./bong.js', './monster-cries.js']);
-    for (const name of ['bong.js', 'bong-player.js', 'monster-cries.js']) {
+    assert.deepEqual(importsOf('monster-audio.js').sort(), ['./bong.js', './monster-cries.js']);
+    for (const name of ['bong.js', 'monster-audio.js', 'monster-cries.js']) {
       const code = stripComments(readFileSync(path.join(audioDir, name), 'utf8'));
       assert.equal([...code.matchAll(/^\s*import\b/gm)].length, importsOf(name).length, `import non statique dans ${name}`);
     }
@@ -142,12 +142,12 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
     assert.equal([...main.matchAll(/\bplaySlurp\s*\(/g)].length, 1, 'un seul appel de playSlurp');
     const endRound = main.match(/function endRound\(\) \{([\s\S]*?)\n\}/)[1];
     assert.match(endRound,
-      /if\s*\(\s*gameState\.status\s*!==\s*GAME_STATUS\.LOST\s*\|\|\s*!bongPlayer\.playSlurp\(\)\s*\)\s*\{\s*bongPlayer\.suspend\(\);\s*\}/,
+      /if\s*\(\s*gameState\.status\s*!==\s*GAME_STATUS\.LOST\s*\|\|\s*!monsterAudio\.playSlurp\(\)\s*\)\s*\{\s*monsterAudio\.suspend\(\);\s*\}/,
       'victoire (ou sluuurp refusé) : suspend immédiat');
     assert.equal([...main.matchAll(/\bplayCry\s*\(/g)].length, 1, 'un seul appel de playCry');
-    assert.match(main, /bongPlayer\.playCry\(\s*cryGainValue\s*\)/);
+    assert.match(main, /monsterAudio\.playCry\(\s*cryGainValue\s*\)/);
     assert.equal([...main.matchAll(/\bplayAlert\s*\(/g)].length, 1, 'un seul appel de playAlert');
-    assert.match(main, /bongPlayer\.playAlert\(\s*alertGainValue\s*\)/);
+    assert.match(main, /monsterAudio\.playAlert\(\s*alertGainValue\s*\)/);
     assert.match(main,
       /import\s*\{[^}]*\bselectAlertGain\b[^}]*\}\s*from\s*'\.\/audio\/monster-cries\.js'/);
   });
@@ -159,7 +159,7 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
     const main = stripComments(readFileSync(path.join(srcDir, 'main.js'), 'utf8'));
     assert.match(main, /window\.AudioContext\s*\?\?\s*window\.webkitAudioContext/);
     assert.equal([...main.matchAll(/new\s+AudioContextClass\s*\(\s*\)/g)].length, 1);
-    assert.equal([...main.matchAll(/\bcreateBongPlayer\s*\(/g)].length, 1, 'un seul lecteur');
+    assert.equal([...main.matchAll(/\bcreateMonsterAudio\s*\(/g)].length, 1, 'un seul lecteur');
     for (const forbidden of [/decodeAudioData/, /new\s+Audio\b/, /getUserMedia/, /audioWorklet/]) {
       assert.doesNotMatch(main, forbidden);
     }
@@ -383,7 +383,7 @@ describe('sécurité : robustesse de monster-cries.js face à des entrées hosti
   });
 });
 
-// --- 3. bong-player.js avec un faux contexte hostile -----------------------------------
+// --- 3. monster-audio.js avec un faux contexte hostile -----------------------------------
 
 /** Faux AudioParam : chaque appel est journalisé avec la nature du paramètre (`kind`). */
 function fakeParam(log, kind) {
@@ -486,7 +486,7 @@ function fakeAudioContext({ faults = {}, autoEnd = false } = {}) {
   return ctx;
 }
 
-describe('sécurité : bong-player.js face à un contexte audio hostile', () => {
+describe('sécurité : monster-audio.js face à un contexte audio hostile', () => {
   const unhandled = [];
   const onUnhandled = (reason) => unhandled.push(reason);
   before(() => process.on('unhandledRejection', onUnhandled));
@@ -494,41 +494,41 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
 
   test('construction : aucune création de contexte ; fabrique invalide rejetée', () => {
     let calls = 0;
-    const player = createBongPlayer({ createContext: () => { calls++; return fakeAudioContext(); } });
+    const player = createMonsterAudio({ createContext: () => { calls++; return fakeAudioContext(); } });
     assert.equal(calls, 0);
-    assert.equal(player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.IDLE);
     assert.ok(Object.isFrozen(player));
     assert.equal(player.play(0.5), false, 'aucun bong avant resume()');
     assert.doesNotThrow(() => player.suspend());
     assert.equal(calls, 0, 'ni play ni suspend ne créent de contexte');
-    assert.equal(player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.IDLE);
     for (const bad of [undefined, null, {}, { createContext: 'x' }, { createContext: {} }]) {
-      assert.throws(() => createBongPlayer(bad), TypeError);
+      assert.throws(() => createMonsterAudio(bad), TypeError);
     }
-    assert.throws(() => createBongPlayer({ createContext: () => null, options: { maxGain: NaN } }), RangeError);
+    assert.throws(() => createMonsterAudio({ createContext: () => null, options: { maxGain: NaN } }), RangeError);
   });
 
   test('fabrique qui lève, renvoie null ou undefined : UNAVAILABLE définitif, appelée une seule fois', () => {
     for (const factory of [() => { throw new Error('pas de Web Audio'); }, () => null, () => undefined]) {
       let calls = 0;
-      const player = createBongPlayer({ createContext: () => { calls++; return factory(); } });
+      const player = createMonsterAudio({ createContext: () => { calls++; return factory(); } });
       assert.doesNotThrow(() => player.resume());
-      assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
       assert.doesNotThrow(() => { player.resume(); player.suspend(); player.resume(); });
       assert.equal(player.play(0.7), false);
       assert.equal(calls, 1, 'pas de nouvelle tentative de création');
-      assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
     }
   });
 
   test('promesses rejetées et méthodes qui lèvent (resume/suspend) : aucune exception, aucun rejet non géré', async () => {
     for (const mode of ['throw', 'reject']) {
       const ctx = fakeAudioContext({ faults: { resume: mode, suspend: mode } });
-      const player = createBongPlayer({ createContext: () => ctx });
+      const player = createMonsterAudio({ createContext: () => ctx });
       assert.doesNotThrow(() => player.resume());
-      assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
       assert.doesNotThrow(() => player.suspend());
-      assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
       assert.doesNotThrow(() => player.resume());
     }
     // Thenable dont catch lève, contexte sans resume/suspend, getters hostiles.
@@ -542,7 +542,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
       }),
     ];
     for (const ctx of weird) {
-      const player = createBongPlayer({ createContext: () => ctx });
+      const player = createMonsterAudio({ createContext: () => ctx });
       assert.doesNotThrow(() => { player.resume(); player.play(0.5); player.suspend(); player.resume(); });
       assert.equal(player.play(0.5), false);
     }
@@ -552,7 +552,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
 
   test('play : gains hostiles ignorés, gain > 1 plafonné', () => {
     const ctx = fakeAudioContext();
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     player.resume();
     for (const g of [NaN, Infinity, -Infinity, -1, 0, -0, '0.5', null, undefined, {}, 5n]) {
       assert.equal(player.play(g), false, String(typeof g));
@@ -571,7 +571,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
     for (const t of [NaN, Infinity, -5, undefined, '3']) {
       const ctx = fakeAudioContext();
       ctx.currentTime = t;
-      const player = createBongPlayer({ createContext: () => ctx });
+      const player = createMonsterAudio({ createContext: () => ctx });
       player.resume();
       let r;
       assert.doesNotThrow(() => { r = player.play(0.5); });
@@ -579,7 +579,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
       assert.equal(ctx.oscillators.filter((o) => o.started && !o.stopped).length, 0, 'aucune voix non arrêtée');
     }
     const ctx = fakeAudioContext();
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     player.resume();
     ctx.currentTime = 100;
     assert.equal(player.play(0.5), true);
@@ -591,7 +591,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
     for (const faults of [{ createOscillator: 'throw' }, { createGain: 'throw' }, { connect: 'throw' },
       { stop: 'throw' }, { createOscillatorAfter: 2 }]) {
       const ctx = fakeAudioContext({ faults });
-      const player = createBongPlayer({ createContext: () => ctx });
+      const player = createMonsterAudio({ createContext: () => ctx });
       player.resume();
       let r;
       assert.doesNotThrow(() => { r = player.play(0.6); }, JSON.stringify(faults));
@@ -601,13 +601,13 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
         assert.ok(osc.disconnected > 0 || faults.stop === 'throw', `voix non déconnectée ${JSON.stringify(faults)}`);
       }
       assert.doesNotThrow(() => player.suspend());
-      assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     }
   });
 
   test('limitation : au plus 1 bong par 0.9 s, même en rafale', () => {
     const ctx = fakeAudioContext();
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     player.resume();
     let played = 0;
     for (let i = 0; i < 10_000; i++) {
@@ -621,7 +621,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
 
   test('pas de fuite de voix : onended libère, suspend arrête tout, aucun bong suspendu', async () => {
     const ctx = fakeAudioContext({ autoEnd: false });
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     player.resume();
     for (let i = 0; i < 5; i++) {
       ctx.currentTime = i;
@@ -641,7 +641,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
     assert.deepEqual(ctx.oscillators.map((o) => o.stopped), stops, 'ensemble des voix vidé');
     // Fin naturelle : onended déconnecte et libère.
     const ctx2 = fakeAudioContext({ autoEnd: true });
-    const p2 = createBongPlayer({ createContext: () => ctx2 });
+    const p2 = createMonsterAudio({ createContext: () => ctx2 });
     p2.resume();
     p2.play(0.5);
     await new Promise((r) => setTimeout(r, 0));
@@ -653,21 +653,21 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
 
   test('playCry / playSlurp : rien avant resume(), muets en UNAVAILABLE, aucune création de contexte', () => {
     let calls = 0;
-    const player = createBongPlayer({ createContext: () => { calls++; return null; } });
+    const player = createMonsterAudio({ createContext: () => { calls++; return null; } });
     assert.equal(player.playCry(0.5), false);
     assert.equal(player.playSlurp(), false);
     assert.equal(calls, 0, 'ni playCry ni playSlurp ne créent de contexte');
-    assert.equal(player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.IDLE);
     player.resume();
-    assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
     assert.doesNotThrow(() => { player.playCry(0.5); player.playSlurp(); });
-    assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
     assert.equal(calls, 1);
   });
 
   test('playCry : gains hostiles ignorés, gain > 1 plafonné, rafale limitée à 1 cri par CRY.minInterval', () => {
     const ctx = fakeAudioContext();
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     player.resume();
     for (const g of [NaN, Infinity, -Infinity, -1, 0, -0, '0.5', null, undefined, {}, 5n]) {
       assert.equal(player.playCry(g), false, String(typeof g));
@@ -691,21 +691,21 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
       for (const action of ['playCry', 'playSlurp']) {
         const ctx = fakeAudioContext();
         ctx.currentTime = t;
-        const player = createBongPlayer({ createContext: () => ctx });
+        const player = createMonsterAudio({ createContext: () => ctx });
         player.resume();
         let r;
         assert.doesNotThrow(() => { r = action === 'playCry' ? player.playCry(0.5) : player.playSlurp(); });
         assert.equal(typeof r, 'boolean');
         assert.equal(ctx.oscillators.filter((o) => o.started && !o.stopped).length, 0, `${action} t=${String(t)}`);
-        assert.notEqual(player.state, BONG_PLAYER_STATE.FINALE, 'pas de FINALE sans sluuurp');
+        assert.notEqual(player.state, MONSTER_AUDIO_STATE.FINALE, 'pas de FINALE sans sluuurp');
       }
     }
     const hostile = fakeAudioContext();
     Object.defineProperty(hostile, 'currentTime', { get() { throw new Error('getter'); } });
-    const player = createBongPlayer({ createContext: () => hostile });
+    const player = createMonsterAudio({ createContext: () => hostile });
     player.resume();
     assert.doesNotThrow(() => { player.playCry(0.5); player.playSlurp(); });
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED, 'sluuurp en panne : traité comme suspend()');
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED, 'sluuurp en panne : traité comme suspend()');
   });
 
   test('pannes de nœud pendant cri et sluuurp : aucune exception, voix créées arrêtées et déconnectées', () => {
@@ -715,7 +715,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
       for (const action of ['playCry', 'playSlurp']) {
         const label = `${action} ${JSON.stringify(faults)}`;
         const ctx = fakeAudioContext({ faults });
-        const player = createBongPlayer({ createContext: () => ctx });
+        const player = createMonsterAudio({ createContext: () => ctx });
         player.resume();
         let r;
         assert.doesNotThrow(() => { r = action === 'playCry' ? player.playCry(0.6) : player.playSlurp(); }, label);
@@ -729,7 +729,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
           }
           for (const f of ctx.filters) assert.ok(f.disconnected > 0 || faults.stop === 'throw', `filtre non déconnecté ${label}`);
           if (action === 'playSlurp') {
-            assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED, label);
+            assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED, label);
             assert.equal(ctx.suspendCalls, 1, label);
           }
         }
@@ -739,7 +739,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
 
   test('sluuurp : coupe tout, une seule fois, gain borné, puis suspension à la fin des voix', async () => {
     const ctx = fakeAudioContext();
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     player.resume();
     assert.equal(player.play(0.7), true);
     assert.equal(player.playCry(0.5), true);
@@ -747,7 +747,7 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
     const logStart = ctx.log.length;
     assert.equal(player.playSlurp(), true);
     for (const o of before) assert.ok(o.stopped >= 2, 'bong et cri coupés par le sluuurp');
-    assert.equal(player.state, BONG_PLAYER_STATE.FINALE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.FINALE);
     const slurp = ctx.oscillators.slice(before.length);
     assert.equal(slurp.length, 3);
     assert.equal(ctx.filters.length, 2);
@@ -767,10 +767,10 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
     for (const q of rampValues(ctx.log, 'filter.Q')) assert.ok(q > 0 && q <= 30, `Q ${q}`);
     // Fin d'une seule voix : toujours FINALE ; fin de toutes : SUSPENDED, suspend une fois.
     slurp[0].onended();
-    assert.equal(player.state, BONG_PLAYER_STATE.FINALE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.FINALE);
     slurp[1].onended();
     slurp[2].onended();
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.equal(ctx.suspendCalls, 1);
     slurp[2].onended(); // onended rejoué (navigateur hostile)
     assert.equal(ctx.suspendCalls, 1, 'pas de seconde suspension');
@@ -780,16 +780,16 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
   test('sluuurp interrompu par resume() : sa fin tardive ne suspend pas la manche suivante', () => {
     for (const interrupt of ['resume', 'suspend-resume']) {
       const ctx = fakeAudioContext();
-      const player = createBongPlayer({ createContext: () => ctx });
+      const player = createMonsterAudio({ createContext: () => ctx });
       player.resume();
       player.playSlurp();
       const slurp = ctx.oscillators.slice();
       if (interrupt === 'resume') player.resume();
       else { player.suspend(); player.resume(); }
-      assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
       const suspends = ctx.suspendCalls;
       for (const o of slurp) o.onended(); // fins tardives des voix coupées
-      assert.equal(player.state, BONG_PLAYER_STATE.RUNNING, `${interrupt} : état intact`);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING, `${interrupt} : état intact`);
       assert.equal(ctx.suspendCalls, suspends, `${interrupt} : aucune suspension parasite`);
       ctx.currentTime = 50;
       assert.equal(player.play(0.5), true, 'bongs de nouveau possibles');
@@ -799,11 +799,11 @@ describe('sécurité : bong-player.js face à un contexte audio hostile', () => 
   test('sluuurp : promesses de suspend rejetées ou qui lèvent, aucun rejet non géré', async () => {
     for (const mode of ['throw', 'reject']) {
       const ctx = fakeAudioContext({ faults: { suspend: mode }, autoEnd: true });
-      const player = createBongPlayer({ createContext: () => ctx });
+      const player = createMonsterAudio({ createContext: () => ctx });
       player.resume();
       assert.equal(player.playSlurp(), true);
       await new Promise((r) => setTimeout(r, 0));
-      assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED, mode);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED, mode);
       assert.equal(ctx.suspendCalls, 1, mode);
     }
     await new Promise((r) => setTimeout(r, 20));
@@ -1099,9 +1099,9 @@ describe('sécurité : câblage audio de src/main.js (DOM factice)', () => {
     const source = readFileSync(path.join(srcDir, 'main.js'), 'utf8');
     const body = source.match(/function createAudioContext\(\) \{([\s\S]*?)\n\}/)[1];
     const factory = new Function('window', body); // copie fidèle de la fabrique de main.js
-    const player = createBongPlayer({ createContext: () => factory(fakeWindow) });
+    const player = createMonsterAudio({ createContext: () => factory(fakeWindow) });
     assert.doesNotThrow(() => { player.resume(); player.play(0.5); player.suspend(); });
-    assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
     fakeWindow.AudioContext = ctor;
   });
 });

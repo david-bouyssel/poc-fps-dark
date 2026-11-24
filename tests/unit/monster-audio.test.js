@@ -4,9 +4,12 @@
 // Extension « cris du monstre » (plan docs/design/monster-cries.md §3.3 et §6) : playCry,
 // playSlurp, état FINALE, filtres (createBiquadFilter), pannes.
 import { test, describe } from 'node:test';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { BONG, bongSchedule } from '../../src/audio/bong.js';
-import { BONG_PLAYER_STATE, createBongPlayer } from '../../src/audio/bong-player.js';
+import { MONSTER_AUDIO_STATE, createMonsterAudio } from '../../src/audio/monster-audio.js';
 import {
   CRY, crySchedule, slurpSchedule, ALERT, alertSchedule,
 } from '../../src/audio/monster-cries.js';
@@ -92,7 +95,7 @@ function fakeContext({ resumeImpl, suspendImpl, failOscillatorAt, failFilterAt }
 function setup(contextOptions) {
   const ctx = fakeContext(contextOptions);
   let factoryCalls = 0;
-  const player = createBongPlayer({
+  const player = createMonsterAudio({
     createContext: () => {
       factoryCalls += 1;
       return ctx;
@@ -117,32 +120,32 @@ async function unhandledRejectionsDuring(fn) {
 }
 
 describe('construction', () => {
-  test('BONG_PLAYER_STATE : valeurs et gel', () => {
-    assert.deepEqual({ ...BONG_PLAYER_STATE }, {
+  test('MONSTER_AUDIO_STATE : valeurs et gel', () => {
+    assert.deepEqual({ ...MONSTER_AUDIO_STATE }, {
       IDLE: 'idle', RUNNING: 'running', SUSPENDED: 'suspended', UNAVAILABLE: 'unavailable',
       FINALE: 'finale',
     });
-    assert.ok(Object.isFrozen(BONG_PLAYER_STATE));
+    assert.ok(Object.isFrozen(MONSTER_AUDIO_STATE));
   });
 
   test('sans fabrique ou fabrique non fonction -> TypeError', () => {
-    assert.throws(() => createBongPlayer({}), TypeError);
-    assert.throws(() => createBongPlayer({ createContext: 'ctx' }), TypeError);
-    assert.throws(() => createBongPlayer({ createContext: {} }), TypeError);
+    assert.throws(() => createMonsterAudio({}), TypeError);
+    assert.throws(() => createMonsterAudio({ createContext: 'ctx' }), TypeError);
+    assert.throws(() => createMonsterAudio({ createContext: {} }), TypeError);
   });
 
   test('options invalides -> RangeError', () => {
     const createContext = () => null;
-    assert.throws(() => createBongPlayer({ createContext, options: { minInterval: -1 } }), RangeError);
-    assert.throws(() => createBongPlayer({ createContext, options: { maxGain: 2 } }), RangeError);
+    assert.throws(() => createMonsterAudio({ createContext, options: { minInterval: -1 } }), RangeError);
+    assert.throws(() => createMonsterAudio({ createContext, options: { maxGain: 2 } }), RangeError);
   });
 
   test('objet gelé, état IDLE, state en lecture seule', () => {
     const { player } = setup();
     assert.ok(Object.isFrozen(player));
-    assert.equal(player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.IDLE);
     try { player.state = 'running'; } catch { /* mode strict : TypeError acceptée */ }
-    assert.equal(player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.IDLE);
   });
 });
 
@@ -153,13 +156,13 @@ describe('création paresseuse du contexte', () => {
     player.suspend();
     assert.equal(player.play(0.5), false);
     assert.equal(factoryCalls(), 0);
-    assert.equal(player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.IDLE);
   });
 
   test('resume() crée le contexte une seule fois', () => {
     const { ctx, player, factoryCalls } = setup();
     player.resume();
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     player.suspend();
     player.resume();
     player.resume();
@@ -176,14 +179,14 @@ describe('contexte indisponible', () => {
   ]) {
     test(`${label} -> UNAVAILABLE, play false, fabrique non rappelée`, () => {
       let calls = 0;
-      const player = createBongPlayer({ createContext: () => { calls += 1; return factory(); } });
+      const player = createMonsterAudio({ createContext: () => { calls += 1; return factory(); } });
       assert.doesNotThrow(() => player.resume());
-      assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
       assert.equal(player.play(0.5), false);
       assert.doesNotThrow(() => player.resume());
       assert.doesNotThrow(() => player.suspend());
       assert.equal(calls, 1);
-      assert.equal(player.state, BONG_PLAYER_STATE.UNAVAILABLE);
+      assert.equal(player.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
     });
   }
 });
@@ -193,7 +196,7 @@ describe('promesses rejetées et méthodes absentes', () => {
     const { player } = setup({ resumeImpl: () => Promise.reject(new Error('autoplay')) });
     const seen = await unhandledRejectionsDuring(() => player.resume());
     assert.deepEqual(seen, []);
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
   });
 
   test('ctx.suspend rejeté : aucun rejet non géré', async () => {
@@ -201,21 +204,21 @@ describe('promesses rejetées et méthodes absentes', () => {
     player.resume();
     const seen = await unhandledRejectionsDuring(() => player.suspend());
     assert.deepEqual(seen, []);
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
   });
 
   test('ctx.resume absent ou qui lève : pas d\'exception', () => {
     const ctx = fakeContext();
     delete ctx.resume;
-    const player = createBongPlayer({ createContext: () => ctx });
+    const player = createMonsterAudio({ createContext: () => ctx });
     assert.doesNotThrow(() => player.resume());
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     assert.equal(player.play(0.5), true);
 
     const throwing = fakeContext({ resumeImpl: () => { throw new Error('boom'); } });
-    const player2 = createBongPlayer({ createContext: () => throwing });
+    const player2 = createMonsterAudio({ createContext: () => throwing });
     assert.doesNotThrow(() => player2.resume());
-    assert.equal(player2.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player2.state, MONSTER_AUDIO_STATE.RUNNING);
   });
 });
 
@@ -291,7 +294,7 @@ describe('play', () => {
 
   test('minInterval surchargé par options', () => {
     const ctx = fakeContext();
-    const player = createBongPlayer({ createContext: () => ctx, options: { minInterval: 2 } });
+    const player = createMonsterAudio({ createContext: () => ctx, options: { minInterval: 2 } });
     player.resume();
     assert.equal(player.play(0.5), true);
     ctx.currentTime = 1;
@@ -307,7 +310,7 @@ describe('suspend', () => {
     player.resume();
     player.play(0.5);
     player.suspend();
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.ok(ctx.suspendCalls >= 1);
     for (const osc of ctx.oscillators) {
       assert.equal(osc.stopCalls.length, 2, 'stop() immédiat attendu en plus du stop programmé');
@@ -322,7 +325,7 @@ describe('suspend', () => {
     player.resume();
     player.suspend();
     player.resume();
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     assert.equal(player.play(0.5), true);
   });
 
@@ -334,7 +337,7 @@ describe('suspend', () => {
       osc.stop = () => { throw new Error('InvalidStateError'); };
     }
     assert.doesNotThrow(() => player.suspend());
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
   });
 });
 
@@ -490,9 +493,9 @@ describe('playCry', () => {
     assert.equal(suspended.player.playCry(0.5), false);
     assert.equal(suspended.ctx.oscillators.length, 0);
 
-    const unavailable = createBongPlayer({ createContext: () => null });
+    const unavailable = createMonsterAudio({ createContext: () => null });
     unavailable.resume();
-    assert.equal(unavailable.state, BONG_PLAYER_STATE.UNAVAILABLE);
+    assert.equal(unavailable.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
     assert.equal(unavailable.playCry(0.5), false);
   });
 
@@ -530,7 +533,7 @@ describe('playSlurp', () => {
 
   test('état FINALE ; play et playCry -> false ; second playSlurp -> false', () => {
     const { ctx, player } = inFinale();
-    assert.equal(player.state, BONG_PLAYER_STATE.FINALE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.FINALE);
     ctx.currentTime = 100;
     assert.equal(player.play(0.5), false);
     assert.equal(player.playCry(0.5), false);
@@ -542,20 +545,20 @@ describe('playSlurp', () => {
   test('IDLE, SUSPENDED, UNAVAILABLE -> false, état inchangé', () => {
     const idle = setup();
     assert.equal(idle.player.playSlurp(), false);
-    assert.equal(idle.player.state, BONG_PLAYER_STATE.IDLE);
+    assert.equal(idle.player.state, MONSTER_AUDIO_STATE.IDLE);
     assert.equal(idle.factoryCalls(), 0);
 
     const suspended = setup();
     suspended.player.resume();
     suspended.player.suspend();
     assert.equal(suspended.player.playSlurp(), false);
-    assert.equal(suspended.player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(suspended.player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.equal(suspended.ctx.oscillators.length, 0);
 
-    const unavailable = createBongPlayer({ createContext: () => null });
+    const unavailable = createMonsterAudio({ createContext: () => null });
     unavailable.resume();
     assert.equal(unavailable.playSlurp(), false);
-    assert.equal(unavailable.state, BONG_PLAYER_STATE.UNAVAILABLE);
+    assert.equal(unavailable.state, MONSTER_AUDIO_STATE.UNAVAILABLE);
   });
 });
 
@@ -564,7 +567,7 @@ describe('fin naturelle du sluuurp', () => {
     const { ctx, player, slurpOscs } = inFinale();
     for (const osc of slurpOscs) osc.onended();
     assert.equal(ctx.suspendCalls, 1);
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     slurpOscs.forEach((osc, i) => assert.ok(osc.disconnected >= 1, `osc ${i} non déconnecté`));
     for (const filter of ctx.filters) assert.ok(filter.disconnected >= 1, 'filtre non déconnecté');
     // un onended tardif ne relance rien
@@ -575,7 +578,7 @@ describe('fin naturelle du sluuurp', () => {
   test('onended d\'une seule voix -> toujours FINALE', () => {
     const { ctx, player, slurpOscs } = inFinale();
     slurpOscs[0].onended();
-    assert.equal(player.state, BONG_PLAYER_STATE.FINALE);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.FINALE);
     assert.equal(ctx.suspendCalls, 0);
   });
 
@@ -585,7 +588,7 @@ describe('fin naturelle du sluuurp', () => {
       for (const osc of slurpOscs) osc.onended();
     });
     assert.deepEqual(seen, []);
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
   });
 });
 
@@ -593,7 +596,7 @@ describe('sortie de FINALE', () => {
   test('suspend() en FINALE -> voix arrêtées, SUSPENDED', () => {
     const { ctx, player, slurpOscs } = inFinale();
     player.suspend();
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.ok(ctx.suspendCalls >= 1);
     for (const osc of slurpOscs) assert.equal(osc.stopCalls.length, 2, 'sluuurp non coupé');
   });
@@ -601,13 +604,13 @@ describe('sortie de FINALE', () => {
   test('resume() en FINALE -> voix arrêtées, RUNNING, bong de nouveau possible', () => {
     const { ctx, player, slurpOscs } = inFinale();
     player.resume();
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     for (const osc of slurpOscs) assert.equal(osc.stopCalls.length, 2, 'sluuurp non coupé');
     ctx.currentTime += 10;
     assert.equal(player.play(0.5), true);
     // la fin tardive des voix coupées ne suspend pas la nouvelle manche
     for (const osc of slurpOscs) osc.onended();
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
   });
 });
 
@@ -618,7 +621,7 @@ describe('pannes pendant la programmation des cris', () => {
     let result;
     assert.doesNotThrow(() => { result = player.playSlurp(); });
     assert.equal(result, false);
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.ok(ctx.oscillators.length >= 1);
     for (const osc of ctx.oscillators) {
       assert.ok(osc.stopCalls.length >= 1, 'voix créée non arrêtée');
@@ -629,7 +632,7 @@ describe('pannes pendant la programmation des cris', () => {
     const { player } = setup({ failFilterAt: 0 });
     player.resume();
     assert.equal(player.playSlurp(), false);
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
   });
 
   test('createOscillator qui lève au 2e : playCry false, voix créées arrêtées, RUNNING', () => {
@@ -638,7 +641,7 @@ describe('pannes pendant la programmation des cris', () => {
     let result;
     assert.doesNotThrow(() => { result = player.playCry(0.5); });
     assert.equal(result, false);
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     assert.equal(ctx.oscillators.length, 1);
     assert.ok(ctx.oscillators[0].stopCalls.length >= 2, 'voix déjà créée non arrêtée');
   });
@@ -649,7 +652,7 @@ describe('pannes pendant la programmation des cris', () => {
     let result;
     assert.doesNotThrow(() => { result = player.playSlurp(); });
     assert.equal(result, false);
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.equal(ctx.oscillators.length, 2);
     for (const osc of ctx.oscillators) assert.ok(osc.stopCalls.length >= 2, 'voix non arrêtée');
   });
@@ -708,7 +711,7 @@ describe('playAlert', () => {
     let result;
     assert.doesNotThrow(() => { result = player.playAlert(0.3); });
     assert.equal(result, false);
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     for (const osc of ctx.oscillators) assert.ok(osc.stopCalls.length >= 1 || osc.disconnected > 0);
   });
 
@@ -718,5 +721,49 @@ describe('playAlert', () => {
     player.playAlert(0.3);
     player.suspend();
     for (const osc of ctx.oscillators) assert.equal(osc.stopCalls.length, 2);
+  });
+});
+
+// Renommage bong-player -> monster-audio (plan docs/design/audio-renommage.md, section Tests).
+describe('renommage bong-player -> monster-audio', () => {
+  const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const OLD_NAME = new RegExp('bong-player|BongPlayer|BONG_PLAYER|bongPlayer');
+
+  function filesUnder(dir) {
+    const out = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...filesUnder(full));
+      else out.push(full);
+    }
+    return out;
+  }
+
+  test('le fichier bong-player.js n\'existe plus et monster-audio.js existe', () => {
+    assert.equal(existsSync(path.join(root, 'src', 'audio', 'bong-player.js')), false);
+    assert.equal(existsSync(path.join(root, 'src', 'audio', 'monster-audio.js')), true);
+  });
+
+  test('monster-audio.js exporte createMonsterAudio et MONSTER_AUDIO_STATE aux valeurs inchangées', () => {
+    assert.equal(typeof createMonsterAudio, 'function');
+    assert.equal(Object.isFrozen(MONSTER_AUDIO_STATE), true);
+    assert.deepEqual(
+      Object.values(MONSTER_AUDIO_STATE).sort(),
+      ['finale', 'idle', 'running', 'suspended', 'unavailable'],
+    );
+  });
+
+  test('aucun ancien nom dans src/, docs/agents/ ni tests/ (hors ce fichier)', () => {
+    const self = path.resolve(fileURLToPath(import.meta.url));
+    const dirs = ['src', 'docs/agents', 'tests'].map((d) => path.join(root, d));
+    const hits = [];
+    for (const dir of dirs) {
+      for (const file of filesUnder(dir)) {
+        if (path.resolve(file) === self) continue;
+        if (!/\.(js|mjs|md|html|css|json)$/.test(file)) continue;
+        if (OLD_NAME.test(readFileSync(file, 'utf8'))) hits.push(path.relative(root, file));
+      }
+    }
+    assert.deepEqual(hits, []);
   });
 });

@@ -1,7 +1,7 @@
 /**
  * Lecteur des sons du monstre (« bong bong », alerte, cri, « sluuurp ») : seul module
- * qui appelle l'API Web Audio. Noms historiques (createBongPlayer, BONG_PLAYER_STATE)
- * conservés. Le contexte audio vient uniquement de la fabrique injectée `createContext`
+ * qui appelle l'API Web Audio.
+ * Le contexte audio vient uniquement de la fabrique injectée `createContext`
  * (jamais d'accès global).
  * Aucune méthode ne lève d'exception : le son ne doit jamais casser le jeu.
  */
@@ -11,7 +11,7 @@ import {
 } from './monster-cries.js';
 
 /** États du lecteur. */
-export const BONG_PLAYER_STATE = Object.freeze({
+export const MONSTER_AUDIO_STATE = Object.freeze({
   IDLE: 'idle', // aucun contexte créé
   RUNNING: 'running', // contexte créé, son autorisé
   SUSPENDED: 'suspended', // contexte créé, son coupé
@@ -82,7 +82,7 @@ function applyPoints(param, points) {
  * @throws {TypeError} createContext n'est pas une fonction
  * @throws {RangeError} options invalides (mêmes règles que bongGain)
  */
-export function createBongPlayer({ createContext, options } = {}) {
+export function createMonsterAudio({ createContext, options } = {}) {
   if (typeof createContext !== 'function') {
     throw new TypeError('createContext must be a function');
   }
@@ -90,7 +90,7 @@ export function createBongPlayer({ createContext, options } = {}) {
   bongGain(0, options);
   const minInterval = options?.minInterval ?? BONG.minInterval;
 
-  let state = BONG_PLAYER_STATE.IDLE;
+  let state = MONSTER_AUDIO_STATE.IDLE;
   /** @type {any} */
   let ctx = null;
   let lastStart = -Infinity;
@@ -103,7 +103,7 @@ export function createBongPlayer({ createContext, options } = {}) {
   let slurpVoices = null;
 
   function resume() {
-    if (state === BONG_PLAYER_STATE.UNAVAILABLE) return;
+    if (state === MONSTER_AUDIO_STATE.UNAVAILABLE) return;
     if (ctx === null) {
       let created = null;
       try {
@@ -112,13 +112,13 @@ export function createBongPlayer({ createContext, options } = {}) {
         created = null;
       }
       if (created === null || created === undefined) {
-        state = BONG_PLAYER_STATE.UNAVAILABLE;
+        state = MONSTER_AUDIO_STATE.UNAVAILABLE;
         return;
       }
       ctx = created;
     }
-    if (state === BONG_PLAYER_STATE.FINALE) stopAllVoices();
-    state = BONG_PLAYER_STATE.RUNNING;
+    if (state === MONSTER_AUDIO_STATE.FINALE) stopAllVoices();
+    state = MONSTER_AUDIO_STATE.RUNNING;
     try {
       if (typeof ctx.resume === 'function') absorb(ctx.resume());
     } catch {
@@ -136,7 +136,7 @@ export function createBongPlayer({ createContext, options } = {}) {
 
   function suspend() {
     if (ctx === null) return;
-    state = BONG_PLAYER_STATE.SUSPENDED;
+    state = MONSTER_AUDIO_STATE.SUSPENDED;
     stopAllVoices();
     try {
       if (typeof ctx.suspend === 'function') absorb(ctx.suspend());
@@ -151,7 +151,7 @@ export function createBongPlayer({ createContext, options } = {}) {
    * @returns {boolean} true si un bong est programmé
    */
   function play(gain) {
-    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
     try {
@@ -249,7 +249,7 @@ export function createBongPlayer({ createContext, options } = {}) {
    * @returns {boolean} true si un cri est programmé
    */
   function playCry(gain) {
-    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
     try {
@@ -272,7 +272,7 @@ export function createBongPlayer({ createContext, options } = {}) {
    * @returns {boolean} true si une alerte est programmée
    */
   function playAlert(gain) {
-    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
     try {
@@ -295,7 +295,7 @@ export function createBongPlayer({ createContext, options } = {}) {
    * @returns {boolean} true si le sluuurp est programmé
    */
   function playSlurp() {
-    if (state !== BONG_PLAYER_STATE.RUNNING) return false;
+    if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     stopAllVoices();
     const created = [];
     try {
@@ -303,9 +303,9 @@ export function createBongPlayer({ createContext, options } = {}) {
       const onEnded = (entry) => {
         if (slurpVoices !== current) return;
         current.delete(entry);
-        if (current.size > 0 || state !== BONG_PLAYER_STATE.FINALE) return;
+        if (current.size > 0 || state !== MONSTER_AUDIO_STATE.FINALE) return;
         slurpVoices = null;
-        state = BONG_PLAYER_STATE.SUSPENDED;
+        state = MONSTER_AUDIO_STATE.SUSPENDED;
         try {
           if (typeof ctx.suspend === 'function') absorb(ctx.suspend());
         } catch {
@@ -316,7 +316,7 @@ export function createBongPlayer({ createContext, options } = {}) {
         current.add(scheduleSynthVoice(voice, created, onEnded));
       }
       slurpVoices = current;
-      state = BONG_PLAYER_STATE.FINALE;
+      state = MONSTER_AUDIO_STATE.FINALE;
       return true;
     } catch {
       discard(created);

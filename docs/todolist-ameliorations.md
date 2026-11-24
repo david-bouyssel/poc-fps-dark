@@ -22,7 +22,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [x] **Message d'erreur dédié** [express] : `errors.generic` (« Impossible de générer le
   labyrinthe ») s'affiche aussi quand la création du joueur ou du monstre échoue dans
   `startRound()` (`src/main.js`). Ajouter une clé `errors.round` dans `src/i18n/fr.js`.
-- [ ] **Renommer le lecteur audio** [courte] : `createBongPlayer` et `BONG_PLAYER_STATE`
+- [x] **Renommer le lecteur audio** [courte] : `createBongPlayer` et `BONG_PLAYER_STATE`
   gèrent quatre sons (bong, alerte, cri, sluuurp). Le module garde ses noms pour des
   raisons historiques. Renommer en `createMonsterAudio` / `src/audio/monster-audio.js`,
   avec les tests et `docs/agents/architecture.md`.

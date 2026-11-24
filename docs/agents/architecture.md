@@ -46,7 +46,7 @@ src/                             # racine servie au navigateur (et seulement ell
   audio/
     bong.js                      # son « bong bong » (pur) : BONG, BONG_SYNTH, bongGain (distance de chemin -> gain), selectBongGain, bongSchedule
     monster-cries.js             # cris du monstre (pur) : ALERT, CRY, SLURP, ALERT_SYNTH, CRY_SYNTH, SLURP_SYNTH, alertGain, selectAlertGain, alertSchedule, cryGain, selectCryGain, crySchedule, slurpSchedule
-    bong-player.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createBongPlayer (play, playAlert, playCry, playSlurp), BONG_PLAYER_STATE
+    monster-audio.js               # lecteur Web Audio des sons du monstre (contexte injecté) : createMonsterAudio (play, playAlert, playCry, playSlurp), MONSTER_AUDIO_STATE
 scripts/
   static-server.mjs              # createStaticServer({ root }) : bibliothèque testable
   serve.mjs                      # CLI : lance le serveur sur src/
@@ -65,7 +65,7 @@ tests/
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
 | `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js`. Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
 | `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`), `exit-texture.js` (n'importe au plus `./wall-textures.js`), `monster-sprite.js` (n'importe rien : kind et modes recopiés de `game/monster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
-| `src/audio/` | Son | `bong.js` est pur : aucun DOM, `window`, `Math.random`, `Date`, `performance`, aucune API Web Audio ; n'importe rien. `monster-cries.js` est pur au même titre et n'importe que `./bong.js` (réutilise `bongGain`). `bong-player.js` n'importe que `./bong.js` et `./monster-cries.js`, ne crée que des nœuds `createOscillator`, `createGain` et `createBiquadFilter` (jamais `createBuffer` ni worklet), et reçoit le contexte par la fabrique injectée `createContext` (création paresseuse au premier `resume()`) : jamais de `window`, `AudioContext` ou `webkitAudioContext` global, ni `fetch`, `decodeAudioData`, élément `<audio>`, `MediaStream` ou micro. Ses méthodes ne lèvent jamais. N'importe jamais `src/game/` : l'événement est lu par sa forme `{ type, pathDistance }` (`'turn'` recopié dans `TURN_EVENT_TYPE`, `'spot'` dans `SPOT_EVENT_TYPE`). Un seul `AudioContext` dans l'application : le cri et le sluuurp passent par le même lecteur. Aucun fichier son. |
+| `src/audio/` | Son | `bong.js` est pur : aucun DOM, `window`, `Math.random`, `Date`, `performance`, aucune API Web Audio ; n'importe rien. `monster-cries.js` est pur au même titre et n'importe que `./bong.js` (réutilise `bongGain`). `monster-audio.js` n'importe que `./bong.js` et `./monster-cries.js`, ne crée que des nœuds `createOscillator`, `createGain` et `createBiquadFilter` (jamais `createBuffer` ni worklet), et reçoit le contexte par la fabrique injectée `createContext` (création paresseuse au premier `resume()`) : jamais de `window`, `AudioContext` ou `webkitAudioContext` global, ni `fetch`, `decodeAudioData`, élément `<audio>`, `MediaStream` ou micro. Ses méthodes ne lèvent jamais. N'importe jamais `src/game/` : l'événement est lu par sa forme `{ type, pathDistance }` (`'turn'` recopié dans `TURN_EVENT_TYPE`, `'spot'` dans `SPOT_EVENT_TYPE`). Un seul `AudioContext` dans l'application : le cri et le sluuurp passent par le même lecteur. Aucun fichier son. |
 | `src/game/touch-input.js` | Suivi des doigts (pur) | Aucun DOM, `window`, `document`, `performance`, `Date` ; n'importe que `./input.js`. Seul `main.js` lit les `PointerEvent` et passe par `touchActionFor` (liste blanche). |
 | `src/i18n/` | Ressources texte | Pur. `applyTranslations(root)` ne touche qu'au `root` reçu. |
 | `src/main.js` | Point d'entrée navigateur | Seul fichier qui lit/écrit le DOM global (en `textContent` uniquement), tire une graine aléatoire (`crypto.getRandomValues`), pose les écouteurs clavier/`blur`/`visibilitychange`, fournit `requestAnimationFrame`/`cancelAnimationFrame` à la boucle et la fabrique d'`AudioContext` au lecteur de bongs (seul fichier qui lit `window.AudioContext`, repli `window.webkitAudioContext`). |
@@ -163,7 +163,7 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   `selectBongGain(events)` garde le maximum des événements `turn` d'un pas (un bong par
   image). `bongSchedule(startTime, gain)` donne 4 voix gelées (2 coups graves 98 Hz puis
   73.42 Hz à 0.3 s, chacun fondamentale `sine` + partiel `triangle` x2.76). Le lecteur
-  (`createBongPlayer`, états `idle | running | suspended | unavailable`) n'enchaîne pas
+  (`createMonsterAudio`, états `idle | running | suspended | unavailable`) n'enchaîne pas
   deux bongs à moins de `BONG.minInterval` (0.9 s, horloge `ctx.currentTime`) et arrête
   les voix en cours à `suspend()`.
 - **Cris du monstre** : `cryGain(pathDistance)` suit la courbe de `bongGain` avec
@@ -212,7 +212,7 @@ et de l'ordre des tirages (jamais le labyrinthe).
    `errors.generic`, on reste en vue de dessus), `viewMode = 'fps'`, formulaire et
    bouton d'entrée masqués (`hidden`), bouton de sortie, aide et objectif (`#fps-goal`)
    affichés, `aria-label` du canvas -> `canvas.labelFps`, ensemble des actions vidé,
-   `bongPlayer.resume()` (le premier appel crée le contexte audio, dans le geste du
+   `monsterAudio.resume()` (le premier appel crée le contexte audio, dans le geste du
    clic), `gameLoop.start()`, focus sur le bouton de sortie. Un seul canvas sert aux deux vues.
    `startRound()` : nouveau joueur au départ, monstre `createMonster(currentGrid,
    currentMaze.seed, { exit })` (même départ et même errance à chaque « Rejouer » ; échec
@@ -239,9 +239,9 @@ et de l'ordre des tirages (jamais le labyrinthe).
    `revealVisibleTiles`, puis `gameState = checkVictory(gameState, player, currentExit)` ;
    ensuite, seulement si `!isGameOver(gameState)` : `monster = stepMonster(monster,
    player, dt, currentGrid).monster` (pas borné à `MONSTER.maxDt`), puis
-   `bongPlayer.play(selectBongGain(step.events))` si le gain est `> 0`, puis
-   `bongPlayer.playAlert(selectAlertGain(step.events))` si le gain est `> 0`, puis
-   `bongPlayer.playCry(selectCryGain(step.events))` si le gain est `> 0`, puis
+   `monsterAudio.play(selectBongGain(step.events))` si le gain est `> 0`, puis
+   `monsterAudio.playAlert(selectAlertGain(step.events))` si le gain est `> 0`, puis
+   `monsterAudio.playCry(selectCryGain(step.events))` si le gain est `> 0`, puis
    `declareDefeat` si `isCatching(monster, player)` (le contact compte aussi pendant la
    grâce ; sortie et contact dans la même image -> victoire). Partie finie -> rien dans
    `update`. Ensuite `render()` -> `drawFpsView(canvas, currentGrid, player, { exit,
@@ -249,25 +249,25 @@ et de l'ordre des tirages (jamais le labyrinthe).
    `drawAutomap(..., { exit })`. Hors FPS, la
    boucle est arrêtée : le monstre est figé ; la carte plein écran ne met pas en pause.
 10. Fin de manche (`endRound()`, victoire ou défaite) : `gameLoop.stop()`,
-    défaite : `bongPlayer.playSlurp()` (coupe bongs et cri, sluuurp par-dessus l'écran de
-    fin) ; victoire, ou sluuurp impossible : `bongPlayer.suspend()`, actions vidées,
+    défaite : `monsterAudio.playSlurp()` (coupe bongs et cri, sluuurp par-dessus l'écran de
+    fin) ; victoire, ou sluuurp impossible : `monsterAudio.suspend()`, actions vidées,
     `mapMode` repassé en mini, dernière image dessinée, titre et message `end.won*` ou
     `end.lost*` en `textContent`, écran de fin (`#end-screen`, `role="alertdialog"`)
     affiché par-dessus le canvas, focus sur « Rejouer ». Partie finie : seul Échap est
     traité, les autres touches liées sont ignorées sans `preventDefault()` (Tab, Entrée,
     Espace restent utilisables sur les boutons). « Rejouer » : `startRound()`,
-    `bongPlayer.resume()` puis `gameLoop.start()` (même labyrinthe, même sortie). « Nouveau labyrinthe » de l'écran
+    `monsterAudio.resume()` puis `gameLoop.start()` (même labyrinthe, même sortie). « Nouveau labyrinthe » de l'écran
     de fin : génération avec une graine aléatoire et la taille courante des champs ; si
-    succès, on reste en FPS (`startRound()`, `bongPlayer.resume()`, `gameLoop.start()`), sinon l'erreur
+    succès, on reste en FPS (`startRound()`, `monsterAudio.resume()`, `gameLoop.start()`), sinon l'erreur
     s'affiche et l'écran de fin reste.
-11. Sortie (bouton ou Échap) : `gameLoop.stop()`, `bongPlayer.suspend()`, actions vidées, écran de fin et
+11. Sortie (bouton ou Échap) : `gameLoop.stop()`, `monsterAudio.suspend()`, actions vidées, écran de fin et
     objectif masqués, vue de dessus restaurée (`drawMaze`, `aria-label` d'origine), focus
     sur le bouton d'entrée. La position du joueur est conservée tant que le labyrinthe ne
     change pas et que la partie n'est pas finie.
 12. `blur` de la fenêtre ou `visibilitychange` (page cachée) : actions vidées (pas de
-    touche « collée ») ; la boucle continue. Page cachée : `bongPlayer.suspend()` (son
+    touche « collée ») ; la boucle continue. Page cachée : `monsterAudio.suspend()` (son
     coupé ; `blur` ne coupe pas le son). Page de nouveau visible en FPS, partie en cours :
-    `bongPlayer.resume()` (contexte déjà débloqué par le geste initial).
+    `monsterAudio.resume()` (contexte déjà débloqué par le geste initial).
 
 Aucune donnée ne quitte le navigateur ; le seul réseau est le chargement des fichiers
 statiques depuis leur origine (local ou GitHub Pages). Le son est synthétisé en Web Audio (API locale), sans

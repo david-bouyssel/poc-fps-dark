@@ -21,7 +21,7 @@ import {
 import { MONSTER_EVENT, MONSTER_MODE, createMonster, stepMonster, isCatching } from '../../src/game/monster.js';
 import { selectBongGain } from '../../src/audio/bong.js';
 import { selectCryGain } from '../../src/audio/monster-cries.js';
-import { BONG_PLAYER_STATE, createBongPlayer } from '../../src/audio/bong-player.js';
+import { MONSTER_AUDIO_STATE, createMonsterAudio } from '../../src/audio/monster-audio.js';
 
 const DT = 1 / 60;
 const STILL = Object.freeze({ move: 0, strafe: 0, turn: 0, run: false });
@@ -62,7 +62,7 @@ function fakeContext() {
 
 /** Lecteur réel enveloppé d'un espion : journal ordonné des appels et résultats. */
 function spyPlayer(ctx) {
-  const real = createBongPlayer({ createContext: () => ctx });
+  const real = createMonsterAudio({ createContext: () => ctx });
   const log = [];
   const wrap = (name) => (...args) => {
     const result = real[name](...args);
@@ -195,7 +195,7 @@ describe('joueur immobile au départ : un seul cri, puis le sluuurp à la captur
         assert.equal(calls(world, 'playSlurp').length, 1);
         assert.equal(calls(world, 'playSlurp')[0].result, true);
         assert.equal(calls(world, 'suspend').length, 0, 'suspend immédiat en défaite');
-        assert.equal(world.audio.state, BONG_PLAYER_STATE.FINALE);
+        assert.equal(world.audio.state, MONSTER_AUDIO_STATE.FINALE);
         assert.equal(world.ctx.suspendCalls, 0);
         assert.equal(world.ctx.filters, 2, 'deux voix filtrées du sluuurp');
       });
@@ -203,7 +203,7 @@ describe('joueur immobile au départ : un seul cri, puis le sluuurp à la captur
       test('fin naturelle du sluuurp -> SUSPENDED', () => {
         const slurpOscs = world.ctx.oscillators.slice(-3);
         for (const osc of slurpOscs) osc.onended();
-        assert.equal(world.audio.state, BONG_PLAYER_STATE.SUSPENDED);
+        assert.equal(world.audio.state, MONSTER_AUDIO_STATE.SUSPENDED);
         assert.equal(world.ctx.suspendCalls, 1);
       });
     });
@@ -218,7 +218,7 @@ describe('victoire : suspend immédiat, aucun sluuurp', () => {
     assert.equal(world.state.status, GAME_STATUS.WON);
     assert.equal(calls(world, 'playSlurp').length, 0);
     assert.equal(calls(world, 'suspend').length, 1);
-    assert.equal(world.audio.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(world.audio.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.equal(world.ctx.filters, 0, 'aucune voix du sluuurp');
   });
 });
@@ -229,7 +229,7 @@ describe('cycle après une défaite', () => {
     world.audio.resume();
     simulate(world, 180);
     assert.equal(world.state.status, GAME_STATUS.LOST);
-    assert.equal(world.audio.state, BONG_PLAYER_STATE.FINALE);
+    assert.equal(world.audio.state, MONSTER_AUDIO_STATE.FINALE);
     return world;
   }
 
@@ -237,7 +237,7 @@ describe('cycle après une défaite', () => {
     const world = lostWorld();
     const slurpOscs = world.ctx.oscillators.slice(-3);
     world.audio.resume();
-    assert.equal(world.audio.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(world.audio.state, MONSTER_AUDIO_STATE.RUNNING);
     for (const osc of slurpOscs) assert.ok(osc.stops >= 2, 'sluuurp non coupé');
     world.ctx.currentTime += 10;
     assert.equal(world.audio.play(0.5), true);
@@ -248,7 +248,7 @@ describe('cycle après une défaite', () => {
     const world = lostWorld();
     const slurpOscs = world.ctx.oscillators.slice(-3);
     world.audio.suspend();
-    assert.equal(world.audio.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(world.audio.state, MONSTER_AUDIO_STATE.SUSPENDED);
     for (const osc of slurpOscs) assert.ok(osc.stops >= 2, 'sluuurp non coupé');
     assert.equal(world.audio.play(0.5), false);
     assert.equal(world.audio.playCry(0.5), false);

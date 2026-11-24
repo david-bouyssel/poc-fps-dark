@@ -39,7 +39,7 @@ import {
 import { applyTranslations, t } from './i18n/i18n.js';
 import { selectBongGain } from './audio/bong.js';
 import { selectAlertGain, selectCryGain } from './audio/monster-cries.js';
-import { createBongPlayer } from './audio/bong-player.js';
+import { createMonsterAudio } from './audio/monster-audio.js';
 
 const DEFAULT_SIZE = 16;
 const INTEGER_PATTERN = /^\d+$/;
@@ -108,7 +108,7 @@ function createAudioContext() {
 }
 
 /** Lecteur des bongs du monstre ; contexte audio créé au premier « Explorer en 3D ». */
-const bongPlayer = createBongPlayer({ createContext: createAudioContext });
+const monsterAudio = createMonsterAudio({ createContext: createAudioContext });
 
 const gameLoop = createGameLoop({
   update(dt) {
@@ -126,15 +126,15 @@ const gameLoop = createGameLoop({
       monster = step.monster;
       const bongGainValue = selectBongGain(step.events);
       if (bongGainValue > 0) {
-        bongPlayer.play(bongGainValue);
+        monsterAudio.play(bongGainValue);
       }
       const alertGainValue = selectAlertGain(step.events);
       if (alertGainValue > 0) {
-        bongPlayer.playAlert(alertGainValue);
+        monsterAudio.playAlert(alertGainValue);
       }
       const cryGainValue = selectCryGain(step.events);
       if (cryGainValue > 0) {
-        bongPlayer.playCry(cryGainValue);
+        monsterAudio.playCry(cryGainValue);
       }
       if (isCatching(monster, player)) {
         gameState = declareDefeat(gameState);
@@ -329,8 +329,8 @@ function startRound() {
 function endRound() {
   gameLoop.stop();
   // Defeat: the slurp plays over the end screen and cuts every other sound.
-  if (gameState.status !== GAME_STATUS.LOST || !bongPlayer.playSlurp()) {
-    bongPlayer.suspend();
+  if (gameState.status !== GAME_STATUS.LOST || !monsterAudio.playSlurp()) {
+    monsterAudio.suspend();
   }
   clearHeldActions();
   mapMode = AUTOMAP_MODE.MINI;
@@ -348,7 +348,7 @@ function replay() {
   if (viewMode !== VIEW_FPS || !startRound()) {
     return;
   }
-  bongPlayer.resume();
+  monsterAudio.resume();
   gameLoop.start();
   fpsExitButton.focus();
 }
@@ -362,7 +362,7 @@ function newMazeFromEndScreen() {
   if (!generateFromForm({ forceRandomSeed: true }) || !startRound()) {
     return;
   }
-  bongPlayer.resume();
+  monsterAudio.resume();
   gameLoop.start();
   fpsExitButton.focus();
 }
@@ -389,7 +389,7 @@ function enterFps() {
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
   clearHeldActions();
   // First call creates the audio context, inside the click gesture (autoplay policy).
-  bongPlayer.resume();
+  monsterAudio.resume();
   gameLoop.start();
   fpsEnterButton.blur();
   fpsExitButton.focus();
@@ -401,7 +401,7 @@ function exitFps() {
     return;
   }
   gameLoop.stop();
-  bongPlayer.suspend();
+  monsterAudio.suspend();
   clearHeldActions();
   viewMode = VIEW_TOP;
   mapMode = AUTOMAP_MODE.MINI;
@@ -567,10 +567,10 @@ function init() {
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       clearHeldActions();
-      bongPlayer.suspend();
+      monsterAudio.suspend();
     } else if (viewMode === VIEW_FPS && !isGameOver(gameState)) {
       // Context already unlocked by the initial gesture; never created here outside FPS.
-      bongPlayer.resume();
+      monsterAudio.resume();
     }
   });
 

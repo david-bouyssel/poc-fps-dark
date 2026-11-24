@@ -1,6 +1,6 @@
 // Flux bout en bout côté Node, sans DOM (plan docs/design/dark-son-bong.md §4 et §6) :
 // simulation de update() de main.js avec un monstre réel (createMonster/stepMonster),
-// selectBongGain(step.events) puis bongPlayer.play(gain) si gain > 0, et un lecteur
+// selectBongGain(step.events) puis monsterAudio.play(gain) si gain > 0, et un lecteur
 // alimenté par un faux contexte audio dont currentTime avance de dt à chaque image.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import { toTileGrid } from '../../src/maze/grid.js';
 import { findExit } from '../../src/game/exit.js';
 import { MONSTER, MONSTER_MODE, createMonster, stepMonster, isCatching } from '../../src/game/monster.js';
 import { BONG, selectBongGain } from '../../src/audio/bong.js';
-import { BONG_PLAYER_STATE, createBongPlayer } from '../../src/audio/bong-player.js';
+import { MONSTER_AUDIO_STATE, createMonsterAudio } from '../../src/audio/monster-audio.js';
 
 const DT = 1 / 60;
 const PLAYER = Object.freeze({ x: 1.5, y: 1.5, angle: 0 });
@@ -40,7 +40,7 @@ function fakeContext() {
 /** Lecteur réel + espion des appels à play (gain demandé, résultat, temps). */
 function makeWorld(grid, monster) {
   const ctx = fakeContext();
-  const player = createBongPlayer({ createContext: () => ctx });
+  const player = createMonsterAudio({ createContext: () => ctx });
   const plays = [];
   return { grid, monster, ctx, player, plays, time: 0, caught: false, eventsSeen: [] };
 }
@@ -150,19 +150,19 @@ describe('cycle de vie simulé (entrée FPS, sortie, retour, fin de partie)', ()
   test('resume -> bong ; suspend -> rien ; resume -> bong ; suspend', () => {
     const ctx = fakeContext();
     let created = 0;
-    const player = createBongPlayer({ createContext: () => { created += 1; return ctx; } });
+    const player = createMonsterAudio({ createContext: () => { created += 1; return ctx; } });
     assert.equal(player.play(0.5), false, 'avant l\'entrée en FPS');
     assert.equal(created, 0);
 
     // 1. entrée FPS
     player.resume();
-    assert.equal(player.state, BONG_PLAYER_STATE.RUNNING);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.RUNNING);
     assert.equal(player.play(0.5), true);
 
     // 2. sortie FPS
     player.suspend();
     ctx.currentTime += 5;
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.equal(player.play(0.5), false);
 
     // 3. retour en FPS (ou « Rejouer », ou page de nouveau visible)
@@ -172,7 +172,7 @@ describe('cycle de vie simulé (entrée FPS, sortie, retour, fin de partie)', ()
     // 4. fin de partie
     player.suspend();
     ctx.currentTime += 5;
-    assert.equal(player.state, BONG_PLAYER_STATE.SUSPENDED);
+    assert.equal(player.state, MONSTER_AUDIO_STATE.SUSPENDED);
     assert.equal(player.play(0.5), false);
     assert.equal(created, 1, 'contexte créé une seule fois');
     assert.equal(ctx.oscillators, 8);
