@@ -33,7 +33,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
   (autre fenêtre au premier plan), `blur` relâche les touches, mais le monstre continue de
   traquer et peut attraper le joueur. Ajouter une pause (touche `P`, bouton tactile), une
   pause automatique sur `blur`, un écran « En pause » et l'arrêt des sons.
-- [ ] **Chrono et bilan de fin** [courte] : afficher sur l'écran de fin le temps de la
+- [x] **Chrono et bilan de fin** [courte] : afficher sur l'écran de fin le temps de la
   manche, la part du labyrinthe explorée (masque `explored`) et la distance parcourue.
   Calculs purs dans `src/game/`, textes dans `fr.js`.
 - [ ] **Indicateur de danger** [courte] : un voile rouge ou une vignette sur les bords du

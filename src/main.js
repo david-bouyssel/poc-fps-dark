@@ -29,6 +29,13 @@ import {
   resumeGame,
 } from './game/pause.js';
 import { createMonster, isCatching, monsterSprite, stepMonster } from './game/monster.js';
+import {
+  advanceStats,
+  createRoundStats,
+  exploredRatio,
+  formatDistance,
+  formatDuration,
+} from './game/round-stats.js';
 import { drawMaze } from './render/canvas-renderer.js';
 import { drawFpsView } from './render/fps-renderer.js';
 import {
@@ -74,6 +81,9 @@ const endTitle = document.getElementById('end-title');
 const endMessage = document.getElementById('end-message');
 const replayButton = document.getElementById('replay-button');
 const endNewMazeButton = document.getElementById('end-new-maze-button');
+const endStatTime = document.getElementById('end-stat-time');
+const endStatExplored = document.getElementById('end-stat-explored');
+const endStatDistance = document.getElementById('end-stat-distance');
 const pauseScreen = document.getElementById('pause-screen');
 const pauseMessage = document.getElementById('pause-message');
 const resumeButton = document.getElementById('resume-button');
@@ -105,6 +115,8 @@ let explored = null;
 let mapMode = AUTOMAP_MODE.MINI;
 /** État de pause de la manche (PauseState gelé) ; remis à zéro par startRound() et exitFps(). */
 let pauseState = createPauseState();
+/** Bilan de la manche courante (RoundStats gelé) : temps et distance, remis à zéro par startRound(). */
+let roundStats = createRoundStats();
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
 /** Doigts posés sur les boutons tactiles (TouchState gelé, remplacé à chaque changement). */
@@ -129,7 +141,9 @@ const gameLoop = createGameLoop({
       return;
     }
     monsterClock += dt;
+    const previousPlayer = player;
     player = stepPlayer(player, computeIntent([...pressedActions, ...touchActions(touchState)]), dt, currentGrid);
+    roundStats = advanceStats(roundStats, dt, previousPlayer, player);
     revealVisibleTiles(explored, currentGrid, player);
     // Frame order: stepPlayer, checkVictory, then the monster only if the round goes on
     // (reaching the exit at the moment of contact is a victory).
@@ -294,6 +308,7 @@ function generateFromForm({ forceRandomSeed }) {
   player = null;
   monster = null;
   explored = createExploredMask(currentGrid);
+  roundStats = createRoundStats();
   hideEndScreen();
   clearError();
   infoElement.textContent = t('info.current', {
@@ -335,6 +350,7 @@ function startRound() {
   monster = nextMonster;
   monsterClock = 0;
   explored = createExploredMask(currentGrid);
+  roundStats = createRoundStats();
   gameState = createGameState();
   clearHeldActions();
   hideEndScreen();
@@ -359,6 +375,13 @@ function endRound() {
   const won = gameState.status === GAME_STATUS.WON;
   endTitle.textContent = t(won ? 'end.wonTitle' : 'end.lostTitle');
   endMessage.textContent = t(won ? 'end.wonMessage' : 'end.lostMessage');
+  endStatTime.textContent = t('end.statTime', { value: formatDuration(roundStats.elapsed) });
+  endStatExplored.textContent = t('end.statExplored', {
+    value: exploredRatio(explored, currentGrid),
+  });
+  endStatDistance.textContent = t('end.statDistance', {
+    value: formatDistance(roundStats.distance),
+  });
   endScreen.hidden = false;
   replayButton.focus();
 }
