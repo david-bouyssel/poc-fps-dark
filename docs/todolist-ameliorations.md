@@ -16,7 +16,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
   l'automap. Ajouter une table des commandes tactiles.
 - [x] **Résumé d'`AGENTS.md`** [express] : « commandes au clavier uniquement » est faux
   depuis `mobile-tactile`. Mentionner les commandes tactiles.
-- [ ] **Bornes du formulaire en un seul endroit** [courte] : `src/index.html` fixe en dur
+- [x] **Bornes du formulaire en un seul endroit** [courte] : `src/index.html` fixe en dur
   `min="2" max="64"` et `max="4294967295"`, ce qui double `MAZE_LIMITS` et `MAX_SEED`.
   Les poser depuis `main.js` à l'init, avec un test qui vérifie l'accord.
 - [ ] **Message d'erreur dédié** [express] : `errors.generic` (« Impossible de générer le

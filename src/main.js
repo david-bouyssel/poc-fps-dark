@@ -530,6 +530,11 @@ function init() {
   applyTranslations(document);
   document.title = t('app.title');
 
+  widthInput.min = heightInput.min = String(MAZE_LIMITS.minSize);
+  widthInput.max = heightInput.max = String(MAZE_LIMITS.maxSize);
+  seedInput.min = '0';
+  seedInput.max = String(MAX_SEED);
+
   widthInput.value = String(DEFAULT_SIZE);
   heightInput.value = String(DEFAULT_SIZE);
   monsterImages = buildMonsterImages();
