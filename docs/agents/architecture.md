@@ -32,14 +32,15 @@ src/                             # racine servie au navigateur (et seulement ell
     pause.js                     # PAUSE_REASON, createPauseState, pauseGame, resumeGame, isPaused, canPause
     monster.js                   # monstre (pur) : createMonster, stepMonster, isCatching, monsterSprite, MONSTER
     danger.js                    # indicateur de danger (pur) : dangerLevel(pathDistance), DANGER (niveau 0..1 selon la distance de chemin)
+    difficulty.js                # niveaux de difficulté (pur) : DIFFICULTY, DIFFICULTY_IDS, DIFFICULTY_SETTINGS (réglages du monstre + fogDistance), isDifficulty, difficultySettings
   render/
     palette.js                   # couleurs sombres (constantes, dont teintes FPS, textures et vignette de danger `dangerVignette`)
     maze-geometry.js             # labyrinthe -> segments de murs (pur)
     canvas-renderer.js           # dessin de la vue de dessus (canvas)
-    raycaster.js                 # raycasting DDA pur : castRays, projectColumn, fogFactor, mixColor
+    raycaster.js                 # raycasting DDA pur : castRays, projectColumn, fogFactor, FOG_DISTANCE, mixColor
     wall-textures.js             # textures procédurales des murs FPS (pur) : motifs RGBA, choix par tuile, mapping texel
     surface-textures.js          # textures procédurales du sol et du plafond FPS (pur) : motifs RGBA, floor casting, taille du tampon
-    fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView (option danger : vignette rouge des bords), cache de textures hors écran, tampon sol/plafond
+    fps-renderer.js              # dessin de la vue FPS (canvas) : drawFpsView (option danger : vignette rouge des bords ; option fogDistance : portée du brouillard des murs, sol, plafond et sprites), cache de textures hors écran, tampon sol/plafond
     automap.js                   # automap (pur) : masque d'exploration, révélation par le champ de vision, mise en page mini/plein écran
     automap-renderer.js          # dessin de l'automap (canvas) : drawAutomap, par-dessus la vue FPS
     sprites.js                   # projection des sprites au sol (pur) : projectSprites, isSpriteColumnVisible
@@ -65,7 +66,7 @@ tests/
 | Couche | Rôle | Règles |
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
-| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `danger.js` est pur et n'importe rien. Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
+| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `danger.js` et `difficulty.js` sont purs et n'importent rien. Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
 | `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`), `exit-texture.js` (n'importe au plus `./wall-textures.js`), `monster-sprite.js` (n'importe rien : kind et modes recopiés de `game/monster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/audio/` | Son | `bong.js` est pur : aucun DOM, `window`, `Math.random`, `Date`, `performance`, aucune API Web Audio ; n'importe rien. `monster-cries.js` est pur au même titre et n'importe que `./bong.js` (réutilise `bongGain`). `monster-audio.js` n'importe que `./bong.js` et `./monster-cries.js`, ne crée que des nœuds `createOscillator`, `createGain` et `createBiquadFilter` (jamais `createBuffer` ni worklet), et reçoit le contexte par la fabrique injectée `createContext` (création paresseuse au premier `resume()`) : jamais de `window`, `AudioContext` ou `webkitAudioContext` global, ni `fetch`, `decodeAudioData`, élément `<audio>`, `MediaStream` ou micro. Ses méthodes ne lèvent jamais. N'importe jamais `src/game/` : l'événement est lu par sa forme `{ type, pathDistance }` (`'turn'` recopié dans `TURN_EVENT_TYPE`, `'spot'` dans `SPOT_EVENT_TYPE`). Un seul `AudioContext` dans l'application : le cri et le sluuurp passent par le même lecteur. Aucun fichier son. |
 | `src/game/touch-input.js` | Suivi des doigts (pur) | Aucun DOM, `window`, `document`, `performance`, `Date` ; n'importe que `./input.js`. Seul `main.js` lit les `PointerEvent` et passe par `touchActionFor` (liste blanche). |
@@ -129,6 +130,14 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   raison, `resumeGame` et `pauseGame` renvoient la même référence si rien ne change,
   `canPause` exige une manche hors pause et non finie. Vit dans `main.js` (`pauseState`),
   hors de `GameState` ; remis à zéro par `startRound()` et `exitFps()`.
+- **Difficulté** (`difficulty.js`) : trois niveaux (`easy`, `normal`, `nightmare`), chacun
+  `{ monster, fogDistance }` gelé en profondeur. `monster` surcharge `chaseSpeed`,
+  `chaseDistance`, `graceDuration` et `sightDistance` de `MONSTER` (passé en `options` à
+  `createMonster` et `stepMonster`) ; « Normal » vaut exactement `MONSTER` et
+  `FOG_DISTANCE`. Le niveau est lu dans `#maze-difficulty` par `main.js` (liste blanche
+  `isDifficulty`, sinon `normal`) au début de chaque manche et figé dans `roundSettings` ;
+  un changement de niveau en vue de dessus abandonne la manche en cours. La graine, le
+  labyrinthe, la sortie et la case d'apparition du monstre n'en dépendent pas. Non stocké.
 - **Sprites** : `projectSprites(sprites, player, w, h, options)` reprend la caméra de `castRays`
   et renvoie `{ kind, depth, screenX, size, left, right, top, bottom, worldSize }` du plus
   loin au plus proche ; taille monde = `sprite.worldSize` s'il est fourni, sinon

@@ -282,3 +282,24 @@ describe('mixColor', () => {
     }
   });
 });
+
+// --- Difficulté (plan docs/design/difficulte.md §6, test 11) ---
+import { FOG_DISTANCE } from '../../src/render/raycaster.js';
+
+describe('FOG_DISTANCE (difficulté)', () => {
+  test('exporté et égal à 6', () => {
+    assert.equal(FOG_DISTANCE, 6);
+  });
+  test('fogFactor(d) inchangé : identique à fogFactor(d, { fogDistance: FOG_DISTANCE })', () => {
+    for (let d = 0; d <= 12; d += 0.5) {
+      assert.equal(fogFactor(d), fogFactor(d, { fogDistance: FOG_DISTANCE }), `d=${d}`);
+    }
+    assert.ok(Math.abs(fogFactor(3) - 0.5) < EPSILON);
+  });
+  test('portée plus courte -> brouillard plus fort à distance égale', () => {
+    for (const d of [1, 2, 3, 4]) {
+      assert.ok(fogFactor(d, { fogDistance: 4.5 }) > fogFactor(d), `d=${d}`);
+      assert.ok(fogFactor(d, { fogDistance: 8 }) < fogFactor(d), `d=${d}`);
+    }
+  });
+});

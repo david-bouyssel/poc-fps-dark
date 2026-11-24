@@ -8,7 +8,8 @@ export const FOV = Math.PI / 3;
 /** Distance minimale renvoyée, en tuiles : évite les divisions par ~0. */
 export const MIN_DISTANCE = 0.05;
 
-const DEFAULT_FOG_DISTANCE = 6;
+/** Portée du brouillard par défaut, en tuiles (niveau « Normal »). */
+export const FOG_DISTANCE = 6;
 const DEFAULT_MAX_FOG = 1;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 
@@ -164,7 +165,7 @@ export function projectColumn(distance, viewHeight) {
  * @throws {RangeError} fogDistance non > 0 ou maxFog hors [0, 1]
  */
 export function fogFactor(distance, options = {}) {
-  const fogDistance = options.fogDistance ?? DEFAULT_FOG_DISTANCE;
+  const fogDistance = options.fogDistance ?? FOG_DISTANCE;
   const maxFog = options.maxFog ?? DEFAULT_MAX_FOG;
   if (typeof fogDistance !== 'number' || !(fogDistance > 0)) {
     throw new RangeError('options.fogDistance must be a number > 0');

@@ -1,7 +1,7 @@
 // Pure procedural floor/ceiling textures and floor casting. No DOM, no drawing surface,
 // no randomness. The only write is into the `target` array given to castSurfaces.
 
-import { FOV, fogFactor } from './raycaster.js';
+import { FOG_DISTANCE, FOV, fogFactor } from './raycaster.js';
 import { TEXTURE_SIZE } from './wall-textures.js';
 
 /** Identifiants des surfaces. */
@@ -151,7 +151,7 @@ function isTextureData(texture) {
 /**
  * Floor casting : remplit `target` (RGBA, width * height * 4) avec le plafond pour les
  * lignes row < height / 2 et avec le sol pour les autres. Alpha 255 partout.
- * Pour chaque ligne : d = surfaceRowDistance(row, height), f = fogFactor(d).
+ * Pour chaque ligne : d = surfaceRowDistance(row, height), f = fogFactor(d, { fogDistance }).
  * Pour chaque pixel : cameraX = 2 * (x + 0.5) / width - 1,
  *   monde = (player.x, player.y) + d * (dir + plane * cameraX)
  *   texel = floor(frac(monde) * size) ; couleur = texel * (1 - f) + fog * f, arrondie.
@@ -162,10 +162,13 @@ function isTextureData(texture) {
  * @param {{ floor: TextureData, ceiling: TextureData }} textures carrées de même taille
  * @param {string} fogColor '#rrggbb'
  * @param {number} [fov=FOV] radians, dans ]0, PI[
+ * @param {number} [fogDistance=FOG_DISTANCE] portée du brouillard, nombre fini > 0
  * @throws {TypeError} target de mauvaise longueur, player, textures ou fogColor mal formés
- * @throws {RangeError} width, height ou fov invalide
+ * @throws {RangeError} width, height, fov ou fogDistance invalide
  */
-export function castSurfaces(target, width, height, player, textures, fogColor, fov = FOV) {
+export function castSurfaces(
+  target, width, height, player, textures, fogColor, fov = FOV, fogDistance = FOG_DISTANCE,
+) {
   if (!Number.isInteger(width) || width < 1) {
     throw new RangeError('width must be an integer >= 1');
   }
@@ -174,6 +177,9 @@ export function castSurfaces(target, width, height, player, textures, fogColor, 
   }
   if (typeof fov !== 'number' || !(fov > 0 && fov < Math.PI)) {
     throw new RangeError('fov must be a number in ]0, PI[');
+  }
+  if (typeof fogDistance !== 'number' || !Number.isFinite(fogDistance) || !(fogDistance > 0)) {
+    throw new RangeError('fogDistance must be a finite number > 0');
   }
   if (!(target instanceof Uint8ClampedArray) || target.length !== width * height * 4) {
     throw new TypeError('target must be a Uint8ClampedArray of width * height * 4');
@@ -208,7 +214,7 @@ export function castSurfaces(target, width, height, player, textures, fogColor, 
   for (let row = 0; row < height; row++) {
     const source = row < height / 2 ? textures.ceiling.data : textures.floor.data;
     const d = surfaceRowDistance(row, height);
-    const fog = fogFactor(d);
+    const fog = fogFactor(d, { fogDistance });
     const keep = 1 - fog;
     const fogRKept = fogR * fog;
     const fogGKept = fogG * fog;

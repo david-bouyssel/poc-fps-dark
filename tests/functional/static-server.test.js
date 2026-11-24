@@ -321,3 +321,21 @@ test('pause : GET / contient pause-screen, resume-button et data-action="pause"'
   const fragment = body.slice(body.lastIndexOf('<', pause), fragEnd).replace(/<[^>]*>/g, ' ');
   assert.deepEqual(fragment.match(/\p{L}+/gu) ?? [], []);
 });
+
+// --- Difficulté (plan docs/design/difficulte.md §6, test 19) ---
+
+test('difficulté : GET /game/difficulty.js -> 200 text/javascript, exporte difficultySettings', async () => {
+  const res = await fetch(`${base}/game/difficulty.js`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/javascript; charset=utf-8/);
+  const body = await res.text();
+  assert.ok(body.includes('difficultySettings') && body.includes('isDifficulty'));
+});
+
+test('difficulté : GET / contient le select maze-difficulty ; styles.css stylise .field select', async () => {
+  const body = await (await fetch(`${base}/`)).text();
+  assert.match(body, /<select[^>]*id=["']maze-difficulty["']/);
+  const css = await (await fetch(`${base}/styles.css`)).text();
+  assert.match(css, /\.field select/);
+  assert.match(css, /\.field select:focus-visible/);
+});

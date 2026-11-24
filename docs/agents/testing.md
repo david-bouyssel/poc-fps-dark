@@ -64,16 +64,17 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/input.test.js` | `KEY_BINDINGS`, `actionForCode`, `computeIntent` |
 | `tests/unit/movement.test.js` | vitesses, rotation, bornage de `dt`, collisions, glissement, non-tunnel |
 | `tests/unit/loop.test.js` | ordre `update`/`render`, `dt`, `start` idempotent, `stop` |
-| `tests/unit/raycaster.test.js` | distances DDA, anti fish-eye, angles alignés, `projectColumn`, `fogFactor`, `mixColor` |
+| `tests/unit/raycaster.test.js` | distances DDA, anti fish-eye, angles alignés, `projectColumn`, `fogFactor`, `FOG_DISTANCE`, `mixColor` |
 | `tests/unit/wall-textures.test.js` | `generateWallTexture` (couleurs, déterminisme, joint de bord, erreurs), `shadeTexture`, `textureIndexForTile` (répartition, reproductibilité), `textureColumn`, `textureSlice`, clés `texture*` de `PALETTE` |
-| `tests/unit/surface-textures.test.js` | `generateSurfaceTexture` (couleurs, déterminisme, joints, erreurs), `surfaceBufferSize`, `surfaceRowDistance`, `castSurfaces` (remplissage, brouillard, mapping, translation entière, erreurs), clés `floor*` / `ceiling*` de `PALETTE` |
+| `tests/unit/surface-textures.test.js` | `generateSurfaceTexture` (couleurs, déterminisme, joints, erreurs), `surfaceBufferSize`, `surfaceRowDistance`, `castSurfaces` (remplissage, brouillard, portée `fogDistance`, mapping, translation entière, erreurs), clés `floor*` / `ceiling*` de `PALETTE` |
 | `tests/unit/automap.test.js` | `createExploredMask`, `revealVisibleTiles` (voisines, couloir, murs, portée, idempotence, erreurs), `automapLayout` (mini, plein écran, petits canvas), clés `automap*` de `PALETTE` |
 | `tests/functional/fps-automap.test.js` | exploration le long du parcours BFS : tuiles traversées marquées, labyrinthe non entièrement révélé |
 | `tests/unit/sprites.test.js` | projection (cohérence avec `castRays`, tri, exclusions), `worldSize` par sprite |
 | `tests/unit/i18n.test.js` | clés `fps.*` (dont `fps.goal`), `end.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
 | `tests/functional/static-server.test.js` | modules `game/`, `render/` et `audio/` FPS servis (dont sortie, état de partie, `render/monster-sprite.js`, `audio/bong.js`, `audio/monster-cries.js` et `audio/monster-audio.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
-| `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné |
+| `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné, option `fogDistance` (voile plus fort si plus courte, valeur invalide = défaut) |
+| `tests/unit/difficulty.test.js` | `DIFFICULTY`, `DIFFICULTY_IDS`, `DIFFICULTY_SETTINGS` (gel profond, clés, « Normal » = `MONSTER` et `FOG_DISTANCE`, marche < traque < course, ordre des niveaux), `isDifficulty` (liste blanche, noms de prototype), `difficultySettings` (erreurs), contrat de graine (même apparition aux trois niveaux) |
 | `tests/unit/pathfinding.test.js` | `tileDistances`, `pathDistance`, `shortestPath` (couloir, pièce séparée, chemin contigu, déterminisme, gel, erreurs), `cellToTile`, `tileAt` |
 | `tests/unit/exit.test.js` | `findExit` (plusieurs graines et tailles, jamais (0, 0), distance maximale parmi les culs-de-sac, préférence cul-de-sac, repli sans cul-de-sac, règle d'égalité, gel, erreurs), `isAtExit` |
 | `tests/unit/game-state.test.js` | `createGameState`, `checkVictory`, `declareDefeat` (premier état final l'emporte, même référence), `isGameOver`, erreurs |

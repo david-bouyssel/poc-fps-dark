@@ -1,5 +1,5 @@
 import { PALETTE } from './palette.js';
-import { castRays, fogFactor, mixColor, projectColumn } from './raycaster.js';
+import { FOG_DISTANCE, castRays, fogFactor, mixColor, projectColumn } from './raycaster.js';
 import {
   SIDE_SHADE,
   TEXTURE_SIZE,
@@ -115,14 +115,18 @@ let spriteScratch = null;
  * exitGlow mélangé vers fog. Échec de la texture de sortie : murs normaux, sans exception.
  * Danger (options.danger, 0..1, défaut 0) : vignette rouge sur les bords, dessinée en dernier
  * (par-dessus les sprites). Voir drawDangerVignette.
+ * Brouillard (options.fogDistance, tuiles) : portée commune aux murs, au sol, au plafond et
+ * aux sprites. Absente, non finie ou <= 0 : FOG_DISTANCE, sans exception.
  * @param {{ palette?: object, exit?: { tx: number, ty: number },
  *           sprites?: ReadonlyArray<{ x: number, y: number, kind: string, worldSize?: number }>,
- *           spriteImages?: ReadonlyMap<string, CanvasImageSource>, danger?: number }} [options]
+ *           spriteImages?: ReadonlyMap<string, CanvasImageSource>, danger?: number,
+ *           fogDistance?: number }} [options]
  *        sprites : défaut [] ; spriteImages : défaut aucune image
  * @throws {TypeError} grid ou player mal formé (voir castRays)
  */
 export function drawFpsView(canvas, grid, player, options = {}) {
   const palette = { ...PALETTE, ...(options.palette ?? {}) };
+  const fogDistance = resolveFogDistance(options.fogDistance);
 
   const container = canvas.parentElement;
   const cssWidth = Math.max(
@@ -162,7 +166,7 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   const columnCount = Math.max(1, Math.ceil(cssWidth / COLUMN_WIDTH));
   const hits = castRays(grid, player, columnCount);
 
-  if (!drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight)) {
+  if (!drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight, fogDistance)) {
     drawFlatSurfaces(ctx, palette, cssWidth, cssHeight);
   }
 
@@ -172,15 +176,30 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   const textures = getWallTextures(canvas, palette);
   if (textures) {
     const exitImage = exit ? getExitTexture(canvas, palette) : null;
-    drawTexturedWalls(ctx, hits, player, textures, palette, cssWidth, cssHeight, exit, exitImage);
+    drawTexturedWalls(
+      ctx, hits, player, textures, palette, cssWidth, cssHeight, exit, exitImage, fogDistance,
+    );
   } else {
-    drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit);
+    drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit, fogDistance);
   }
 
   // Sprites last: drawn over the walls, hidden column by column by the wall distances.
-  drawSprites(ctx, hits, player, options.sprites, options.spriteImages, cssWidth, cssHeight, palette.fog);
+  drawSprites(
+    ctx, hits, player, options.sprites, options.spriteImages, cssWidth, cssHeight, palette.fog,
+    fogDistance,
+  );
 
   drawDangerVignette(ctx, options.danger, palette.dangerVignette, cssWidth, cssHeight);
+}
+
+/**
+ * Portée du brouillard effective : la valeur si c'est un nombre fini > 0, sinon FOG_DISTANCE.
+ * Ne lève jamais.
+ * @param {unknown} value
+ * @returns {number}
+ */
+function resolveFogDistance(value) {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : FOG_DISTANCE;
 }
 
 /**
@@ -220,7 +239,9 @@ function drawDangerVignette(ctx, danger, color, cssWidth, cssHeight) {
  * dans la Map, mal formé ou de worldSize invalide est ignoré ; sans sprites ou sans Map,
  * rien n'est dessiné.
  */
-function drawSprites(ctx, hits, player, sprites, images, cssWidth, cssHeight, fogColor) {
+function drawSprites(
+  ctx, hits, player, sprites, images, cssWidth, cssHeight, fogColor, fogDistance,
+) {
   if (!Array.isArray(sprites) || sprites.length === 0) {
     return;
   }
@@ -232,7 +253,7 @@ function drawSprites(ctx, hits, player, sprites, images, cssWidth, cssHeight, fo
     const projected = projectSprites(drawable, player, cssWidth, cssHeight);
     for (const sprite of projected) {
       const image = images.get(sprite.kind);
-      drawSprite(ctx, hits, sprite, image, cssWidth, fogColor);
+      drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance);
     }
   } catch {
     // Canvas failure or invalid player: the frame stays without sprites.
@@ -322,7 +343,7 @@ function fogTintSprite(ctx, image, fog, fogColor) {
   return canvas;
 }
 
-function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor) {
+function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance) {
   const { depth, left, right, top, bottom, size } = sprite;
   if (!(size > 0) || !(bottom > top)) {
     return;
@@ -335,7 +356,7 @@ function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor) {
   }
   const firstColumn = Math.max(0, Math.floor(left / COLUMN_WIDTH));
   const lastColumn = Math.min(hits.length - 1, Math.ceil(right / COLUMN_WIDTH) - 1);
-  const source = fogTintSprite(ctx, image, fogFactor(depth), fogColor) ?? image;
+  const source = fogTintSprite(ctx, image, fogFactor(depth, { fogDistance }), fogColor) ?? image;
   ctx.globalAlpha = 1;
   for (let column = firstColumn; column <= lastColumn; column++) {
     if (!isSpriteColumnVisible(depth, hits[column])) {
@@ -366,7 +387,7 @@ function drawFlatSurfaces(ctx, palette, cssWidth, cssHeight) {
 }
 
 /** Dessine sol et plafond texturés. Renvoie false (sans lever) si le repli est requis. */
-function drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight) {
+function drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight, fogDistance) {
   try {
     const textures = getSurfaceTextures(palette);
     if (!textures) {
@@ -376,7 +397,10 @@ function drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight)
     if (!buffer || buffer.failed) {
       return false;
     }
-    castSurfaces(buffer.imageData.data, buffer.width, buffer.height, player, textures, palette.fog);
+    castSurfaces(
+      buffer.imageData.data, buffer.width, buffer.height, player, textures, palette.fog, undefined,
+      fogDistance,
+    );
     buffer.context.putImageData(buffer.imageData, 0, 0);
     ctx.drawImage(buffer.canvas, 0, 0, buffer.width, buffer.height, 0, 0, cssWidth, cssHeight);
     return true;
@@ -438,6 +462,7 @@ function getSurfaceBuffer(canvas, cssWidth, cssHeight) {
 
 function drawTexturedWalls(
   ctx, hits, player, textures, palette, cssWidth, cssHeight, exit = null, exitImage = null,
+  fogDistance = FOG_DISTANCE,
 ) {
   for (let column = 0; column < hits.length; column++) {
     const hit = hits[column];
@@ -454,7 +479,7 @@ function drawTexturedWalls(
     // The fog veil of the previous column leaves globalAlpha below 1: reset it so the wall is opaque.
     ctx.globalAlpha = 1;
     ctx.drawImage(image, texX, srcY, 1, srcHeight, x, top, width, bottom - top);
-    const fog = fogFactor(hit.distance) * (isExit ? EXIT_FOG_SCALE : 1);
+    const fog = fogFactor(hit.distance, { fogDistance }) * (isExit ? EXIT_FOG_SCALE : 1);
     if (fog > 0) {
       ctx.globalAlpha = fog;
       ctx.fillStyle = palette.fog;
@@ -465,7 +490,9 @@ function drawTexturedWalls(
   ctx.globalAlpha = 1;
 }
 
-function drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit = null) {
+function drawFlatWalls(
+  ctx, hits, player, palette, cssWidth, cssHeight, exit = null, fogDistance = FOG_DISTANCE,
+) {
   for (let column = 0; column < hits.length; column++) {
     const hit = hits[column];
     const { top, bottom } = projectColumn(hit.distance, cssHeight);
@@ -474,7 +501,9 @@ function drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit = n
     }
     const isExit = exit !== null && isExitFace(hit, player, exit);
     const base = isExit ? palette.exitGlow : (hit.side === 'x' ? palette.wallLight : palette.wallDark);
-    let color = mixColor(base, palette.fog, fogFactor(hit.distance) * (isExit ? EXIT_FOG_SCALE : 1));
+    let color = mixColor(
+      base, palette.fog, fogFactor(hit.distance, { fogDistance }) * (isExit ? EXIT_FOG_SCALE : 1),
+    );
     if (!isExit && (hit.wallX < EDGE_LOW || hit.wallX > EDGE_HIGH)) {
       color = mixColor(color, EDGE_SHADE_COLOR, EDGE_SHADE);
     }

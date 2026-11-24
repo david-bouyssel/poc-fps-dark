@@ -3,7 +3,9 @@
 // Seed contract: the spawn cell and the wandering of a given seed depend on
 // MONSTER_SEED_SALT, on the candidate order (increasing tile index, row by row), on
 // NEIGHBOR_OFFSETS and on the draw order below. Changing any of them changes the monster
-// of a shared seed, never its maze.
+// of a shared seed, never its maze. The difficulty (src/game/difficulty.js, plan
+// docs/design/difficulte.md §3) changes neither the spawn tile nor rngState, only
+// graceRemaining (and the chase / sight settings).
 //
 // Cost: one BFS (at most 16 641 tiles for a 64 x 64 maze) per arrival on a tile, about
 // 3.4 BFS/s while chasing. Never one BFS per frame, except when the monster waits on the

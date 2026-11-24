@@ -9,7 +9,7 @@ import { fr } from '../../src/i18n/fr.js';
 const translate = (k) => fr[k];
 
 const ELEMENT_IDS = [
-  'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'new-maze-button', 'maze-info',
+  'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'maze-difficulty', 'new-maze-button', 'maze-info',
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'sound-toggle-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'end-stat-time', 'end-stat-explored', 'end-stat-distance', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
@@ -86,6 +86,7 @@ function makeElement(id) {
   return el;
 }
 const elements = new Map(ELEMENT_IDS.map((id) => [id, makeElement(id)]));
+elements.get('maze-difficulty').value = 'normal';
 fakeDocument.getElementById = (id) => elements.get(id) ?? null;
 const el = (id) => elements.get(id);
 const soundButton = () => el('sound-toggle-button');

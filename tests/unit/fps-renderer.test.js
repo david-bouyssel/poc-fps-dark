@@ -458,3 +458,68 @@ describe('drawFpsView : vignette de danger (option danger)', () => {
     for (const op of wallDraws) assert.equal(op.globalAlpha, 1);
   });
 });
+
+// --- Difficulté (plan docs/design/difficulte.md §6, test 13) : option fogDistance ---
+
+/** Voiles de brouillard des murs (fillRect à palette.fog), indexés par x. */
+function fogVeils(fogDistance, withOption = true) {
+  const env = makeEnv();
+  const palette = uniquePalette();
+  const options = withOption ? { palette, fogDistance } : { palette };
+  drawFpsView(env.canvas, grid, player, options);
+  const walls = wallImagesOf(env.created);
+  const wallDraws = env.sequence.filter((op) => op.kind === 'draw' && walls.has(op.image));
+  const veils = new Map();
+  for (const op of env.sequence) {
+    if (op.kind === 'fill' && op.fillStyle === palette.fog) veils.set(op.args[0], op.globalAlpha);
+  }
+  return { veils, wallDraws, env };
+}
+
+describe('drawFpsView : option fogDistance', () => {
+  test('portée plus courte : voile de chaque mur au moins aussi fort, plus fort au total', () => {
+    const base = fogVeils(undefined, false).veils;
+    const short = fogVeils(4.5).veils;
+    assert.ok(base.size > 0);
+    let stronger = 0;
+    for (const [x, alpha] of base) {
+      assert.ok(short.has(x), `voile absent en x=${x} avec portée 4.5`);
+      assert.ok(short.get(x) >= alpha - 1e-12, `x=${x} : ${short.get(x)} < ${alpha}`);
+      if (short.get(x) > alpha + 1e-9) stronger++;
+    }
+    assert.ok(stronger > 0, 'aucun voile plus fort avec une portée plus courte');
+  });
+
+  test('portée plus longue : voiles plus faibles', () => {
+    const base = fogVeils(undefined, false).veils;
+    const long = fogVeils(8).veils;
+    let weaker = 0;
+    for (const [x, alpha] of base) {
+      if (long.has(x)) {
+        assert.ok(long.get(x) <= alpha + 1e-12, `x=${x}`);
+        if (long.get(x) < alpha - 1e-9) weaker++;
+      } else {
+        weaker++;
+      }
+    }
+    assert.ok(weaker > 0);
+  });
+
+  test('valeur invalide : aucune exception, même résultat que la valeur par défaut', () => {
+    const base = [...fogVeils(undefined, false).veils];
+    for (const v of [0, -2, NaN, Infinity, -Infinity, '4', null, {}]) {
+      let got;
+      assert.doesNotThrow(() => { got = fogVeils(v).veils; }, String(v));
+      assert.deepEqual([...got], base, `fogDistance=${String(v)}`);
+    }
+    assert.deepEqual([...fogVeils(6).veils], base, 'FOG_DISTANCE explicite');
+  });
+
+  test('globalAlpha === 1 pour chaque tranche de mur, quelle que soit la portée', () => {
+    for (const v of [4.5, 6, 8, 0.5, 50]) {
+      const { wallDraws } = fogVeils(v);
+      assert.ok(wallDraws.length >= 2, `fogDistance=${v}`);
+      for (const op of wallDraws) assert.equal(op.globalAlpha, 1, `fogDistance=${v}`);
+    }
+  });
+});

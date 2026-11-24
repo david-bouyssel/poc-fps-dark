@@ -42,7 +42,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [x] **Bouton « Couper le son »** [courte] : aucun réglage du son aujourd'hui. Ajouter
   une bascule (bouton et touche) qui coupe le lecteur, sans stockage : l'état est perdu au
   rechargement.
-- [ ] **Difficulté** [complète] : choix « Facile / Normal / Cauchemar » dans le formulaire.
+- [x] **Difficulté** [complète] : choix « Facile / Normal / Cauchemar » dans le formulaire.
   Il agit sur `MONSTER` (vitesse de traque, seuil de traque, durée de grâce, portée de
   vue) et sur la portée du brouillard. La graine et le labyrinthe ne changent pas.
 - [ ] **Tourner à la souris** [complète] : Pointer Lock en vue FPS, sensibilité fixe,

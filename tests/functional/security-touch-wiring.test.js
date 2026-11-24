@@ -5,7 +5,7 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 const ELEMENT_IDS = [
-  'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'new-maze-button', 'maze-info',
+  'maze-form', 'maze-width', 'maze-height', 'maze-seed', 'maze-difficulty', 'new-maze-button', 'maze-info',
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'sound-toggle-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
@@ -82,6 +82,7 @@ function pointerEvent(target, pointerId) {
 }
 
 const elements = new Map(ELEMENT_IDS.map((id) => [id, makeElement(id)]));
+elements.get('maze-difficulty').value = 'normal';
 const fakeWindow = makeHost();
 const fakeDocument = {
   ...makeHost(), title: '', hidden: false, activeElement: null,

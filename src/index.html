@@ -27,6 +27,14 @@
           <label for="maze-seed" data-i18n="form.seed"></label>
           <input id="maze-seed" name="seed" type="number" step="1">
         </div>
+        <div class="field field-difficulty">
+          <label for="maze-difficulty" data-i18n="form.difficulty"></label>
+          <select id="maze-difficulty" name="difficulty">
+            <option value="easy" data-i18n="difficulty.easy"></option>
+            <option value="normal" data-i18n="difficulty.normal" selected></option>
+            <option value="nightmare" data-i18n="difficulty.nightmare"></option>
+          </select>
+        </div>
         <div class="buttons">
           <button id="generate-button" type="submit" class="button button-primary" data-i18n="form.generate"></button>
           <button id="new-maze-button" type="button" class="button button-secondary" data-i18n="form.newMaze"></button>

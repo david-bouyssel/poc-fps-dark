@@ -345,3 +345,57 @@ describe('castSurfaces', () => {
     assert.throws(() => castSurfaces(target, 4, 4, player, textures, PALETTE.fog, Math.PI), RangeError);
   });
 });
+
+// --- Difficulté (plan docs/design/difficulte.md §6, test 12) : portée fogDistance ---
+import { FOG_DISTANCE } from '../../src/render/raycaster.js';
+
+describe('castSurfaces : portée du brouillard (fogDistance)', () => {
+  const textures = {
+    floor: generateSurfaceTexture('floor', PALETTE),
+    ceiling: generateSurfaceTexture('ceiling', PALETTE),
+  };
+  const player = { x: 2.5, y: 2.5, angle: 0.4 };
+  const W = 32;
+  const H = 40;
+  const FOG = '#000000';
+  const cast = (...extra) => {
+    const target = new Uint8ClampedArray(W * H * 4);
+    castSurfaces(target, W, H, player, textures, FOG, ...extra);
+    return target;
+  };
+  /** Somme des composantes RGB d'une ligne (fogColor noir : plus petit = plus proche du brouillard). */
+  const rowSum = (buf, row) => {
+    let s = 0;
+    for (let x = 0; x < W; x++) {
+      const i = (row * W + x) * 4;
+      s += buf[i] + buf[i + 1] + buf[i + 2];
+    }
+    return s;
+  };
+
+  test('sans fogDistance : même tampon qu\'avec FOG_DISTANCE explicite', () => {
+    assert.deepEqual(Array.from(cast()), Array.from(cast(undefined, FOG_DISTANCE)));
+  });
+
+  test('portée plus courte : une ligne lointaine est plus proche de fogColor', () => {
+    const base = cast();
+    const short = cast(undefined, 4.5);
+    const long = cast(undefined, 8);
+    // Ligne proche de l'horizon côté sol (lointaine) mais avant le noir total à 4.5.
+    let row = -1;
+    for (let r = H - 1; r > H / 2; r--) {
+      const d = surfaceRowDistance(r, H);
+      if (d > 2 && d < 4) { row = r; break; }
+    }
+    assert.ok(row > 0, 'aucune ligne à distance 2..4');
+    assert.ok(rowSum(short, row) < rowSum(base, row), 'portée 4.5 pas plus sombre que 6');
+    assert.ok(rowSum(long, row) > rowSum(base, row), 'portée 8 pas plus claire que 6');
+  });
+
+  test('fogDistance 0, négatif, NaN, Infinity ou non nombre -> RangeError', () => {
+    for (const v of [0, -1, NaN, Infinity, -Infinity]) {
+      assert.throws(() => cast(undefined, v), RangeError, String(v));
+    }
+    assert.throws(() => cast(undefined, '6'), RangeError);
+  });
+});

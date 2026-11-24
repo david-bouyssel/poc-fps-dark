@@ -30,6 +30,7 @@ import {
 } from './game/pause.js';
 import { createMonster, isCatching, monsterSprite, stepMonster } from './game/monster.js';
 import { dangerLevel } from './game/danger.js';
+import { DEFAULT_DIFFICULTY, difficultySettings, isDifficulty } from './game/difficulty.js';
 import {
   advanceStats,
   createRoundStats,
@@ -64,6 +65,7 @@ const form = document.getElementById('maze-form');
 const widthInput = document.getElementById('maze-width');
 const heightInput = document.getElementById('maze-height');
 const seedInput = document.getElementById('maze-seed');
+const difficultySelect = document.getElementById('maze-difficulty');
 const newMazeButton = document.getElementById('new-maze-button');
 const infoElement = document.getElementById('maze-info');
 const errorElement = document.getElementById('maze-error');
@@ -119,6 +121,8 @@ let mapMode = AUTOMAP_MODE.MINI;
 let pauseState = createPauseState();
 /** Bilan de la manche courante (RoundStats gelé) : temps et distance, remis à zéro par startRound(). */
 let roundStats = createRoundStats();
+/** Réglages de difficulté de la manche courante (monstre, brouillard), fixés par startRound(). */
+let roundSettings = difficultySettings(DEFAULT_DIFFICULTY);
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
 /** Doigts posés sur les boutons tactiles (TouchState gelé, remplacé à chaque changement). */
@@ -151,7 +155,7 @@ const gameLoop = createGameLoop({
     // (reaching the exit at the moment of contact is a victory).
     gameState = checkVictory(gameState, player, currentExit);
     if (!isGameOver(gameState)) {
-      const step = stepMonster(monster, player, dt, currentGrid);
+      const step = stepMonster(monster, player, dt, currentGrid, roundSettings.monster);
       monster = step.monster;
       const bongGainValue = selectBongGain(step.events);
       if (bongGainValue > 0) {
@@ -201,6 +205,16 @@ function randomSeed() {
   const buffer = new Uint32Array(1);
   crypto.getRandomValues(buffer);
   return buffer[0];
+}
+
+/**
+ * Niveau choisi dans le formulaire : la valeur du <select> si c'est un niveau connu, sinon
+ * DEFAULT_DIFFICULTY. Ne lève jamais.
+ * @returns {string} valeur de DIFFICULTY
+ */
+function readDifficulty() {
+  const value = difficultySelect.value;
+  return isDifficulty(value) ? value : DEFAULT_DIFFICULTY;
 }
 
 function showError(key, params) {
@@ -256,6 +270,7 @@ function drawFpsFrame() {
     sprites: [monsterFrameSprite(monsterSprite(monster), frame)],
     spriteImages: monsterImages,
     danger: currentDanger(),
+    fogDistance: roundSettings.fogDistance,
   });
   drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
 }
@@ -335,6 +350,21 @@ function generateFromForm({ forceRandomSeed }) {
   return true;
 }
 
+/**
+ * Changement de niveau en vue de dessus : la manche en cours est abandonnée (comme après
+ * « Générer »), le labyrinthe, la graine et la sortie restent. Le prochain « Explorer en 3D »
+ * démarre une manche neuve au nouveau niveau. Un changement forgé en FPS est ignoré.
+ */
+function onDifficultyChange() {
+  if (viewMode !== VIEW_TOP || player === null || currentGrid === null) {
+    return;
+  }
+  player = null;
+  monster = null;
+  gameState = createGameState();
+  explored = createExploredMask(currentGrid);
+}
+
 function onResize() {
   if (resizeFrame) {
     return;
@@ -354,15 +384,19 @@ function onResize() {
 function startRound() {
   let nextPlayer;
   let nextMonster;
+  const settings = difficultySettings(readDifficulty());
   try {
     nextPlayer = createPlayer(currentGrid);
-    nextMonster = createMonster(currentGrid, currentMaze.seed, { exit: currentExit });
+    nextMonster = createMonster(
+      currentGrid, currentMaze.seed, { exit: currentExit }, settings.monster,
+    );
   } catch {
     showError('errors.round');
     return false;
   }
   player = nextPlayer;
   monster = nextMonster;
+  roundSettings = settings;
   monsterClock = 0;
   explored = createExploredMask(currentGrid);
   roundStats = createRoundStats();
@@ -703,6 +737,7 @@ function init() {
   newMazeButton.addEventListener('click', () => {
     generateFromForm({ forceRandomSeed: true });
   });
+  difficultySelect.addEventListener('change', onDifficultyChange);
   window.addEventListener('resize', onResize);
 
   fpsEnterButton.addEventListener('click', enterFps);

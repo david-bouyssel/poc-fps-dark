@@ -279,3 +279,53 @@ test('pause : index.html référence pause.title, pause.resume, touch.pause et t
   }
   assert.match(html, /data-i18n-aria-label=["']touch\.pauseLabel["']/);
 });
+
+// --- Difficulté (plan docs/design/difficulte.md §5 et §6, tests 14 et 15) ---
+import { DIFFICULTY_IDS } from '../../src/game/difficulty.js';
+
+const EXPECTED_DIFFICULTY = {
+  'form.difficulty': 'Difficulté',
+  'difficulty.easy': 'Facile',
+  'difficulty.normal': 'Normal',
+  'difficulty.nightmare': 'Cauchemar',
+};
+
+function readIndexHtml() {
+  return readFileSync(fileURLToPath(new URL('../../src/index.html', import.meta.url)), 'utf8');
+}
+
+test('difficulté : 4 clés avec les textes du plan, info.current inchangé', () => {
+  for (const [key, text] of Object.entries(EXPECTED_DIFFICULTY)) {
+    assert.equal(fr[key], text, key);
+    assert.equal(t(key), text, key);
+  }
+  assert.equal(fr['info.current'], 'Graine : {seed} — {width} × {height}');
+});
+
+test('difficulté : index.html référence form.difficulty et les 3 difficulty.* via data-i18n', () => {
+  const html = readIndexHtml();
+  for (const key of Object.keys(EXPECTED_DIFFICULTY)) {
+    assert.match(html, new RegExp(`data-i18n=["']${key.replace('.', '\.')}["']`), key);
+  }
+  assert.match(html, /<label[^>]*for=["']maze-difficulty["'][^>]*data-i18n=["']form\.difficulty["']/);
+});
+
+test('difficulté : <option> de #maze-difficulty = DIFFICULTY_IDS dans l\'ordre, normal selected', () => {
+  const html = readIndexHtml();
+  const m = html.match(/<select[^>]*id=["']maze-difficulty["'][^>]*>([\s\S]*?)<\/select>/);
+  assert.ok(m, 'select #maze-difficulty absent');
+  const options = [...m[1].matchAll(/<option\b([^>]*)>([^<]*)<\/option>/g)];
+  const values = options.map((o) => o[1].match(/value=["']([^"']*)["']/)[1]);
+  assert.deepEqual(values, [...DIFFICULTY_IDS]);
+  const selected = options.filter((o) => /\sselected\b/.test(o[1]));
+  assert.equal(selected.length, 1, 'une seule option selected');
+  assert.match(selected[0][1], /value=["']normal["']/);
+  for (const o of options) assert.equal(o[2].trim(), '', 'texte en dur dans une <option>');
+  // Placé dans #maze-form, après la graine, avant les boutons.
+  const form = html.indexOf('id="maze-form"');
+  const seed = html.indexOf('id="maze-seed"');
+  const select = html.indexOf('id="maze-difficulty"');
+  const buttons = html.indexOf('class="buttons"');
+  assert.ok(form >= 0 && form < seed && seed < select, 'select avant la graine ou hors formulaire');
+  if (buttons >= 0) assert.ok(select < buttons, 'select après .buttons');
+});
