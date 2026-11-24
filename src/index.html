@@ -61,12 +61,20 @@
             <button id="end-new-maze-button" type="button" class="button button-secondary" data-i18n="end.newMaze"></button>
           </div>
         </div>
+        <div id="pause-screen" class="pause-screen" role="dialog" aria-modal="false" aria-labelledby="pause-title" aria-describedby="pause-message" hidden>
+          <h2 id="pause-title" class="end-title" data-i18n="pause.title"></h2>
+          <p id="pause-message" class="end-message"></p>
+          <div class="buttons end-buttons">
+            <button id="resume-button" type="button" class="button button-primary" data-i18n="pause.resume"></button>
+          </div>
+        </div>
       </div>
       <div id="touch-pad-actions" class="touch-pad touch-pad-actions" role="group" data-i18n-aria-label="touch.actionGroup" hidden>
         <button type="button" class="touch-button" data-action="strafeLeft" data-i18n="touch.strafeLeft" data-i18n-aria-label="touch.strafeLeftLabel"></button>
         <button type="button" class="touch-button" data-action="strafeRight" data-i18n="touch.strafeRight" data-i18n-aria-label="touch.strafeRightLabel"></button>
         <button type="button" class="touch-button" data-action="run" data-i18n="touch.run" data-i18n-aria-label="touch.runLabel"></button>
         <button type="button" class="touch-button" data-action="toggleMap" data-i18n="touch.map" data-i18n-aria-label="touch.mapLabel"></button>
+        <button type="button" class="touch-button" data-action="pause" data-i18n="touch.pause" data-i18n-aria-label="touch.pauseLabel"></button>
       </div>
       </div>
     </main>

@@ -201,8 +201,9 @@ body {
 }
 
 
-/* End-of-round screen, overlaid on the canvas inside .stage. */
-.end-screen {
+/* End-of-round and pause screens, overlaid on the canvas inside .stage. */
+.end-screen,
+.pause-screen {
   position: absolute;
   inset: 0;
   z-index: 1;
@@ -275,6 +276,11 @@ body {
 
 .touch-pad-actions {
   grid-template-columns: repeat(2, minmax(56px, auto));
+}
+
+/* Fifth action button: full row, so the pad stays a 2-column grid. */
+.touch-pad-actions [data-action="pause"] {
+  grid-column: 1 / -1;
 }
 
 .touch-button {

@@ -25,7 +25,10 @@ DOM se vérifient manuellement (voir plus bas).
   `#end-screen` (HTML, à juger sur le `screenshot`).
 - Entrées (`KeyboardEvent.code`) : `KeyW`/`ArrowUp` avancer, `KeyS`/`ArrowDown` reculer,
   `KeyQ`/`ArrowLeft` et `KeyE`/`ArrowRight` tourner, `KeyA`/`KeyD` pas de côté,
-  `ShiftLeft` courir, `KeyM` carte plein écran, `Escape` retour à la vue de dessus.
+  `ShiftLeft` courir, `KeyM` carte plein écran, `KeyP` pause / reprise (`#pause-screen`,
+  HTML), `Escape` retour à la vue de dessus. Si le navigateur piloté perd le focus, la
+  manche se met en pause (`blur`) : vérifier que `#pause-screen` est masqué avant de
+  juger un critère, un `KeyP` le referme.
 
 - Gestes tactiles (viewport 375 x 812, ou 812 x 375 en paysage) : `javascript_tool` envoie
   un `PointerEvent` (`pointerType: 'touch'`, `pointerId` fixe, `bubbles: true`) sur un
@@ -84,6 +87,8 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/monster-cries.test.js` | constantes `CRY`, `SLURP`, `CRY_SYNTH`, `SLURP_SYNTH` (gel, `SPOT_EVENT_TYPE` égal à `MONSTER_EVENT.SPOT`), cri aigu (>= 1000 Hz jusqu'à 0.35 s, >= 500 Hz partout), sluuurp grave (fin <= 100 Hz, coupure décroissante), durées, `cryGain`, `selectCryGain`, `crySchedule` et `slurpSchedule` (voix, invariants, vibrato, filtres, gel, erreurs) |
 | `tests/functional/fps-monster-cries.test.js` | simulation de `update` et `endRound` : un seul cri au début de la traque, défaite -> sluuurp sans `suspend` immédiat puis `SUSPENDED`, victoire -> `suspend` sans sluuurp, « Rejouer » et sortie FPS pendant le sluuurp |
 | `tests/functional/fps-bong.test.js` | simulation de `update` : premier bong à la fin de la grâce, gains croissants à l'approche, silence au-delà de la portée, cycle `resume`/`suspend` (entrée, sortie, retour, fin de partie) |
+| `tests/unit/pause.test.js` | `PAUSE_REASON` (gel, 3 valeurs), `createPauseState`, `pauseGame` (première raison conservée, même référence), `resumeGame`, `isPaused`, `canPause` (pause, `WON`, `LOST`), erreurs |
+| `tests/functional/fps-pause.test.js` | simulation de la boucle : monstre figé et premier `dt` nul à la reprise, pas de défaite en pause, `suspend`/`resume` une seule fois, pas de pause en fin de partie, reprise déterministe, câblage de `main.js` (source : `blur`, `visibilitychange`, `startRound`, `exitFps`) |
 | `tests/functional/fps-monster-appearance.test.js` | sans DOM (faux canvas) : monstre derrière un mur non dessiné par `drawFpsView`, image dessinée = image de `monsterFrame`, grâce -> `monster-0`, aucun monstre dans `drawAutomap` ni `drawMaze` (source de `main.js`) |
 
 Dans `fps-renderer.js`, seul l'état `globalAlpha` du dessin des murs texturés est
@@ -128,8 +133,15 @@ Q E) ; murs infranchissables, glissement le long des murs ; les flèches ne font
 défiler la page ; Ctrl+R / Ctrl+L fonctionnent ; Échap et le bouton « Revenir à la vue
 de dessus » reviennent à la vue de dessus (même labyrinthe) ; réentrée à la même
 position ; « Nouveau labyrinthe » puis « Explorer en 3D » -> départ réinitialisé ;
-Alt+Tab en marchant -> pas de touche collée ; redimensionnement en FPS -> image nette,
+Alt+Tab en marchant -> pas de touche collée et manche en pause au retour ; redimensionnement en FPS -> image nette,
 sans déformation ; fluidité correcte en 64x64 ; console sans erreur.
+
+Pause (vue FPS) : `P` met en pause (écran « En pause ») et coupe le son ; `P` reprend et
+les bongs reviennent ; Alt+Tab vers une autre fenêtre visible -> manche en pause au
+retour ; changement d'onglet -> manche en pause au retour, muette jusqu'à la reprise ;
+Échap en pause -> vue de dessus, réentrée hors pause ; Tab en pause atteint
+« Reprendre » ; le bouton tactile « Pause » met en pause et reprend ; console sans
+erreur.
 
 Textures des murs (vue FPS) : murs texturés (briques majoritaires, quelques lames, pois
 et cœurs) ; faces est/ouest plus claires que nord/sud ; brouillard visible au loin ;

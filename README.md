@@ -33,10 +33,13 @@ Commandes en vue FPS (touches physiques : AZERTY et QWERTY) :
 | Pas de côté | Q D |
 | Courir | Maj (gauche ou droite) |
 | Carte plein écran (zones explorées) | M (sur AZERTY : la touche M à droite de L) |
+| Pause / reprise | P (ou le bouton « Reprendre ») |
 | Quitter la vue FPS | Échap (ou le bouton « Revenir ») |
 
 Sur écran tactile, des boutons à l'écran reprennent ces actions : ▲ ▼ (avancer, reculer),
-↺ ↻ (tourner), ◀ ▶ (pas de côté), « Courir » et « Carte ».
+↺ ↻ (tourner), ◀ ▶ (pas de côté), « Courir », « Carte » et « Pause ». La partie se met aussi en
+pause quand la fenêtre perd le focus ou que la page est cachée ; la reprise est toujours
+explicite.
 
 | Action | Commande |
 |---|---|

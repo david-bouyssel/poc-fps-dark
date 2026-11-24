@@ -19,11 +19,12 @@ const ELEMENT_IDS = [
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+  'pause-screen', 'pause-message', 'resume-button',
 ];
 /** Éléments masqués au chargement, comme dans src/index.html. */
 const HIDDEN_AT_LOAD = new Set([
   'fps-exit-button', 'fps-help', 'fps-goal', 'end-screen',
-  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch', 'pause-screen',
 ]);
 /** Toute écriture HTML (innerHTML, outerHTML, insertAdjacentHTML) est journalisée ici. */
 const htmlWrites = [];
@@ -248,10 +249,18 @@ describe('sécurité du câblage clavier de main.js (DOM factice)', () => {
       assert.doesNotThrow(() => runFrame(t), `image t=${String(t)}`);
       assert.equal(frames.size, 1, 'une seule image replanifiée');
     }
+    // T6 : perte de focus = pause (boucle arrêtée), aucune reprise au retour visible.
     fakeWindow.dispatch('blur', {});
+    assert.equal(frames.size, 0, 'blur : boucle arrêtée (pause)');
     fakeDocument.hidden = true;
     fakeDocument.dispatch('visibilitychange', {});
     fakeDocument.hidden = false;
+    fakeDocument.dispatch('visibilitychange', {});
+    assert.equal(frames.size, 0, 'retour visible : aucune reprise implicite');
+    assert.equal(elements.get('pause-screen').hidden, false, 'écran de pause affiché');
+    assert.equal(press('keydown', 'KeyP').defaultPrevented, true, 'P reprend');
+    press('keyup', 'KeyP');
+    assert.equal(frames.size, 1, 'reprise explicite : une seule image en attente');
     for (let i = 0; i < 20; i++) runFrame(100 + i * 16);
     assert.equal(frames.size, 1);
     assert.equal(elements.get('maze-error').textContent, '');

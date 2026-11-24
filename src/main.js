@@ -20,6 +20,14 @@ import {
   declareDefeat,
   isGameOver,
 } from './game/game-state.js';
+import {
+  PAUSE_REASON,
+  canPause,
+  createPauseState,
+  isPaused,
+  pauseGame,
+  resumeGame,
+} from './game/pause.js';
 import { createMonster, isCatching, monsterSprite, stepMonster } from './game/monster.js';
 import { drawMaze } from './render/canvas-renderer.js';
 import { drawFpsView } from './render/fps-renderer.js';
@@ -66,6 +74,9 @@ const endTitle = document.getElementById('end-title');
 const endMessage = document.getElementById('end-message');
 const replayButton = document.getElementById('replay-button');
 const endNewMazeButton = document.getElementById('end-new-maze-button');
+const pauseScreen = document.getElementById('pause-screen');
+const pauseMessage = document.getElementById('pause-message');
+const resumeButton = document.getElementById('resume-button');
 
 const VIEW_TOP = 'top';
 const VIEW_FPS = 'fps';
@@ -92,6 +103,8 @@ let viewMode = VIEW_TOP;
 let explored = null;
 /** Mode d'affichage de la carte en FPS. */
 let mapMode = AUTOMAP_MODE.MINI;
+/** État de pause de la manche (PauseState gelé) ; remis à zéro par startRound() et exitFps(). */
+let pauseState = createPauseState();
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
 /** Doigts posés sur les boutons tactiles (TouchState gelé, remplacé à chaque changement). */
@@ -222,13 +235,19 @@ function render() {
   if (viewMode === VIEW_TOP && currentMaze) {
     drawMaze(canvas, currentMaze, { exit: currentExit });
   } else if (viewMode === VIEW_FPS && player !== null && !gameLoop.isRunning()) {
-    // Round over: keep the last frame (and the mini-map) visible under the end screen.
+    // Round over or paused: keep the last frame (and the map) visible under the overlay.
     drawFpsFrame();
   }
 }
 
 function hideEndScreen() {
   endScreen.hidden = true;
+}
+
+/** Sort de pause sans reprendre la boucle : état remis à zéro, écran de pause masqué. */
+function clearPause() {
+  pauseState = createPauseState();
+  pauseScreen.hidden = true;
 }
 
 /**
@@ -319,6 +338,7 @@ function startRound() {
   gameState = createGameState();
   clearHeldActions();
   hideEndScreen();
+  clearPause();
   return true;
 }
 
@@ -341,6 +361,42 @@ function endRound() {
   endMessage.textContent = t(won ? 'end.wonMessage' : 'end.lostMessage');
   endScreen.hidden = false;
   replayButton.focus();
+}
+
+/**
+ * Met la manche en pause (FPS, partie en cours, pas déjà en pause) : boucle arrêtée,
+ * sons suspendus, dernière image dessinée (mode de carte conservé), écran de pause affiché.
+ * @param {string} reason valeur de PAUSE_REASON
+ */
+function pauseRound(reason) {
+  if (viewMode !== VIEW_FPS || !canPause(pauseState, gameState)) {
+    return;
+  }
+  pauseState = pauseGame(pauseState, reason);
+  gameLoop.stop();
+  monsterAudio.suspend();
+  clearHeldActions();
+  drawFpsFrame();
+  const messageKey = reason === PAUSE_REASON.MANUAL ? 'pause.message' : 'pause.messageAuto';
+  pauseMessage.textContent = t(messageKey);
+  pauseScreen.hidden = false;
+  resumeButton.focus();
+}
+
+/**
+ * Reprend la manche en pause. La boucle repart par start() : le premier dt vaut 0, la durée
+ * de la pause n'est jamais intégrée.
+ */
+function resumeRound() {
+  if (viewMode !== VIEW_FPS || !isPaused(pauseState)) {
+    return;
+  }
+  pauseState = resumeGame(pauseState);
+  pauseScreen.hidden = true;
+  clearHeldActions();
+  monsterAudio.resume();
+  gameLoop.start();
+  fpsExitButton.focus();
 }
 
 /** « Rejouer » : manche neuve sur le même labyrinthe (même sortie). */
@@ -414,6 +470,7 @@ function exitFps() {
   document.body.classList.remove('fps-active');
   fpsGoal.hidden = true;
   hideEndScreen();
+  clearPause();
   canvas.setAttribute('aria-label', t('canvas.label'));
   render();
   fpsEnterButton.focus();
@@ -464,13 +521,25 @@ function onTouchPointerDown(event) {
   if (button === null || viewMode !== VIEW_FPS || isGameOver(gameState)) {
     return;
   }
+  const action = touchActionFor(button.dataset.action);
+  // Paused: only the pause button (resume) is handled.
+  if (isPaused(pauseState) && action !== ACTION.PAUSE) {
+    return;
+  }
   event.preventDefault();
   try {
     button.setPointerCapture(event.pointerId);
   } catch {
     // Synthetic or already released pointer: capture is optional.
   }
-  const action = touchActionFor(button.dataset.action);
+  if (action === ACTION.PAUSE) {
+    if (isPaused(pauseState)) {
+      resumeRound();
+    } else {
+      pauseRound(PAUSE_REASON.MANUAL);
+    }
+    return;
+  }
   if (action === ACTION.TOGGLE_MAP) {
     toggleMap();
     return;
@@ -487,6 +556,16 @@ function onTouchPointerEnd(event) {
   }
 }
 
+/** Touches traitées pendant la pause : action -> gestionnaire (event). */
+const PAUSED_KEY_HANDLERS = Object.freeze({
+  [ACTION.PAUSE]: (event) => {
+    if (!event.repeat) {
+      resumeRound();
+    }
+  },
+  [ACTION.EXIT]: () => exitFps(),
+});
+
 function onKeyDown(event) {
   const action = boundKeyDownAction(event);
   if (action === null) {
@@ -497,9 +576,25 @@ function onKeyDown(event) {
   if (isGameOver(gameState) && action !== ACTION.EXIT) {
     return;
   }
+  // Paused: only the keys of PAUSED_KEY_HANDLERS are handled; others keep their default
+  // behaviour (Tab, Enter and Space stay usable on « Reprendre ») and are not held.
+  if (isPaused(pauseState)) {
+    const handler = PAUSED_KEY_HANDLERS[action];
+    if (handler !== undefined) {
+      event.preventDefault();
+      handler(event);
+    }
+    return;
+  }
   event.preventDefault();
   if (action === ACTION.EXIT) {
     exitFps();
+    return;
+  }
+  if (action === ACTION.PAUSE) {
+    if (!event.repeat) {
+      pauseRound(PAUSE_REASON.MANUAL);
+    }
     return;
   }
   if (action === ACTION.TOGGLE_MAP) {
@@ -552,6 +647,7 @@ function init() {
   fpsExitButton.addEventListener('click', exitFps);
   replayButton.addEventListener('click', replay);
   endNewMazeButton.addEventListener('click', newMazeFromEndScreen);
+  resumeButton.addEventListener('click', resumeRound);
   for (const pad of touchPads) {
     pad.addEventListener('pointerdown', onTouchPointerDown);
     pad.addEventListener('pointerup', onTouchPointerEnd);
@@ -563,13 +659,16 @@ function init() {
   window.addEventListener('keyup', onKeyUp);
   window.addEventListener('blur', () => {
     clearHeldActions();
+    pauseRound(PAUSE_REASON.BLUR);
   });
   document.addEventListener('visibilitychange', () => {
     if (document.hidden) {
       clearHeldActions();
       monsterAudio.suspend();
-    } else if (viewMode === VIEW_FPS && !isGameOver(gameState)) {
+      pauseRound(PAUSE_REASON.HIDDEN);
+    } else if (viewMode === VIEW_FPS && !isGameOver(gameState) && !isPaused(pauseState)) {
       // Context already unlocked by the initial gesture; never created here outside FPS.
+      // Paused: nothing restarts, the resume is always explicit.
       monsterAudio.resume();
     }
   });

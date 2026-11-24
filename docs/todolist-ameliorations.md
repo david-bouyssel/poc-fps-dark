@@ -29,7 +29,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 
 ## 2. Gameplay
 
-- [ ] **Pause** [complète] : aucune pause. Si la fenêtre perd le focus mais reste visible
+- [x] **Pause** [complète] : aucune pause. Si la fenêtre perd le focus mais reste visible
   (autre fenêtre au premier plan), `blur` relâche les touches, mais le monstre continue de
   traquer et peut attraper le joueur. Ajouter une pause (touche `P`, bouton tactile), une
   pause automatique sur `blur`, un écran « En pause » et l'arrêt des sons.

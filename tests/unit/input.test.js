@@ -12,6 +12,7 @@ const EXPECTED_ACTION = {
   RUN: 'run',
   EXIT: 'exit',
   TOGGLE_MAP: 'toggleMap',
+  PAUSE: 'pause',
 };
 
 const EXPECTED_BINDINGS = {
@@ -30,6 +31,7 @@ const EXPECTED_BINDINGS = {
   Escape: 'exit',
   KeyM: 'toggleMap',
   Semicolon: 'toggleMap',
+  KeyP: 'pause',
 };
 
 describe('ACTION et KEY_BINDINGS', () => {
@@ -99,6 +101,12 @@ describe('computeIntent', () => {
   test('toggleMap ignoré (intention nulle)', () => {
     assert.deepEqual({ ...intent([ACTION.TOGGLE_MAP]) }, { move: 0, strafe: 0, turn: 0, run: false });
     assert.deepEqual({ ...intent(['forward', ACTION.TOGGLE_MAP]) }, { move: 1, strafe: 0, turn: 0, run: false });
+  });
+
+  test('pause ignoré (intention nulle, plan pause.md §6 cas 9)', () => {
+    assert.equal(actionForCode('KeyP'), 'pause');
+    assert.deepEqual({ ...intent([ACTION.PAUSE]) }, { move: 0, strafe: 0, turn: 0, run: false });
+    assert.deepEqual({ ...intent(['forward', ACTION.PAUSE]) }, { move: 1, strafe: 0, turn: 0, run: false });
   });
 
   test('combinaison complète', () => {

@@ -11,6 +11,7 @@ export const TOUCH_ACTIONS = Object.freeze([
   ACTION.STRAFE_RIGHT,
   ACTION.RUN,
   ACTION.TOGGLE_MAP,
+  ACTION.PAUSE,
 ]);
 
 /** Maximum number of fingers tracked at the same time. */
@@ -50,8 +51,8 @@ export function createTouchState() {
 
 /**
  * A finger lands on a button that holds an action.
- * Same pointerId already present: its action is replaced. TOGGLE_MAP, unknown action,
- * non-integer pointerId or full state: same reference returned.
+ * Same pointerId already present: its action is replaced. TOGGLE_MAP and PAUSE (toggles,
+ * not held), unknown action, non-integer pointerId or full state: same reference returned.
  * @param {TouchState} state
  * @param {number} pointerId
  * @param {string} action
@@ -61,7 +62,7 @@ export function createTouchState() {
 export function pressTouch(state, pointerId, action) {
   assertState(state);
   if (!Number.isInteger(pointerId) || action === ACTION.TOGGLE_MAP
-    || touchActionFor(action) === null) {
+    || action === ACTION.PAUSE || touchActionFor(action) === null) {
     return state;
   }
   const index = state.pointers.findIndex((entry) => entry.pointerId === pointerId);

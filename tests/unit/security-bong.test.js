@@ -818,10 +818,11 @@ const ELEMENT_IDS = [
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+  'pause-screen', 'pause-message', 'resume-button',
 ];
 const HIDDEN_AT_LOAD = new Set([
   'fps-exit-button', 'fps-help', 'fps-goal', 'end-screen',
-  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch', 'pause-screen',
 ]);
 
 function fake2dContext() {
@@ -973,20 +974,28 @@ describe('sécurité : câblage audio de src/main.js (DOM factice)', () => {
     assert.equal(contexts.length, 1, 'double clic : pas de second contexte');
   });
 
-  test('page cachée en FPS : suspendu et aucun bong ; retour visible : repris', () => {
+  test('page cachée en FPS : pause, suspendu, aucun bong ; retour visible : aucune reprise implicite', () => {
     const ctx = contexts[0];
     const suspends = ctx.suspendCalls;
     setHidden(true);
-    assert.equal(ctx.suspendCalls, suspends + 1);
+    assert.ok(ctx.suspendCalls > suspends, 'contexte suspendu');
+    assert.equal(el('pause-screen').hidden, false, 'page cachée = pause (T6)');
+    assert.equal(frames.size, 0, 'boucle arrêtée');
     const oscBefore = ctx.oscillators.length;
-    runFrames(200); // 10 s simulées : grâce écoulée, virages du monstre
+    runFrames(200);
     assert.equal(el('end-screen').hidden, true, 'manche toujours en cours');
     assert.equal(ctx.oscillators.length, oscBefore, 'aucun bong page cachée');
     const resumes = ctx.resumeCalls;
     setHidden(false);
+    assert.equal(ctx.resumeCalls, resumes, 'retour visible en pause : aucune reprise audio');
+    assert.equal(frames.size, 0, 'retour visible en pause : boucle toujours arrêtée');
+    assert.equal(el('pause-screen').hidden, false);
+    // Reprise explicite par « Reprendre » (geste utilisateur).
+    el('resume-button').dispatch('click', {});
     assert.equal(ctx.resumeCalls, resumes + 1);
+    assert.equal(el('pause-screen').hidden, true);
     assert.equal(contexts.length, 1);
-    // Témoin : une fois visible, les bongs reprennent (le contrôle ci-dessus a du sens).
+    // Témoin : une fois repris, les bongs reprennent (le contrôle ci-dessus a du sens).
     for (let i = 0; i < 1200 && ctx.oscillators.length === oscBefore && el('end-screen').hidden; i++) runFrames(50);
     assert.ok(ctx.oscillators.length > oscBefore, 'bongs joués en FPS visible');
   });

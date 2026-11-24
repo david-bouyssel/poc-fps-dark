@@ -17,12 +17,14 @@ import {
 const EXPECTED = [
   ACTION.FORWARD, ACTION.BACKWARD, ACTION.TURN_LEFT, ACTION.TURN_RIGHT,
   ACTION.STRAFE_LEFT, ACTION.STRAFE_RIGHT, ACTION.RUN, ACTION.TOGGLE_MAP,
+  ACTION.PAUSE,
 ];
 
-test('TOUCH_ACTIONS : gelé, 8 actions du plan, sans EXIT', () => {
+test('TOUCH_ACTIONS : gelé, 9 actions du plan (dont PAUSE), sans EXIT', () => {
   assert.ok(Object.isFrozen(TOUCH_ACTIONS));
   const values = Array.isArray(TOUCH_ACTIONS) ? [...TOUCH_ACTIONS] : Object.values(TOUCH_ACTIONS);
-  assert.equal(values.length, 8);
+  assert.equal(values.length, 9);
+  assert.ok(values.includes('pause'));
   assert.deepEqual([...values].sort(), [...EXPECTED].sort());
   assert.ok(!values.includes(ACTION.EXIT));
   for (const v of values) assert.ok(Object.values(ACTION).includes(v), v);
@@ -67,6 +69,7 @@ test('pressTouch : même pointerId remplace l’action, pas de doublon', () => {
 test('pressTouch : entrées invalides renvoient la même référence', () => {
   const s = pressTouch(createTouchState(), 1, ACTION.FORWARD);
   assert.equal(pressTouch(s, 2, ACTION.TOGGLE_MAP), s);
+  assert.equal(pressTouch(s, 2, ACTION.PAUSE), s);
   assert.equal(pressTouch(s, 2, 'exit'), s);
   assert.equal(pressTouch(s, 2, 'nope'), s);
   assert.equal(pressTouch(s, 2, undefined), s);
@@ -138,4 +141,13 @@ test('pureté : pas de DOM, window, performance, Date ; seul import ./input.js',
   }
   const imports = [...code.matchAll(/from\s+['"]([^'"]+)['"]/g)].map((m) => m[1]);
   assert.deepEqual(imports, ['./input.js']);
+});
+
+test('pause (plan pause.md §6 cas 10) : touchActionFor et pressTouch sans état maintenu', () => {
+  assert.equal(touchActionFor('pause'), 'pause');
+  const s0 = createTouchState();
+  assert.equal(pressTouch(s0, 1, 'pause'), s0);
+  const s1 = pressTouch(s0, 1, ACTION.FORWARD);
+  assert.equal(pressTouch(s1, 2, 'pause'), s1);
+  assert.deepEqual([...touchActions(s1)], [ACTION.FORWARD]);
 });

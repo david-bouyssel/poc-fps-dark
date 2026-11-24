@@ -388,10 +388,11 @@ const ELEMENT_IDS = [
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+  'pause-screen', 'pause-message', 'resume-button',
 ];
 const HIDDEN_AT_LOAD = new Set([
   'fps-exit-button', 'fps-help', 'fps-goal', 'end-screen',
-  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
+  'touch-pad-move', 'touch-pad-actions', 'fps-help-touch', 'pause-screen',
 ]);
 const htmlWrites = [];
 const endTitleWrites = [];

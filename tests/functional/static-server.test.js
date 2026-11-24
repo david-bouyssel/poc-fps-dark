@@ -281,3 +281,43 @@ test('tactile : GET / contient les blocs de boutons, un bouton par action tactil
     assert.match(m[0], /data-i18n-aria-label=/);
   }
 });
+
+// --- Pause (plan docs/design/pause.md §4 et §6, cas 18) ---
+
+test('pause : GET /game/pause.js -> 200 text/javascript', async () => {
+  const res = await fetch(`${base}/game/pause.js`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/javascript; charset=utf-8/);
+  assert.ok((await res.text()).includes('pauseGame'));
+});
+
+test('pause : GET / contient pause-screen, resume-button et data-action="pause"', async () => {
+  const body = await (await fetch(`${base}/`)).text();
+  for (const id of ['pause-screen', 'pause-title', 'pause-message', 'resume-button']) {
+    assert.match(body, new RegExp(`id=["']${id}["']`), id);
+  }
+  const tagOf = (id) => body.match(new RegExp(`<[a-z0-9]+[^>]*id=["']${id}["'][^>]*>`))[0];
+  const screen = tagOf('pause-screen');
+  assert.match(screen, /\shidden[\s>=]/, 'pause-screen visible au chargement');
+  assert.match(screen, /role=["']dialog["']/);
+  assert.match(screen, /aria-labelledby=["']pause-title["']/);
+  assert.match(screen, /aria-describedby=["']pause-message["']/);
+  assert.match(tagOf('resume-button'), /^<button/);
+  assert.match(tagOf('resume-button'), /type=["']button["']/);
+  // Dans #maze-stage, après #end-screen.
+  const stage = body.indexOf('id="maze-stage"');
+  assert.ok(stage >= 0);
+  const end = body.indexOf('id="end-screen"');
+  const pause = body.indexOf('id="pause-screen"');
+  assert.ok(stage < end && end < pause, 'pause-screen doit suivre end-screen dans maze-stage');
+  // Bouton tactile dans le pavé d'actions, après « Carte ».
+  const pad = body.indexOf('id="touch-pad-actions"');
+  const map = body.indexOf('data-action="toggleMap"', pad);
+  const btn = body.indexOf('data-action="pause"', pad);
+  assert.ok(pad >= 0 && btn > pad, 'bouton pause absent du pavé d’actions');
+  if (map >= 0) assert.ok(map < btn, 'bouton pause avant Carte');
+  // Écran de pause sans texte en dur.
+  const fragEnd = body.indexOf('</button>', body.indexOf('id="resume-button"')) + '</button>'.length;
+  const fragment = body.slice(body.lastIndexOf('<', pause), fragEnd).replace(/<[^>]*>/g, ' ');
+  assert.deepEqual(fragment.match(/\p{L}+/gu) ?? [], []);
+});

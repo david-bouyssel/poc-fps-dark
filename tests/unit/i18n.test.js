@@ -86,7 +86,7 @@ test('index.html : aucun texte alphabétique visible en dur', () => {
 const EXPECTED_FPS = {
   'fps.enter': 'Explorer en 3D',
   'fps.exit': 'Revenir à la vue de dessus',
-  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Carte : M — Quitter : Échap',
+  'fps.help': 'Avancer / reculer : Z S ou ↑ ↓ — Tourner : ← → ou A E — Pas de côté : Q D — Courir : Maj — Carte : M — Pause : P — Quitter : Échap',
   'canvas.labelFps': 'Vue à la première personne dans le labyrinthe',
   'canvas.labelFpsMap': 'Carte des zones explorées du labyrinthe',
 };
@@ -174,6 +174,7 @@ const TOUCH_KEYS = [
   'touch.turnLeft', 'touch.turnLeftLabel', 'touch.turnRight', 'touch.turnRightLabel',
   'touch.strafeLeft', 'touch.strafeLeftLabel', 'touch.strafeRight', 'touch.strafeRightLabel',
   'touch.run', 'touch.runLabel', 'touch.map', 'touch.mapLabel',
+  'touch.pause', 'touch.pauseLabel',
   'fps.helpTouch',
 ];
 
@@ -205,7 +206,9 @@ test('tactile : index.html, chaque data-i18n et data-i18n-aria-label a sa clé',
 // Message d'erreur dédié (T4, todolist-ameliorations) : `errors.round` pour l'échec de
 // création du joueur ou du monstre dans startRound(), `errors.generic` réservé à la
 // génération du labyrinthe. main.js touche au DOM : on vérifie le câblage par source.
-const MAIN_SRC = readFileSync(fileURLToPath(new URL('../../src/main.js', import.meta.url)), 'utf8');
+// Fins de ligne normalisées : main.js peut être en CRLF (checkout Windows).
+const MAIN_SRC = readFileSync(fileURLToPath(new URL('../../src/main.js', import.meta.url)), 'utf8')
+  .replace(/\r\n/g, '\n');
 
 function functionBody(name) {
   const start = MAIN_SRC.indexOf(`\nfunction ${name}(`);
@@ -232,4 +235,37 @@ test('génération : le catch de generateFromForm garde errors.generic', () => {
   const body = functionBody('generateFromForm');
   assert.match(body, /catch\s*\{\s*showError\('errors\.generic'\)\s*;?\s*return false;?\s*\}/);
   assert.doesNotMatch(body, /errors\.round/);
+});
+
+// --- Pause (plan docs/design/pause.md §5 et §6, cas 11) ---
+
+const EXPECTED_PAUSE = {
+  'pause.title': 'En pause',
+  'pause.message': 'Appuie sur P ou sur « Reprendre » pour continuer.',
+  'pause.messageAuto': 'La partie s’est mise en pause quand la fenêtre a perdu le focus. Appuie sur P ou sur « Reprendre » pour continuer.',
+  'pause.resume': 'Reprendre',
+  'touch.pause': 'Pause',
+  'touch.pauseLabel': 'Mettre en pause ou reprendre la partie',
+};
+
+test('pause : clés pause.*, touch.pause et touch.pauseLabel avec les textes du plan', () => {
+  for (const [key, text] of Object.entries(EXPECTED_PAUSE)) {
+    assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
+    assert.ok(fr[key].trim().length > 0, `clé vide : ${key}`);
+    assert.equal(fr[key], text, key);
+    assert.equal(t(key), text, `t(${key})`);
+  }
+});
+
+test('pause : fps.help cite P avant Quitter, fps.helpTouch se termine par « Pause »', () => {
+  assert.match(fr['fps.help'], /Pause : P — Quitter : Échap$/);
+  assert.ok(fr['fps.helpTouch'].endsWith(' « Pause » arrête la partie.'), fr['fps.helpTouch']);
+});
+
+test('pause : index.html référence pause.title, pause.resume, touch.pause et touch.pauseLabel', () => {
+  const html = readFileSync(fileURLToPath(new URL('../../src/index.html', import.meta.url)), 'utf8');
+  for (const key of ['pause.title', 'pause.resume', 'touch.pause']) {
+    assert.match(html, new RegExp(`data-i18n=["']${key.replace('.', '\.')}["']`), key);
+  }
+  assert.match(html, /data-i18n-aria-label=["']touch\.pauseLabel["']/);
 });
