@@ -14,7 +14,7 @@ const ELEMENT_IDS = [
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'sound-toggle-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
-  'pause-screen', 'pause-message', 'resume-button',
+  'pause-screen', 'pause-message', 'resume-button', 'round-status',
 ];
 const HIDDEN_AT_LOAD = new Set([
   'fps-exit-button', 'sound-toggle-button', 'fps-help', 'fps-goal', 'end-screen',

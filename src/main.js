@@ -29,7 +29,13 @@ import {
   pauseGame,
   resumeGame,
 } from './game/pause.js';
-import { createMonster, isCatching, monsterSprite, stepMonster } from './game/monster.js';
+import {
+  MONSTER_EVENT,
+  createMonster,
+  isCatching,
+  monsterSprite,
+  stepMonster,
+} from './game/monster.js';
 import { dangerLevel } from './game/danger.js';
 import { DEFAULT_DIFFICULTY, difficultySettings, isDifficulty } from './game/difficulty.js';
 import {
@@ -92,6 +98,7 @@ const endStatDistance = document.getElementById('end-stat-distance');
 const pauseScreen = document.getElementById('pause-screen');
 const pauseMessage = document.getElementById('pause-message');
 const resumeButton = document.getElementById('resume-button');
+const roundStatus = document.getElementById('round-status');
 
 const VIEW_TOP = 'top';
 const VIEW_FPS = 'fps';
@@ -126,6 +133,8 @@ let roundStats = createRoundStats();
 let roundSettings = difficultySettings(DEFAULT_DIFFICULTY);
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
+/** Image d'annonce en attente (requestAnimationFrame) ; 0 si aucune. */
+let pendingAnnounceFrame = 0;
 /** Doigts posés sur les boutons tactiles (TouchState gelé, remplacé à chaque changement). */
 let touchState = createTouchState();
 /** Rotation à la souris (rad) cumulée depuis la dernière image ; vidée par clearHeldActions(). */
@@ -163,6 +172,10 @@ const gameLoop = createGameLoop({
     if (!isGameOver(gameState)) {
       const step = stepMonster(monster, player, dt, currentGrid, roundSettings.monster);
       monster = step.monster;
+      // One HUNT per switch from wander to chase: one announcement per hunt.
+      if (step.events.some((event) => event.type === MONSTER_EVENT.HUNT)) {
+        announce(t('round.huntAnnouncement'));
+      }
       const bongGainValue = selectBongGain(step.events);
       if (bongGainValue > 0) {
         monsterAudio.play(bongGainValue);
@@ -294,6 +307,31 @@ function hideEndScreen() {
   endScreen.hidden = true;
 }
 
+/**
+ * Vide la zone d'annonce (lecteur d'écran) et annule une écriture en attente.
+ * Sans effet visuel : la zone est `sr-only`.
+ */
+function clearRoundStatus() {
+  if (pendingAnnounceFrame) {
+    cancelAnimationFrame(pendingAnnounceFrame);
+    pendingAnnounceFrame = 0;
+  }
+  roundStatus.textContent = '';
+}
+
+/**
+ * Annonce un texte à l'écran de lecture : la zone est vidée puis réécrite à l'image suivante,
+ * pour que la même phrase soit relue à chaque annonce.
+ * @param {string} text
+ */
+function announce(text) {
+  clearRoundStatus();
+  pendingAnnounceFrame = requestAnimationFrame(() => {
+    pendingAnnounceFrame = 0;
+    roundStatus.textContent = text;
+  });
+}
+
 /** Sort de pause sans reprendre la boucle : état remis à zéro, écran de pause masqué. */
 function clearPause() {
   pauseState = createPauseState();
@@ -346,6 +384,7 @@ function generateFromForm({ forceRandomSeed }) {
   explored = createExploredMask(currentGrid);
   roundStats = createRoundStats();
   hideEndScreen();
+  clearRoundStatus();
   clearError();
   infoElement.textContent = t('info.current', {
     seed: maze.seed,
@@ -410,6 +449,7 @@ function startRound() {
   clearHeldActions();
   hideEndScreen();
   clearPause();
+  clearRoundStatus();
   return true;
 }
 
@@ -437,6 +477,7 @@ function endRound() {
   endStatDistance.textContent = t('end.statDistance', {
     value: formatDistance(roundStats.distance),
   });
+  clearRoundStatus();
   endScreen.hidden = false;
   // State already over: the pointerlockchange that follows does nothing.
   releasePointerLock();
@@ -557,6 +598,7 @@ function exitFps() {
   fpsGoal.hidden = true;
   hideEndScreen();
   clearPause();
+  clearRoundStatus();
   canvas.setAttribute('aria-label', t('canvas.label'));
   render();
   fpsEnterButton.focus();

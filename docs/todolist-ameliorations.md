@@ -56,7 +56,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [ ] **Sous-titres des sons** [courte] : un court texte ou une icône à l'écran pour
   « bong », alerte et cri, avec un côté (gauche / droite) d'après la position du monstre.
   Pour jouer sans le son ou pour les joueurs sourds et malentendants.
-- [ ] **Annonce de l'état de manche** [express] : `#end-screen` est un `alertdialog`, mais
+- [x] **Annonce de l'état de manche** [express] : `#end-screen` est un `alertdialog`, mais
   rien n'annonce le passage en traque. Ajouter une zone `aria-live="polite"` (texte i18n)
   qui annonce « Le monstre te traque » au plus une fois par traque.
 

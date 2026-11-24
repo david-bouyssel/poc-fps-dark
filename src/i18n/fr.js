@@ -58,6 +58,7 @@ export const fr = Object.freeze({
   'pause.message': 'Appuie sur P ou sur « Reprendre » pour continuer.',
   'pause.messageAuto': 'La partie s’est mise en pause quand la fenêtre a perdu le focus. Appuie sur P ou sur « Reprendre » pour continuer.',
   'pause.resume': 'Reprendre',
+  'round.huntAnnouncement': 'Le monstre te traque',
   'errors.size': 'La largeur et la hauteur doivent être des nombres entiers entre {min} et {max}.',
   'errors.seed': 'La graine doit être un nombre entier entre 0 et {max}.',
   'errors.generic': 'Impossible de générer le labyrinthe.',
