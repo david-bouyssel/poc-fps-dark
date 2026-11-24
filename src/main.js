@@ -29,6 +29,7 @@ import {
   resumeGame,
 } from './game/pause.js';
 import { createMonster, isCatching, monsterSprite, stepMonster } from './game/monster.js';
+import { dangerLevel } from './game/danger.js';
 import {
   advanceStats,
   createRoundStats,
@@ -234,6 +235,18 @@ function buildMonsterImages() {
   return images;
 }
 
+/**
+ * Niveau de danger de l'image : nul pendant le délai d'immobilité du monstre et une fois la
+ * manche finie (écran de fin), sinon selon la distance de chemin au monstre.
+ * @returns {number} 0..1
+ */
+function currentDanger() {
+  if (monster.graceRemaining > 0 || isGameOver(gameState)) {
+    return 0;
+  }
+  return dangerLevel(monster.pathDistance);
+}
+
 /** Dessine une image FPS (vue 3D puis automap) de la manche courante. */
 function drawFpsFrame() {
   const frame = monsterFrame(monsterClock, monster.mode, monster.graceRemaining);
@@ -241,6 +254,7 @@ function drawFpsFrame() {
     exit: currentExit,
     sprites: [monsterFrameSprite(monsterSprite(monster), frame)],
     spriteImages: monsterImages,
+    danger: currentDanger(),
   });
   drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
 }

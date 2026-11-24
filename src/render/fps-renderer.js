@@ -47,6 +47,10 @@ const SURFACE_PALETTE_KEYS = Object.freeze([
 ]);
 /** Nombre maximal de palettes de textures en cache (au-delà, le cache est vidé). */
 const MAX_TEXTURE_CACHE_ENTRIES = 4;
+/** Opacité maximale de la vignette de danger (au niveau 1, sur les bords). */
+const DANGER_MAX_ALPHA = 0.6;
+/** Rayon relatif (0..1) à partir duquel la vignette commence à apparaître. */
+const DANGER_INNER_STOP = 0.6;
 
 /**
  * Cache module : clé = couleurs texture* de la palette effective, valeur = tableau
@@ -109,9 +113,11 @@ let spriteScratch = null;
  * de sortie (isExitFace) utilisent la texture de porte lumineuse (mêmes textureColumn et
  * textureSlice, sans variante assombrie, brouillard * EXIT_FOG_SCALE) ; repli aplat :
  * exitGlow mélangé vers fog. Échec de la texture de sortie : murs normaux, sans exception.
+ * Danger (options.danger, 0..1, défaut 0) : vignette rouge sur les bords, dessinée en dernier
+ * (par-dessus les sprites). Voir drawDangerVignette.
  * @param {{ palette?: object, exit?: { tx: number, ty: number },
  *           sprites?: ReadonlyArray<{ x: number, y: number, kind: string, worldSize?: number }>,
- *           spriteImages?: ReadonlyMap<string, CanvasImageSource> }} [options]
+ *           spriteImages?: ReadonlyMap<string, CanvasImageSource>, danger?: number }} [options]
  *        sprites : défaut [] ; spriteImages : défaut aucune image
  * @throws {TypeError} grid ou player mal formé (voir castRays)
  */
@@ -173,6 +179,37 @@ export function drawFpsView(canvas, grid, player, options = {}) {
 
   // Sprites last: drawn over the walls, hidden column by column by the wall distances.
   drawSprites(ctx, hits, player, options.sprites, options.spriteImages, cssWidth, cssHeight, palette.fog);
+
+  drawDangerVignette(ctx, options.danger, palette.dangerVignette, cssWidth, cssHeight);
+}
+
+/**
+ * Vignette de danger : dégradé radial transparent au centre vers palette.dangerVignette sur
+ * les bords, alpha global = niveau * DANGER_MAX_ALPHA. Ignorée si le niveau n'est pas un
+ * nombre fini ou vaut 0 (négatif, absent, NaN : rien n'est dessiné). Niveau clampé à 1.
+ * Ne lève jamais (couleur ou contexte invalide : rien). Remet globalAlpha à 1.
+ */
+function drawDangerVignette(ctx, danger, color, cssWidth, cssHeight) {
+  if (typeof danger !== 'number' || !Number.isFinite(danger) || danger <= 0) {
+    return;
+  }
+  const level = Math.min(1, danger);
+  try {
+    const centerX = cssWidth / 2;
+    const centerY = cssHeight / 2;
+    const radius = Math.hypot(centerX, centerY);
+    const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+    gradient.addColorStop(0, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(DANGER_INNER_STOP, 'rgba(0, 0, 0, 0)');
+    gradient.addColorStop(1, color);
+    ctx.globalAlpha = level * DANGER_MAX_ALPHA;
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, cssWidth, cssHeight);
+  } catch {
+    // Invalid colour or canvas failure: the frame stays without the vignette.
+  } finally {
+    ctx.globalAlpha = 1;
+  }
 }
 
 /**

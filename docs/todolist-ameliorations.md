@@ -36,7 +36,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 - [x] **Chrono et bilan de fin** [courte] : afficher sur l'écran de fin le temps de la
   manche, la part du labyrinthe explorée (masque `explored`) et la distance parcourue.
   Calculs purs dans `src/game/`, textes dans `fr.js`.
-- [ ] **Indicateur de danger** [courte] : un voile rouge ou une vignette sur les bords du
+- [x] **Indicateur de danger** [courte] : un voile rouge ou une vignette sur les bords du
   canvas, plus forte quand la distance de chemin au monstre baisse. On réutilise
   `pathDistance`, déjà calculé. Aide aussi à jouer sans le son.
 - [ ] **Bouton « Couper le son »** [courte] : aucun réglage du son aujourd'hui. Ajouter

@@ -355,3 +355,106 @@ describe('drawFpsView : faces de sortie (option exit)', () => {
     assert.ok(fills.length > 0, 'aucune colonne de sortie en aplat');
   });
 });
+
+/**
+ * Vignette de danger (plan docs/design/indicateur-danger.md) : le contexte factice reçoit
+ * createRadialGradient ; chaque dégradé créé et ses arrêts sont journalisés.
+ */
+function makeDangerEnv() {
+  const env = makeEnv();
+  const gradients = [];
+  env.mainContext.createRadialGradient = () => {
+    const stops = [];
+    const gradient = { stops, addColorStop(offset, color) { stops.push([offset, color]); } };
+    gradients.push(gradient);
+    return gradient;
+  };
+  return { ...env, gradients };
+}
+
+/** Remplissages de la vignette : fillRect dont le fillStyle est un dégradé créé. */
+function vignetteFillsOf(env) {
+  return env.sequence.filter((op) => op.kind === 'fill' && env.gradients.includes(op.fillStyle));
+}
+
+describe('drawFpsView : vignette de danger (option danger)', () => {
+  test('danger absent : aucun dégradé créé, aucune vignette', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette() });
+    assert.equal(env.gradients.length, 0);
+    assert.equal(vignetteFillsOf(env).length, 0);
+  });
+
+  test('danger 0 : rien dessiné', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: 0 });
+    assert.equal(env.gradients.length, 0);
+    assert.equal(vignetteFillsOf(env).length, 0);
+  });
+
+  test('danger NaN : rien dessiné, aucune exception', () => {
+    const env = makeDangerEnv();
+    assert.doesNotThrow(() => drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: NaN }));
+    assert.equal(env.gradients.length, 0);
+    assert.equal(vignetteFillsOf(env).length, 0);
+  });
+
+  test('danger négatif : rien dessiné', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: -0.5 });
+    assert.equal(env.gradients.length, 0);
+    assert.equal(vignetteFillsOf(env).length, 0);
+  });
+
+  test('danger 0.5 : un dégradé radial et un fillRect plein canvas, alpha 0.3', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: 0.5 });
+    assert.equal(env.gradients.length, 1);
+    const fills = vignetteFillsOf(env);
+    assert.equal(fills.length, 1);
+    assert.equal(fills[0].args[0], 0);
+    assert.equal(fills[0].args[1], 0);
+    assert.ok(Math.abs(fills[0].globalAlpha - 0.3) < 1e-12, `globalAlpha=${fills[0].globalAlpha}`);
+  });
+
+  test('vignette dessinée après les sprites et les murs (en dernier)', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: 0.5 });
+    const lastIndex = env.sequence.findIndex((op) => env.gradients.includes(op.fillStyle));
+    assert.ok(lastIndex >= 0);
+    const after = env.sequence.slice(lastIndex + 1);
+    assert.equal(after.length, 0, `opérations après la vignette : ${after.length}`);
+  });
+
+  test('couleur : arrêt 1 du dégradé = palette.dangerVignette', () => {
+    const env = makeDangerEnv();
+    const palette = { ...uniquePalette(), dangerVignette: '#123456' };
+    drawFpsView(env.canvas, grid, player, { palette, danger: 1 });
+    const stops = env.gradients[0].stops;
+    assert.ok(stops.some(([offset, color]) => offset === 1 && color === '#123456'),
+      `arrêts : ${JSON.stringify(stops)}`);
+  });
+
+  test('danger 5 : clampé à 1, alpha 0.6 (DANGER_MAX_ALPHA)', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: 5 });
+    const fills = vignetteFillsOf(env);
+    assert.equal(fills.length, 1);
+    assert.ok(Math.abs(fills[0].globalAlpha - 0.6) < 1e-12, `globalAlpha=${fills[0].globalAlpha}`);
+  });
+
+  test('globalAlpha final = 1 après une frame avec vignette', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: 0.7 });
+    assert.equal(env.mainContext.globalAlpha, 1);
+  });
+
+  test('murs toujours à globalAlpha 1 avec vignette active', () => {
+    const env = makeDangerEnv();
+    drawFpsView(env.canvas, grid, player, { palette: uniquePalette(), danger: 0.7 });
+    const walls = wallImagesOf(env.created);
+    const wallDraws = env.sequence.filter((op) => op.kind === 'draw' && walls.has(op.image));
+    assert.ok(wallDraws.length >= 2);
+    for (const op of wallDraws) assert.equal(op.globalAlpha, 1);
+  });
+});

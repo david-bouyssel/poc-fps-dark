@@ -21,3 +21,9 @@ test('marqueurs de sortie distincts du sol de leur vue', () => {
   assert.notEqual(PALETTE.automapExit.toLowerCase(), PALETTE.automapFloor.toLowerCase());
   assert.notEqual(PALETTE.topExit.toLowerCase(), PALETTE.floor.toLowerCase());
 });
+
+// Plan docs/design/indicateur-danger.md : clé de la vignette de danger.
+test('clé dangerVignette présente au format #rrggbb', () => {
+  assert.equal(typeof PALETTE.dangerVignette, 'string');
+  assert.match(PALETTE.dangerVignette, /^#[0-9a-f]{6}$/i);
+});

@@ -38,4 +38,6 @@ export const PALETTE = Object.freeze({
   exitCore: '#fff3d1', // cœur de lumière
   automapExit: '#ffc861', // sortie sur l'automap
   topExit: '#ffc861', // marqueur de la vue de dessus
+  // Teinte de l'indicateur de danger (vignette rouge des bords de la vue FPS).
+  dangerVignette: '#b00000', // rouge sombre, bord de la vignette
 });
