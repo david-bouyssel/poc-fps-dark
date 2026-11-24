@@ -15,22 +15,28 @@ traverse toute la chaîne d'agents, de la conception au commit.
 ## Le jeu
 
 État actuel : génération d'un labyrinthe aléatoire à boucles (plusieurs chemins pour semer le
-monstre), reproductible par graine,
-affiché en vue de dessus (canvas 2D, palette sombre). Une fois généré, on peut
-l'explorer en vue FPS (raycasting, déplacement clavier façon Doom).
+monstre), reproductible par graine, affiché en vue de dessus (canvas 2D, palette sombre).
+Une fois généré, on peut l'explorer en vue FPS (raycasting, déplacement clavier façon Doom) :
+murs et sol texturés, plafond à panneaux sombres, mini-carte des zones explorées et carte plein écran.
+Un monstre traque le joueur (il émet des sons synthétisés en Web Audio), et la porte
+lumineuse de la sortie permet de gagner. Un contact avec le monstre fait perdre.
 
 - Stack : HTML + JavaScript ES modules vanilla, sans bundler ni dépendance npm.
 - Node >= 20 sert uniquement aux tests et au serveur local.
 
-Commandes en vue FPS (clavier uniquement, touches physiques : AZERTY et QWERTY) :
+Commandes en vue FPS (touches physiques : AZERTY et QWERTY) :
 
 | Action | Touches |
 |---|---|
 | Avancer / reculer | ↑ ↓ ou Z S |
 | Tourner | ← → ou A E |
 | Pas de côté | Q D |
-| Courir | Maj |
+| Courir | Maj (gauche ou droite) |
+| Carte plein écran (zones explorées) | M (sur AZERTY : la touche M à droite de L) |
 | Quitter la vue FPS | Échap (ou le bouton « Revenir ») |
+
+Sur écran tactile, des boutons à l'écran reprennent ces actions : ▲ ▼ (avancer, reculer),
+↺ ↻ (tourner), ◀ ▶ (pas de côté), « Courir » et « Carte ».
 
 | Action | Commande |
 |---|---|
