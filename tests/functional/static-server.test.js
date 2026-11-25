@@ -341,3 +341,29 @@ test('difficulté : GET / contient le select maze-difficulty ; styles.css stylis
   assert.match(css, /\.field select/);
   assert.match(css, /\.field select:focus-visible/);
 });
+
+// --- Partage par URL (plan docs/design/partage-url.md §7) ---
+
+test('partage : GET / contient share-panel, share-link, share-copy-button, share-status', async () => {
+  const body = await (await fetch(`${base}/`)).text();
+  for (const id of ['share-panel', 'share-link', 'share-copy-button', 'share-status']) {
+    assert.match(body, new RegExp(`id=["']${id}["']`), id);
+  }
+});
+
+test('partage : GET /game/share-link.js -> 200 text/javascript', async () => {
+  const res = await fetch(`${base}/game/share-link.js`);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-type'), /^text\/javascript; charset=utf-8/);
+  const body = await res.text();
+  for (const symbol of ['parseShareParams', 'buildShareUrl', 'parseNonNegativeInteger']) {
+    assert.ok(body.includes(symbol), symbol);
+  }
+});
+
+test('partage : la requête est ignorée par le serveur (GET /?seed=42&w=10&h=8 = GET /)', async () => {
+  const a = await (await fetch(`${base}/`)).text();
+  const res = await fetch(`${base}/?seed=42&w=10&h=8`);
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), a);
+});

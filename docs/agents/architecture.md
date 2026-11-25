@@ -35,6 +35,7 @@ src/                             # racine servie au navigateur (et seulement ell
     monster.js                   # monstre (pur) : createMonster, stepMonster, isCatching, monsterSprite, MONSTER
     danger.js                    # indicateur de danger (pur) : dangerLevel(pathDistance), DANGER (niveau 0..1 selon la distance de chemin)
     difficulty.js                # niveaux de difficulté (pur) : DIFFICULTY, DIFFICULTY_IDS, DIFFICULTY_SETTINGS (réglages du monstre + fogDistance), isDifficulty, difficultySettings
+    share-link.js                # lien de partage (pur) : SHARE_PARAM, SHARE_LIMITS, SHARE_STATUS, parseNonNegativeInteger (règle unique du formulaire et de l'URL), parseShareParams (?seed=&w=&h=&d=, tout ou rien), buildShareUrl
   render/
     palette.js                   # couleurs sombres (constantes, dont teintes FPS, textures et vignette de danger `dangerVignette`)
     maze-geometry.js             # labyrinthe -> segments de murs (pur)
@@ -69,7 +70,7 @@ tests/
 | Couche | Rôle | Règles |
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
-| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `mouse-look.js` n'importe que `./player.js` (`normalizeAngle`) ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `danger.js`, `difficulty.js` et `render-quality.js` sont purs et n'importent rien (`render-quality.js` : `stepRenderQuality(state, dt)` et `columnWidthFor(state)` ; le dt vient de `createGameLoop`, `main.js` passe `columnWidth` à `drawFpsView`). Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
+| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `mouse-look.js` n'importe que `./player.js` (`normalizeAngle`) ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `share-link.js` n'importe que `../maze/maze.js` (`MAZE_LIMITS`) et `../maze/random.js` (`MAX_SEED`) et reçoit `location.search` / `location.href` de `main.js` ; `danger.js`, `difficulty.js` et `render-quality.js` sont purs et n'importent rien (`render-quality.js` : `stepRenderQuality(state, dt)` et `columnWidthFor(state)` ; le dt vient de `createGameLoop`, `main.js` passe `columnWidth` à `drawFpsView`). Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
 | `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`), `exit-texture.js` (n'importe au plus `./wall-textures.js`), `monster-sprite.js` (n'importe rien : kind et modes recopiés de `game/monster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/audio/` | Son | `bong.js` est pur : aucun DOM, `window`, `Math.random`, `Date`, `performance`, aucune API Web Audio ; n'importe rien. `monster-cries.js` est pur au même titre et n'importe que `./bong.js` (réutilise `bongGain`). `sound-captions.js` est pur au même titre (aucun DOM, Web Audio, `Math.random`, `Date`) et n'importe que `./bong.js` et `./monster-cries.js` (sélecteurs de gain : une légende par type si gain > 0). `monster-audio.js` n'importe que `./bong.js` et `./monster-cries.js`, ne crée que des nœuds `createOscillator`, `createGain` et `createBiquadFilter` (jamais `createBuffer` ni worklet), et reçoit le contexte par la fabrique injectée `createContext` (création paresseuse au premier `resume()`) : jamais de `window`, `AudioContext` ou `webkitAudioContext` global, ni `fetch`, `decodeAudioData`, élément `<audio>`, `MediaStream` ou micro. Ses méthodes ne lèvent jamais. N'importe jamais `src/game/` : l'événement est lu par sa forme `{ type, pathDistance }` (`'turn'` recopié dans `TURN_EVENT_TYPE`, `'spot'` dans `SPOT_EVENT_TYPE`). Un seul `AudioContext` dans l'application : le cri et le sluuurp passent par le même lecteur. Aucun fichier son. |
 | `src/game/touch-input.js` | Suivi des doigts (pur) | Aucun DOM, `window`, `document`, `performance`, `Date` ; n'importe que `./input.js`. Seul `main.js` lit les `PointerEvent` et passe par `touchActionFor` (liste blanche). |
@@ -210,14 +211,25 @@ en plus de `toTileGrid`, de l'ordre des voisins du BFS, de la préférence pour 
 culs-de-sac et de la règle d'égalité de
 `findExit` (jamais le labyrinthe). Le monstre d'une graine (apparition, errance) dépend
 de `MONSTER_SEED_SALT`, de l'ordre des candidats (index croissant), de `NEIGHBOR_OFFSETS`
-et de l'ordre des tirages (jamais le labyrinthe).
+et de l'ordre des tirages (jamais le labyrinthe). Un lien partagé (`?seed=&w=&h=&d=`)
+dépend en plus des noms de paramètres (`SHARE_PARAM`) et des identifiants de difficulté
+(`easy`, `normal`, `nightmare`) : les renommer casse les liens déjà partagés.
 
 ## Flux de données
 
 1. Chargement de `index.html` (servi par `npm start` en local, ou par GitHub Pages sous
    `/poc-fps-dark/`) -> `main.js` (module).
-2. `main.js` appelle `applyTranslations(document)`, renseigne `document.title`, tire une
-   graine aléatoire et génère avec la taille par défaut (16 x 16).
+2. `main.js` appelle `applyTranslations(document)`, renseigne `document.title`, puis lit
+   une seule fois `location.search` par `parseShareParams` (dans un `try`). Lien absent :
+   graine aléatoire et taille par défaut (16 x 16). Lien valide : le formulaire est
+   prérempli (taille, graine, difficulté) puis `generateFromForm` le revalide. Lien
+   invalide (ou exception) : valeurs par défaut, graine aléatoire, puis
+   `errors.sharedLink` (texte fixe, jamais la valeur reçue). La barre d'adresse n'est
+   jamais modifiée (pas de `history`). Toute génération réussie (et un changement de
+   difficulté en vue de dessus) écrit dans `#share-link` (`.value`) le lien
+   `buildShareUrl(location.href, …)` ; `d` est omis pour le niveau par défaut. « Copier le
+   lien » : `navigator.clipboard.writeText` seulement si `isSecureContext`, sinon ou en cas
+   d'échec, sélection du champ et `share.copyManual`. `#share-panel` est masqué en FPS.
 3. Clic « Générer » / « Nouveau labyrinthe » : `main.js` valide les champs (entiers,
    `MAZE_LIMITS`, `MAX_SEED`) ; si invalide, affiche un texte de ressource dans la zone
    `role="alert"` et conserve le labyrinthe précédent.

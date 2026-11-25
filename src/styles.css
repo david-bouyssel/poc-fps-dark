@@ -211,6 +211,51 @@ body {
   text-align: center;
 }
 
+/* Lien de partage : champ en lecture seule pleine largeur et bouton de copie. */
+.share {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 16px;
+  background: var(--color-background);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.share[hidden] {
+  display: none;
+}
+
+.share label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--color-muted);
+}
+
+.share-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.share-row input {
+  flex: 1 1 16rem;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 2px solid var(--color-wall);
+  border-radius: 999px;
+  background: var(--color-page);
+  color: var(--color-text);
+  font: inherit;
+  font-size: 0.9rem;
+  user-select: text;
+}
+
+.share-row input:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(138, 47, 63, 0.45);
+}
+
 .stage {
   position: relative;
   width: 100%;

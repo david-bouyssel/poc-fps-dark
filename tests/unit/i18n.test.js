@@ -336,3 +336,34 @@ test('souris : fps.help mentionne la souris après un clic, fps.helpTouch sans s
   assert.ok(fr['fps.help'].includes('souris'));
   assert.ok(!fr['fps.helpTouch'].includes('souris'));
 });
+
+// Partage par URL (plan docs/design/partage-url.md §5)
+const EXPECTED_SHARE = {
+  'share.label': 'Lien de cette partie',
+  'share.copy': 'Copier le lien',
+  'share.copied': 'Lien copié dans le presse-papiers.',
+  'share.copyManual': 'Copie automatique impossible : le lien est sélectionné, copie-le à la main.',
+  'errors.sharedLink': 'Le lien partagé est invalide : un labyrinthe aléatoire a été généré à la place.',
+};
+
+test('partage : cinq clés présentes, non vides, textes du plan', () => {
+  for (const [key, text] of Object.entries(EXPECTED_SHARE)) {
+    assert.equal(typeof fr[key], 'string', `clé manquante : ${key}`);
+    assert.ok(fr[key].trim().length > 0, `clé vide : ${key}`);
+    assert.equal(fr[key], text, key);
+  }
+});
+
+test('partage : index.html, bloc #share-panel sous #maze-error, libellés via data-i18n', () => {
+  const html = readFileSync(fileURLToPath(new URL('../../src/index.html', import.meta.url)), 'utf8');
+  const error = html.indexOf('id="maze-error"');
+  const panel = html.indexOf('id="share-panel"');
+  assert.ok(error >= 0 && panel > error, '#share-panel absent ou avant #maze-error');
+  assert.match(html, /<label[^>]*for=["']share-link["'][^>]*data-i18n=["']share\.label["'][^>]*><\/label>/);
+  const input = html.match(/<input[^>]*id=["']share-link["'][^>]*>/);
+  assert.ok(input, '#share-link absent');
+  assert.match(input[0], /type=["']text["']/);
+  assert.match(input[0], /\sreadonly[\s>]/);
+  assert.match(html, /<button[^>]*id=["']share-copy-button["'][^>]*type=["']button["'][^>]*data-i18n=["']share\.copy["'][^>]*><\/button>/);
+  assert.match(html, /<p[^>]*id=["']share-status["'][^>]*aria-live=["']polite["'][^>]*><\/p>/);
+});

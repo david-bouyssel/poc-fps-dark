@@ -14,6 +14,7 @@ const ELEMENT_IDS = [
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'end-stat-time', 'end-stat-explored', 'end-stat-distance', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
   'pause-screen', 'pause-message', 'resume-button', 'round-status', 'sound-captions',
+  'share-panel', 'share-link', 'share-copy-button', 'share-status',
 ];
 const HIDDEN_AT_LOAD = new Set([ 'sound-captions',
   'fps-exit-button', 'sound-toggle-button', 'fps-help', 'fps-goal', 'end-screen',

@@ -69,5 +69,10 @@ export const fr = Object.freeze({
   'errors.size': 'La largeur et la hauteur doivent être des nombres entiers entre {min} et {max}.',
   'errors.seed': 'La graine doit être un nombre entier entre 0 et {max}.',
   'errors.generic': 'Impossible de générer le labyrinthe.',
+  'share.label': 'Lien de cette partie',
+  'share.copy': 'Copier le lien',
+  'share.copied': 'Lien copié dans le presse-papiers.',
+  'share.copyManual': 'Copie automatique impossible : le lien est sélectionné, copie-le à la main.',
+  'errors.sharedLink': 'Le lien partagé est invalide : un labyrinthe aléatoire a été généré à la place.',
   'errors.round': 'Impossible de lancer la partie. Réessaie avec un nouveau labyrinthe.',
 });

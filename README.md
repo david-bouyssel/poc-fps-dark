@@ -20,6 +20,8 @@ Une fois généré, on peut l'explorer en vue FPS (raycasting, déplacement clav
 murs et sol texturés, plafond à panneaux sombres, mini-carte des zones explorées et carte plein écran.
 Un monstre traque le joueur (il émet des sons synthétisés en Web Audio), et la porte
 lumineuse de la sortie permet de gagner. Un contact avec le monstre fait perdre.
+Le champ « Lien de cette partie » donne une URL (`?seed=&w=&h=&d=`) qui rouvre le même
+labyrinthe, avec la même sortie, le même monstre et la même difficulté.
 
 - Stack : HTML + JavaScript ES modules vanilla, sans bundler ni dépendance npm.
 - Node >= 20 sert uniquement aux tests et au serveur local.

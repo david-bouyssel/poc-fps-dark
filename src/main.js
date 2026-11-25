@@ -38,7 +38,8 @@ import {
   stepMonster,
 } from './game/monster.js';
 import { dangerLevel } from './game/danger.js';
-import { DEFAULT_DIFFICULTY, difficultySettings, isDifficulty } from './game/difficulty.js';
+import { DEFAULT_DIFFICULTY, DIFFICULTY_IDS, difficultySettings, isDifficulty } from './game/difficulty.js';
+import { buildShareUrl, parseNonNegativeInteger, parseShareParams, SHARE_STATUS } from './game/share-link.js';
 import {
   advanceStats,
   createRoundStats,
@@ -73,7 +74,6 @@ import {
 } from './audio/sound-captions.js';
 
 const DEFAULT_SIZE = 16;
-const INTEGER_PATTERN = /^\d+$/;
 
 const form = document.getElementById('maze-form');
 const widthInput = document.getElementById('maze-width');
@@ -107,6 +107,10 @@ const pauseMessage = document.getElementById('pause-message');
 const resumeButton = document.getElementById('resume-button');
 const roundStatus = document.getElementById('round-status');
 const soundCaptions = document.getElementById('sound-captions');
+const sharePanel = document.getElementById('share-panel');
+const shareLinkInput = document.getElementById('share-link');
+const shareCopyButton = document.getElementById('share-copy-button');
+const shareStatus = document.getElementById('share-status');
 
 const VIEW_TOP = 'top';
 const VIEW_FPS = 'fps';
@@ -221,19 +225,6 @@ const gameLoop = createGameLoop({
   cancelFrame: (id) => cancelAnimationFrame(id),
 });
 
-/**
- * Lit un entier positif ou nul depuis un champ texte.
- * @returns {number | null} null si la saisie n'est pas un entier décimal
- */
-function readNonNegativeInteger(input) {
-  const raw = input.value.trim();
-  if (!INTEGER_PATTERN.test(raw)) {
-    return null;
-  }
-  const value = Number(raw);
-  return Number.isSafeInteger(value) ? value : null;
-}
-
 function isValidSize(value) {
   return value !== null && value >= MAZE_LIMITS.minSize && value <= MAZE_LIMITS.maxSize;
 }
@@ -260,6 +251,119 @@ function showError(key, params) {
 
 function clearError() {
   errorElement.textContent = '';
+}
+
+/**
+ * Difficulté écrite dans le lien : null pour le niveau par défaut (lien plus court, même
+ * partie puisqu'un `d` absent donne le niveau par défaut).
+ * @returns {string | null}
+ */
+function shareDifficulty() {
+  const difficulty = readDifficulty();
+  return difficulty === DEFAULT_DIFFICULTY ? null : difficulty;
+}
+
+/**
+ * Met à jour le lien de la partie courante (labyrinthe généré + difficulté choisie) et vide
+ * le statut de copie. Si le lien ne peut être construit, le panneau est masqué, sans erreur.
+ */
+function updateShareLink() {
+  shareStatus.textContent = '';
+  if (currentMaze === null) {
+    return;
+  }
+  try {
+    shareLinkInput.value = buildShareUrl(location.href, {
+      width: currentMaze.width,
+      height: currentMaze.height,
+      seed: currentMaze.seed,
+      difficulty: shareDifficulty(),
+    });
+    sharePanel.hidden = viewMode !== VIEW_TOP;
+  } catch {
+    shareLinkInput.value = '';
+    sharePanel.hidden = true;
+  }
+}
+
+/** Repli de copie : lien sélectionné, l'utilisateur le copie lui-même. */
+function selectShareLinkForManualCopy() {
+  try {
+    shareLinkInput.focus();
+    shareLinkInput.select();
+  } catch {
+    // Selection unavailable: the manual-copy message is shown anyway.
+  }
+  shareStatus.textContent = t('share.copyManual');
+}
+
+/** Clic sur « Copier le lien » : écriture seule dans le presse-papiers, repli par sélection. */
+function copyShareLink() {
+  const link = shareLinkInput.value;
+  if (link === '') {
+    return;
+  }
+  let pending;
+  try {
+    const clipboard = window.isSecureContext === true ? navigator.clipboard : undefined;
+    if (typeof clipboard?.writeText !== 'function') {
+      selectShareLinkForManualCopy();
+      return;
+    }
+    pending = clipboard.writeText(link);
+  } catch {
+    selectShareLinkForManualCopy();
+    return;
+  }
+  Promise.resolve(pending).then(
+    () => {
+      shareStatus.textContent = t('share.copied');
+    },
+    () => {
+      selectShareLinkForManualCopy();
+    },
+  );
+}
+
+/** Remet la taille et la graine du formulaire aux valeurs par défaut. */
+function resetFormDefaults() {
+  widthInput.value = String(DEFAULT_SIZE);
+  heightInput.value = String(DEFAULT_SIZE);
+  seedInput.value = '';
+}
+
+/**
+ * Génération initiale : labyrinthe du lien partagé (?seed=&w=&h=&d=) s'il est valide,
+ * labyrinthe aléatoire sinon. Lien invalide : message fixe, jamais la valeur reçue.
+ */
+function generateInitialMaze() {
+  let shared;
+  try {
+    // No location (non-browser host): same as a page opened without a query.
+    const search = typeof location === 'undefined' ? '' : location.search;
+    shared = parseShareParams(search, { difficulties: DIFFICULTY_IDS });
+  } catch {
+    shared = { status: SHARE_STATUS.INVALID };
+  }
+  if (shared.status === SHARE_STATUS.ABSENT) {
+    generateFromForm({ forceRandomSeed: true });
+    return;
+  }
+  if (shared.status === SHARE_STATUS.VALID) {
+    widthInput.value = String(shared.width ?? DEFAULT_SIZE);
+    heightInput.value = String(shared.height ?? DEFAULT_SIZE);
+    seedInput.value = shared.seed === null ? '' : String(shared.seed);
+    if (shared.difficulty !== null && isDifficulty(shared.difficulty)) {
+      difficultySelect.value = shared.difficulty;
+    }
+    if (generateFromForm({ forceRandomSeed: false })) {
+      return;
+    }
+  }
+  resetFormDefaults();
+  difficultySelect.value = DEFAULT_DIFFICULTY;
+  generateFromForm({ forceRandomSeed: true });
+  showError('errors.sharedLink');
 }
 
 /**
@@ -390,8 +494,8 @@ function clearPause() {
  * @returns {boolean} true si un nouveau labyrinthe a été généré
  */
 function generateFromForm({ forceRandomSeed }) {
-  const width = readNonNegativeInteger(widthInput);
-  const height = readNonNegativeInteger(heightInput);
+  const width = parseNonNegativeInteger(widthInput.value);
+  const height = parseNonNegativeInteger(heightInput.value);
   if (!isValidSize(width) || !isValidSize(height)) {
     showError('errors.size', { min: MAZE_LIMITS.minSize, max: MAZE_LIMITS.maxSize });
     return false;
@@ -401,7 +505,7 @@ function generateFromForm({ forceRandomSeed }) {
   if (forceRandomSeed || seedInput.value.trim() === '') {
     seed = randomSeed();
   } else {
-    seed = readNonNegativeInteger(seedInput);
+    seed = parseNonNegativeInteger(seedInput.value);
     if (seed === null || seed > MAX_SEED) {
       showError('errors.seed', { max: MAX_SEED });
       return false;
@@ -437,6 +541,7 @@ function generateFromForm({ forceRandomSeed }) {
     width: maze.width,
     height: maze.height,
   });
+  updateShareLink();
   render();
   return true;
 }
@@ -609,6 +714,7 @@ function enterFps() {
   renderQuality = createRenderQuality();
   mapMode = AUTOMAP_MODE.MINI;
   form.hidden = true;
+  sharePanel.hidden = true;
   fpsEnterButton.hidden = true;
   fpsExitButton.hidden = false;
   soundToggleButton.hidden = false;
@@ -639,6 +745,7 @@ function exitFps() {
   releasePointerLock();
   mapMode = AUTOMAP_MODE.MINI;
   form.hidden = false;
+  sharePanel.hidden = shareLinkInput.value === '';
   fpsEnterButton.hidden = false;
   fpsExitButton.hidden = true;
   soundToggleButton.hidden = true;
@@ -913,7 +1020,13 @@ function init() {
   newMazeButton.addEventListener('click', () => {
     generateFromForm({ forceRandomSeed: true });
   });
-  difficultySelect.addEventListener('change', onDifficultyChange);
+  difficultySelect.addEventListener('change', () => {
+    onDifficultyChange();
+    if (viewMode === VIEW_TOP) {
+      updateShareLink();
+    }
+  });
+  shareCopyButton.addEventListener('click', copyShareLink);
   window.addEventListener('resize', onResize);
 
   fpsEnterButton.addEventListener('click', enterFps);
@@ -952,7 +1065,7 @@ function init() {
     }
   });
 
-  generateFromForm({ forceRandomSeed: true });
+  generateInitialMaze();
 }
 
 init();

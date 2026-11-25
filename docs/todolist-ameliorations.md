@@ -47,7 +47,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
   vue) et sur la portée du brouillard. La graine et le labyrinthe ne changent pas.
 - [x] **Tourner à la souris** [complète] : Pointer Lock en vue FPS, sensibilité fixe,
   sortie par Échap (comportement natif du navigateur). Le clavier reste complet.
-- [ ] **Partager une partie par URL** [complète] : lire `?seed=&w=&h=` au chargement et
+- [x] **Partager une partie par URL** [complète] : lire `?seed=&w=&h=` au chargement et
   proposer un lien copiable. Surface sensible (entrée utilisateur) : validation stricte
   par les mêmes règles que le formulaire, jamais d'écriture dans le DOM par `innerHTML`.
 

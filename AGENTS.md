@@ -22,7 +22,7 @@ se met à traquer, il émet une alerte, deux bips courts (au plus une fois toute
 il voit le joueur (ligne de vue dégagée à 12 tuiles au plus), il pousse un cri strident,
 discret face aux bongs (au plus un toutes les 6 s) ; quand il attrape
 le joueur, un « sluuurp » se joue par-dessus l'écran de fin et coupe tous les autres sons
-(même synthèse Web Audio, sans fichier son). Objectif visé : trouver la sortie d'un labyrinthe traqué par un monstre. Stack : HTML +
+(même synthèse Web Audio, sans fichier son). Objectif visé : trouver la sortie d'un labyrinthe traqué par un monstre. Partage d'une partie par URL (`?seed=&w=&h=&d=`, validé strictement, lien copiable en vue de dessus ; la barre d'adresse n'est jamais modifiée). Stack : HTML +
 JavaScript ES modules vanilla, sans bundler, sans framework, sans aucune dépendance npm.
 Node >= 20 sert uniquement aux tests (`node --test`) et au serveur statique local. Aucun
 stockage. Application statique publiée sur GitHub Pages
