@@ -1,5 +1,5 @@
 // Difficulté (T10, plan docs/design/difficulte.md §6, tests 16 à 18).
-// 16-17 : simulation de update() de main.js (comme fps-monster.test.js) avec les réglages
+// 16-17 : simulation de update() de main.js par stepRound (comme fps-monster.test.js) avec les réglages
 // de chaque niveau. 18 : câblage réel de src/main.js avec un DOM factice (sans dépendance) :
 // le <select> est lu au début de chaque manche, une valeur inconnue vaut « Normal », un
 // change en vue de dessus abandonne la manche sans regénérer le labyrinthe, « Rejouer »
@@ -8,31 +8,25 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateMaze } from '../../src/maze/maze.js';
 import { toTileGrid } from '../../src/maze/grid.js';
-import { createPlayer } from '../../src/game/player.js';
-import { stepPlayer } from '../../src/game/movement.js';
 import { shortestPath } from '../../src/game/pathfinding.js';
 import { findExit } from '../../src/game/exit.js';
-import {
-  GAME_STATUS, createGameState, checkVictory, declareDefeat, isGameOver,
-} from '../../src/game/game-state.js';
-import { createMonster, stepMonster, isCatching } from '../../src/game/monster.js';
+import { GAME_STATUS } from '../../src/game/game-state.js';
+import { createRound, isRoundOver, stepRound } from '../../src/game/round.js';
 import { DIFFICULTY_IDS, DIFFICULTY_SETTINGS } from '../../src/game/difficulty.js';
 
 const STILL = Object.freeze({ move: 0, strafe: 0, turn: 0, run: false });
 const DT = 0.016;
 
-/** Manche simulée : ordre de update() (stepPlayer, checkVictory, stepMonster, isCatching). */
+/** Manche simulée : createRound puis stepRound à chaque image, comme update() de main.js. */
 function simulateRound(width, height, seed, id, running) {
   const grid = toTileGrid(generateMaze({ width, height, seed }));
   const exit = findExit(grid);
-  const opts = DIFFICULTY_SETTINGS[id].monster;
   const path = shortestPath(grid, 1, 1, exit.tx, exit.ty);
   let waypoint = 1;
-  let player = createPlayer(grid);
-  let state = createGameState();
-  let monster = createMonster(grid, seed, { exit }, opts);
+  let round = createRound({ grid, seed, exit, difficulty: id });
   let time = 0;
-  while (!isGameOver(state) && time < 900) {
+  while (!isRoundOver(round) && time < 900) {
+    let { player } = round;
     let intent = STILL;
     if (running && waypoint < path.length) {
       let tx = path[waypoint].tx + 0.5;
@@ -45,15 +39,10 @@ function simulateRound(width, height, seed, id, running) {
       player = Object.freeze({ ...player, angle: Math.atan2(ty - player.y, tx - player.x) });
       intent = { move: 1, strafe: 0, turn: 0, run: true };
     }
-    player = stepPlayer(player, intent, DT, grid);
-    state = checkVictory(state, player, exit);
-    if (!isGameOver(state)) {
-      monster = stepMonster(monster, player, DT, grid, opts).monster;
-      if (isCatching(monster, player)) state = declareDefeat(state);
-    }
+    round = stepRound(Object.freeze({ ...round, player }), intent, DT).round;
     time += DT;
   }
-  return { status: state.status, time };
+  return { status: round.state.status, time };
 }
 
 describe('joueur immobile : Cauchemar capture plus tôt que Normal, plus tôt que Facile', () => {

@@ -360,7 +360,7 @@ describe('câblage de main.js (cas 17)', () => {
 
   test('pauseRound : garde canPause, stop, suspend, drawFpsFrame, écran affiché, focus Reprendre', () => {
     const body = functionBody('pauseRound');
-    assert.match(body, /canPause\(\s*pauseState\s*,\s*gameState\s*\)/);
+    assert.match(body, /canPause\(\s*pauseState\s*,\s*round\.state\s*\)/);
     const order = ['pauseGame(', 'gameLoop.stop()', '.suspend()', 'clearHeldActions()', 'drawFpsFrame()', '.hidden = false', '.focus()'];
     let pos = -1;
     for (const token of order) {

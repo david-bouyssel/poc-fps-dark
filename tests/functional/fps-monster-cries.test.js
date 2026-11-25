@@ -1,6 +1,6 @@
 // Flux bout en bout côté Node, sans DOM (plan docs/design/monster-cries.md §4 et §6) :
-// simulation de update() de main.js (stepPlayer -> checkVictory -> stepMonster ->
-// selectBongGain / play -> selectCryGain / playCry -> isCatching -> declareDefeat), puis
+// simulation de update() de main.js (stepRound : stepPlayer -> checkVictory -> stepMonster
+// -> isCatching -> declareDefeat ; puis selectBongGain / play -> selectCryGain / playCry), puis
 // de endRound() (point 4.3 : playSlurp en défaite, suspend sinon), avec un lecteur réel
 // alimenté par un faux contexte audio dont currentTime avance de dt à chaque image.
 import { test, describe } from 'node:test';
@@ -8,17 +8,17 @@ import assert from 'node:assert/strict';
 import { generateMaze } from '../../src/maze/maze.js';
 import { toTileGrid } from '../../src/maze/grid.js';
 import { createPlayer } from '../../src/game/player.js';
-import { stepPlayer } from '../../src/game/movement.js';
 import { shortestPath } from '../../src/game/pathfinding.js';
 import { findExit } from '../../src/game/exit.js';
 import {
   GAME_STATUS,
   createGameState,
-  checkVictory,
-  declareDefeat,
   isGameOver,
 } from '../../src/game/game-state.js';
-import { MONSTER_EVENT, MONSTER_MODE, createMonster, stepMonster, isCatching } from '../../src/game/monster.js';
+import { MONSTER_EVENT, MONSTER_MODE, createMonster } from '../../src/game/monster.js';
+import { stepRound } from '../../src/game/round.js';
+import { DEFAULT_DIFFICULTY, difficultySettings } from '../../src/game/difficulty.js';
+import { createRoundStats } from '../../src/game/round-stats.js';
 import { selectBongGain } from '../../src/audio/bong.js';
 import { selectCryGain } from '../../src/audio/monster-cries.js';
 import { MONSTER_AUDIO_STATE, createMonsterAudio } from '../../src/audio/monster-audio.js';
@@ -114,11 +114,21 @@ function frame(world, pilot) {
   if (isGameOver(world.state)) return;
   const { intent, angle } = pilot ? pilot(world) : { intent: STILL };
   const p = angle === undefined ? world.player : Object.freeze({ ...world.player, angle });
-  world.player = stepPlayer(p, intent, DT, world.grid);
-  world.state = checkVictory(world.state, world.player, world.exit);
-  if (!isGameOver(world.state)) {
-    const step = stepMonster(world.monster, world.player, DT, world.grid);
-    world.monster = step.monster;
+  const round = Object.freeze({
+    grid: world.grid,
+    exit: world.exit,
+    settings: difficultySettings(DEFAULT_DIFFICULTY),
+    player: p,
+    monster: world.monster,
+    state: world.state,
+    time: world.time,
+    stats: createRoundStats(),
+  });
+  const step = stepRound(round, intent, DT);
+  world.player = step.round.player;
+  world.monster = step.round.monster;
+  world.state = step.round.state;
+  if (step.monsterStepped) {
     const bong = selectBongGain(step.events);
     if (bong > 0) world.audio.play(bong);
     world.spots.push(...step.events.filter((e) => e.type === MONSTER_EVENT.SPOT)
@@ -128,9 +138,8 @@ function frame(world, pilot) {
       world.cryRequests.push({ gain: cry, expected: selectCryGain(step.events), time: world.time });
       world.audio.playCry(cry);
     }
-    if (isCatching(world.monster, world.player)) world.state = declareDefeat(world.state);
   }
-  if (isGameOver(world.state)) endRound(world);
+  if (step.ended) endRound(world);
   world.time += DT;
   world.ctx.currentTime += DT;
 }

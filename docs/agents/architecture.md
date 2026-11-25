@@ -11,8 +11,9 @@ src/                             # racine servie au navigateur (et seulement ell
   index.html                     # page, sans texte en dur (attributs data-i18n)
   styles.css                     # mise en page + variables CSS sombres
   main.js                        # câblage DOM : formulaire -> génération -> rendu,
-                                 # bascule vue de dessus <-> FPS, clavier, boucle,
-                                 # cycle de manche (startRound/endRound, écran de fin)
+                                 # bascule vue de dessus <-> FPS, clavier, boucle, audio,
+                                 # cycle de manche (startRound/endRound, écran de fin) ;
+                                 # l'état de manche est délégué à game/round.js
   i18n/
     fr.js                        # ressources texte françaises (export nommé `fr`)
     i18n.js                      # t(key, params) + applyTranslations(root)
@@ -35,6 +36,7 @@ src/                             # racine servie au navigateur (et seulement ell
     monster.js                   # monstre (pur) : createMonster, stepMonster, isCatching, monsterSprite, MONSTER
     danger.js                    # indicateur de danger (pur) : dangerLevel(pathDistance), DANGER (niveau 0..1 selon la distance de chemin)
     difficulty.js                # niveaux de difficulté (pur) : DIFFICULTY, DIFFICULTY_IDS, DIFFICULTY_SETTINGS (réglages du monstre + fogDistance), isDifficulty, difficultySettings
+    round.js                     # manche (pure) : createRound, stepRound (pas d'une image : souris, joueur, bilan, victoire, monstre, défaite), isRoundOver, roundDanger
     share-link.js                # lien de partage (pur) : SHARE_PARAM, SHARE_LIMITS, SHARE_STATUS, parseNonNegativeInteger (règle unique du formulaire et de l'URL), parseShareParams (?seed=&w=&h=&d=, tout ou rien), buildShareUrl
   render/
     palette.js                   # couleurs sombres (constantes, dont teintes FPS, textures et vignette de danger `dangerVignette`)
@@ -70,7 +72,7 @@ tests/
 | Couche | Rôle | Règles |
 |---|---|---|
 | `src/maze/` | Logique pure | Aucun DOM, `window`, `Math.random`, `Date`. N'importe que `src/maze/`. Importable sous Node et navigateur. |
-| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `mouse-look.js` n'importe que `./player.js` (`normalizeAngle`) ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `share-link.js` n'importe que `../maze/maze.js` (`MAZE_LIMITS`) et `../maze/random.js` (`MAX_SEED`) et reçoit `location.search` / `location.href` de `main.js` ; `danger.js`, `difficulty.js` et `render-quality.js` sont purs et n'importent rien (`render-quality.js` : `stepRenderQuality(state, dt)` et `columnWidthFor(state)` ; le dt vient de `createGameLoop`, `main.js` passe `columnWidth` à `drawFpsView`). Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
+| `src/game/` | Logique pure du jeu | Aucun DOM, `window`, `document`, `Math.random`, `Date`, `performance`, `requestAnimationFrame`. N'importe que `src/game/` et `src/maze/`. `loop.js` reçoit `requestFrame`/`cancelFrame` par injection, sans valeur par défaut globale. `pathfinding.js`, `exit.js` et `game-state.js` n'importent que `src/game/` et `../maze/grid.js` ; `pause.js` n'importe que `./game-state.js` ; `mouse-look.js` n'importe que `./player.js` (`normalizeAngle`) ; `monster.js` n'importe que `./pathfinding.js`, `../maze/random.js` et `../maze/grid.js` ; `share-link.js` n'importe que `../maze/maze.js` (`MAZE_LIMITS`) et `../maze/random.js` (`MAX_SEED`) et reçoit `location.search` / `location.href` de `main.js` ; `round.js` n'importe que `./player.js`, `./movement.js`, `./mouse-look.js`, `./monster.js`, `./game-state.js`, `./round-stats.js`, `./difficulty.js` et `./danger.js` (composition des appels existants, aucun BFS de plus) ; `danger.js`, `difficulty.js` et `render-quality.js` sont purs et n'importent rien (`render-quality.js` : `stepRenderQuality(state, dt)` et `columnWidthFor(state)` ; le dt vient de `createGameLoop`, `main.js` passe `columnWidth` à `drawFpsView`). Les BFS (`findExit`, monstre) ne tournent jamais à chaque image : une fois par génération, ou par arrivée du monstre sur une tuile. |
 | `src/render/` | Dessin | Seuls `canvas-renderer.js`, `fps-renderer.js` et `automap-renderer.js` touchent au contexte canvas. `maze-geometry.js`, `raycaster.js`, `wall-textures.js`, `surface-textures.js`, `automap.js` (n'importe que `../maze/grid.js` et `./raycaster.js`), `exit-texture.js` (n'importe au plus `./wall-textures.js`), `monster-sprite.js` (n'importe rien : kind et modes recopiés de `game/monster.js`) et `palette.js` restent purs ; `wall-textures.js` n'importe que `./raycaster.js` et renvoie des tableaux RGBA (`Uint8ClampedArray`) ; `surface-textures.js` n'importe que `./raycaster.js` et `./wall-textures.js` et écrit seulement dans le tableau reçu (`castSurfaces`) ; seul `fps-renderer.js` crée canvas et `ImageData`. N'importe jamais `src/game/` : le joueur est lu par sa forme `{ x, y, angle }`. |
 | `src/audio/` | Son | `bong.js` est pur : aucun DOM, `window`, `Math.random`, `Date`, `performance`, aucune API Web Audio ; n'importe rien. `monster-cries.js` est pur au même titre et n'importe que `./bong.js` (réutilise `bongGain`). `sound-captions.js` est pur au même titre (aucun DOM, Web Audio, `Math.random`, `Date`) et n'importe que `./bong.js` et `./monster-cries.js` (sélecteurs de gain : une légende par type si gain > 0). `monster-audio.js` n'importe que `./bong.js` et `./monster-cries.js`, ne crée que des nœuds `createOscillator`, `createGain` et `createBiquadFilter` (jamais `createBuffer` ni worklet), et reçoit le contexte par la fabrique injectée `createContext` (création paresseuse au premier `resume()`) : jamais de `window`, `AudioContext` ou `webkitAudioContext` global, ni `fetch`, `decodeAudioData`, élément `<audio>`, `MediaStream` ou micro. Ses méthodes ne lèvent jamais. N'importe jamais `src/game/` : l'événement est lu par sa forme `{ type, pathDistance }` (`'turn'` recopié dans `TURN_EVENT_TYPE`, `'spot'` dans `SPOT_EVENT_TYPE`). Un seul `AudioContext` dans l'application : le cri et le sluuurp passent par le même lecteur. Aucun fichier son. |
 | `src/game/touch-input.js` | Suivi des doigts (pur) | Aucun DOM, `window`, `document`, `performance`, `Date` ; n'importe que `./input.js`. Seul `main.js` lit les `PointerEvent` et passe par `touchActionFor` (liste blanche). |
@@ -139,7 +141,7 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   `chaseDistance`, `graceDuration` et `sightDistance` de `MONSTER` (passé en `options` à
   `createMonster` et `stepMonster`) ; « Normal » vaut exactement `MONSTER` et
   `FOG_DISTANCE`. Le niveau est lu dans `#maze-difficulty` par `main.js` (liste blanche
-  `isDifficulty`, sinon `normal`) au début de chaque manche et figé dans `roundSettings` ;
+  `isDifficulty`, sinon `normal`) au début de chaque manche et figé dans `round.settings` ;
   un changement de niveau en vue de dessus abandonne la manche en cours. La graine, le
   labyrinthe, la sortie et la case d'apparition du monstre n'en dépendent pas. Non stocké.
 - **Sprites** : `projectSprites(sprites, player, w, h, options)` reprend la caméra de `castRays`
@@ -179,9 +181,21 @@ droite, `y` lignes vers le bas, index de cellule `y * width + x`.
   `{ x, y, kind: 'monster' }` pour `drawFpsView` ; `monsterFrameSprite` le transforme en
   `{ x, y, kind: 'monster-<n>', worldSize }` selon `monsterFrame(time, mode, graceRemaining)`
   (mâchoire 0, 1, 2, 1 ; cycle de 0.8 s en errance, 0.4 s en traque ; image 0 pendant la
-  grâce). `monsterClock` (`main.js`) avance dans `update` et repart à 0 à chaque manche. Sans
+  grâce). `round.time` avance dans `stepRound` et repart à 0 à chaque manche. Sans
   image `monster-<n>` dans `spriteImages`, le sprite est ignoré. Réglages dans `MONSTER` (surcharge partielle
   par `options`). Lié à la manche : recréé par `startRound()`, `null` après génération.
+- **Round** (`round.js`, objet gelé, une manche) : `{ grid, exit, settings, player,
+  monster, state, time, stats }`. `settings` : réglages de difficulté de la manche
+  (`difficultySettings`) ; `state` : `GameState` ; `time` : secondes de jeu (horloge de la
+  mâchoire) ; `stats` : `RoundStats` du bilan (temps et distance, horloge distincte de
+  `time`). `createRound({ grid, seed, exit, difficulty })` propage les erreurs de
+  `difficultySettings`, `createPlayer` et `createMonster`. `stepRound(round, intent, dt,
+  turn)` rend `{ round, events, monsterStepped, ended }` gelé : manche finie -> même
+  référence, `events` vide, `ended` faux, horloges non avancées. `roundDanger(round)` : 0
+  pendant la grâce et en fin de manche, sinon `dangerLevel(monster.pathDistance)`. Dans
+  `main.js`, `round` vaut `null` après une génération (ou un changement de difficulté en
+  vue de dessus) et avant la première entrée en FPS. Le masque d'exploration reste dans
+  `main.js` (il dépend de `render/automap.js`).
 - **Bong** : `bongGain(pathDistance)` vaut `BONG.maxGain` (0.75) jusqu'à 2 tuiles de
   chemin, décroît linéairement en `(1 - u)` jusqu'au silence à 36 tuiles (et `Infinity`).
   `selectBongGain(events)` garde le maximum des événements `turn` d'un pas (un bong par
@@ -239,19 +253,20 @@ dépend en plus des noms de paramètres (`SHARE_PARAM`) et des identifiants de d
    regénération) ; rien à faire en vue FPS (chaque image s'adapte à la taille).
 6. Toute génération réussie calcule aussi `currentGrid = toTileGrid(maze)` et
    `currentExit = findExit(currentGrid)` (dans le même `try` que `generateMaze` : échec ->
-   `errors.generic`, labyrinthe précédent conservé), crée `gameState = createGameState()`,
-   masque l'écran de fin et remet `player` à `null` (départ réinitialisé). La vue de
+   `errors.generic`, labyrinthe précédent conservé), remet `round` à `null` (départ
+   réinitialisé) et masque l'écran de fin. La vue de
    dessus reçoit `drawMaze(canvas, maze, { exit: currentExit })`.
-7. « Explorer en 3D » : `startRound()` si `player` est `null` ou si la partie est finie
-   (une partie finie n'est jamais reprise telle quelle ; échec de `createPlayer` ->
-   `errors.generic`, on reste en vue de dessus), `viewMode = 'fps'`, formulaire et
+7. « Explorer en 3D » : `startRound()` si `round` est `null` ou si la partie est finie
+   (une partie finie n'est jamais reprise telle quelle ; échec de `createRound` ->
+   `errors.round`, on reste en vue de dessus), `viewMode = 'fps'`, formulaire et
    bouton d'entrée masqués (`hidden`), bouton de sortie, aide et objectif (`#fps-goal`)
    affichés, `aria-label` du canvas -> `canvas.labelFps`, ensemble des actions vidé,
    `monsterAudio.resume()` (le premier appel crée le contexte audio, dans le geste du
    clic), `gameLoop.start()`, focus sur le bouton de sortie. Un seul canvas sert aux deux vues.
-   `startRound()` : nouveau joueur au départ, monstre `createMonster(currentGrid,
-   currentMaze.seed, { exit })` (même départ et même errance à chaque « Rejouer » ; échec
-   de l'un des deux -> `errors.generic`), exploration remise à zéro, `gameState` en cours, actions vidées, écran de fin masqué.
+   `startRound()` : `round = createRound({ grid: currentGrid, seed: currentMaze.seed,
+   exit, difficulty })` (joueur au départ, monstre déterministe : même départ et même
+   errance à chaque « Rejouer » ; échec -> `errors.round`), exploration remise à zéro,
+   actions vidées, écran de fin masqué.
 8. En FPS, sur `window` (hors FPS : ignorés) ; `actionForCode(event.code)` (position
    physique : AZERTY et QWERTY). `keydown` : ignoré avec Ctrl/Meta/Alt ; touche non
    liée -> rien ; touche liée -> `preventDefault()`, puis `EXIT` (Échap) -> sortie,
@@ -279,39 +294,42 @@ dépend en plus des noms de paramètres (`SHARE_PARAM`) et des identifiants de d
    automatique. `mousemove` sur `document`, verrouillé, FPS, partie en cours, hors pause :
    `pendingMouseTurn = accumulateTurn(pendingMouseTurn, mouseTurnDelta(event.movementX))`
    (`movementX` non fini -> 0, borné à `MOUSE_LOOK.maxEventDelta` px, cumul borné à
-   `maxFrameTurn`) ; `movementY` ignoré. `update(dt)` applique `applyMouseTurn(player,
-   pendingMouseTurn)` avant `stepPlayer`, puis vide le cumul ; `clearHeldActions()` le vide
+   `maxFrameTurn`) ; `movementY` ignoré. `update(dt)` passe `pendingMouseTurn` à
+   `stepRound`, qui applique `applyMouseTurn` avant `stepPlayer`, puis vide le cumul ; `clearHeldActions()` le vide
    aussi. `pointerlockchange` : verrou perdu en FPS, partie en cours, hors pause ->
    `pauseRound('manual')` (Échap consommé par le navigateur). `pointerlockerror` : sans
    effet. Échap livré alors que le verrou est actif : `preventDefault()`, verrou libéré, on
    reste en FPS. `releasePointerLock()` (garde `typeof`, `try/catch`) est appelée après le
    changement d'état (vue, statut, pause), si bien que le `pointerlockchange` qui suit ne
    fait rien. La reprise après pause ne reprend pas le verrou : un clic le reprend.
-9. Chaque image (`createGameLoop`, horodatage rAF) : `update(dt)` ->
-   `player = stepPlayer(player, computeIntent(pressedActions), dt, currentGrid)`
-   (`dt` borné à `MOVEMENT.maxDt`, collisions par axes séparés avec glissement),
-   `revealVisibleTiles`, puis `gameState = checkVictory(gameState, player, currentExit)` ;
-   ensuite, seulement si `!isGameOver(gameState)` : `monster = stepMonster(monster,
-   player, dt, currentGrid).monster` (pas borné à `MONSTER.maxDt`), puis
+9. Chaque image (`createGameLoop`, horodatage rAF) : `update(dt)` -> partie finie : rien ;
+   sinon `stepRenderQuality`, puis `step = stepRound(round, intent, dt, pendingMouseTurn)`.
+   `stepRound` fait, dans l'ordre : `time += dt`, `applyMouseTurn`, `stepPlayer` (`dt`
+   borné à `MOVEMENT.maxDt`, collisions par axes séparés avec glissement), `advanceStats`,
+   `checkVictory` ; ensuite, seulement si la partie continue, `stepMonster(monster,
+   player, dt, grid, settings.monster)` (pas borné à `MONSTER.maxDt`) puis `declareDefeat`
+   si `isCatching(monster, player)` (le contact compte aussi pendant la grâce ; sortie et
+   contact dans la même image -> victoire). `main.js` appelle ensuite
+   `revealVisibleTiles(explored, currentGrid, round.player)` ; puis, si
+   `step.monsterStepped` : annonce de traque (`HUNT`),
    `monsterAudio.play(selectBongGain(step.events))` si le gain est `> 0`, puis
    `monsterAudio.playAlert(selectAlertGain(step.events))` si le gain est `> 0`, puis
    `monsterAudio.playCry(selectCryGain(step.events))` si le gain est `> 0`, puis
    `captionState = stepCaptions(captionState, step.events, player, dt)` puis
    `renderSoundCaptions()` (légendes, indépendantes du lecteur : affichées même son
-   coupé), puis `declareDefeat` si `isCatching(monster, player)` (le contact compte aussi pendant la
-   grâce ; sortie et contact dans la même image -> victoire). Partie finie -> rien dans
-   `update`. Ensuite `render()` -> `drawFpsView(canvas, currentGrid, player, { exit,
+   coupé) ; enfin `endRound()` si `step.ended`. Ensuite `render()` ->
+   `drawFpsView(canvas, currentGrid, round.player, { exit,
    sprites: [monsterFrameSprite(monsterSprite(monster), frame)], spriteImages,
-   danger: currentDanger() })` puis
-   `drawAutomap(..., { exit })`. `currentDanger()` vaut 0 pendant la grâce du monstre et
+   danger: roundDanger(round), fogDistance: round.settings.fogDistance, columnWidth })` puis
+   `drawAutomap(..., { exit })`. `roundDanger(round)` vaut 0 pendant la grâce du monstre et
    en fin de partie, sinon `dangerLevel(monster.pathDistance)` ; la vignette rouge des
    bords (`palette.dangerVignette`, alpha = niveau × 0,6) est dessinée par `drawFpsView`
    par-dessus les sprites. Hors FPS, la
    boucle est arrêtée : le monstre est figé ; la carte plein écran ne met pas en pause.
    En pause, la boucle est aussi arrêtée : rien n'avance (joueur, monstre, mâchoire), et
    la première image après `gameLoop.start()` a `dt = 0`.
-10. Fin de manche (`endRound()`, victoire ou défaite) : `gameLoop.stop()`,
-    défaite : `monsterAudio.playSlurp()` (coupe bongs et cri, sluuurp par-dessus l'écran de
+10. Fin de manche (`endRound()`, victoire ou défaite, lue dans `round.state.status`) :
+    `gameLoop.stop()`, défaite : `monsterAudio.playSlurp()` (coupe bongs et cri, sluuurp par-dessus l'écran de
     fin) ; victoire, ou sluuurp impossible : `monsterAudio.suspend()`, actions vidées,
     `mapMode` repassé en mini, dernière image dessinée, titre et message `end.won*` ou
     `end.lost*` en `textContent`, écran de fin (`#end-screen`, `role="alertdialog"`)

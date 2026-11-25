@@ -1,29 +1,30 @@
 // Flux bout en bout côté Node, sans DOM (plan docs/design/dark-monstre.md §3.4 et §6) :
-// generateMaze -> toTileGrid -> findExit -> createMonster, puis simulation de update()
-// de main.js : stepPlayer -> checkVictory -> (si partie en cours) stepMonster ->
-// isCatching -> declareDefeat.
+// generateMaze -> toTileGrid -> findExit -> createMonster, puis une image de update()
+// de main.js par stepRound (src/game/round.js) : stepPlayer -> checkVictory -> (si partie
+// en cours) stepMonster -> isCatching -> declareDefeat.
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateMaze } from '../../src/maze/maze.js';
 import { toTileGrid } from '../../src/maze/grid.js';
 import { createPlayer } from '../../src/game/player.js';
-import { stepPlayer, collides } from '../../src/game/movement.js';
+import { collides } from '../../src/game/movement.js';
 import { shortestPath } from '../../src/game/pathfinding.js';
 import { findExit } from '../../src/game/exit.js';
 import {
   GAME_STATUS,
   createGameState,
   checkVictory,
-  declareDefeat,
   isGameOver,
 } from '../../src/game/game-state.js';
 import {
   MONSTER,
   MONSTER_MODE,
   createMonster,
-  stepMonster,
   isCatching,
 } from '../../src/game/monster.js';
+import { stepRound } from '../../src/game/round.js';
+import { DEFAULT_DIFFICULTY, difficultySettings } from '../../src/game/difficulty.js';
+import { createRoundStats } from '../../src/game/round-stats.js';
 
 const STILL = Object.freeze({ move: 0, strafe: 0, turn: 0, run: false });
 
@@ -40,18 +41,30 @@ function setup(width, height, seed) {
 function frame(world, dt, pilot) {
   const { intent, angle } = pilot ? pilot(world) : { intent: STILL };
   const p = angle === undefined ? world.player : Object.freeze({ ...world.player, angle });
-  world.player = stepPlayer(p, intent, dt, world.grid);
-  world.state = checkVictory(world.state, world.player, world.exit);
-  if (!isGameOver(world.state)) {
-    const step = stepMonster(world.monster, world.player, dt, world.grid);
-    world.monster = step.monster;
-    if (isCatching(world.monster, world.player)) {
-      world.state = declareDefeat(world.state);
-      world.caught = true;
-    }
-  }
+  // Manche du niveau par défaut (réglages égaux à MONSTER), positions du monde simulé.
+  const round = Object.freeze({
+    grid: world.grid,
+    exit: world.exit,
+    settings: difficultySettings(DEFAULT_DIFFICULTY),
+    player: p,
+    monster: world.monster,
+    state: world.state,
+    time: world.time,
+    stats: createRoundStats(),
+  });
+  const step = stepRound(round, intent, dt);
+  world.player = step.round.player;
+  world.monster = step.round.monster;
+  world.state = step.round.state;
+  if (step.ended && world.state.status === GAME_STATUS.LOST) world.caught = true;
   world.time += dt;
 }
+
+test('niveau par défaut de stepRound : mêmes réglages que MONSTER (scénarios inchangés)', () => {
+  for (const [key, value] of Object.entries(difficultySettings(DEFAULT_DIFFICULTY).monster)) {
+    assert.equal(value, MONSTER[key], key);
+  }
+});
 
 function simulate(world, dt, maxSeconds, pilot) {
   while (!isGameOver(world.state) && world.time < maxSeconds) frame(world, dt, pilot);

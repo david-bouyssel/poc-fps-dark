@@ -62,7 +62,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 
 ## 4. Technique
 
-- [ ] **Alléger `src/main.js`** [complète] : 575 lignes mêlent DOM, état de manche, boucle
+- [x] **Alléger `src/main.js`** [complète] : 575 lignes mêlent DOM, état de manche, boucle
   et audio. Extraire l'état de manche (joueur, monstre, sortie, `explored`, statut) dans un
   module pur `src/game/round.js` testable sous Node. `main.js` ne garderait que le
   câblage DOM.

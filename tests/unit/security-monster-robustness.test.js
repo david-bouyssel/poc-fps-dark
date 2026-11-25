@@ -365,18 +365,29 @@ describe('scan statique', () => {
     }
   });
 
-  test('main.js : aucun sink HTML, réseau, stockage, log ; ordre victoire puis monstre', () => {
-    const code = stripComments(read('../../src/main.js'));
-    for (const re of [/innerHTML|outerHTML|insertAdjacentHTML|document\.write/, /\beval\b|new\s+Function/,
-      /\bfetch\b|XMLHttpRequest|WebSocket|sendBeacon/, /localStorage|sessionStorage|indexedDB|document\.cookie/,
-      /\bconsole\./, /Math\.random/]) {
-      assert.doesNotMatch(code, re, String(re));
+  test('main.js et round.js : aucun sink HTML, réseau, stockage, log ; ordre victoire puis monstre (round.js)', () => {
+    for (const rel of ['../../src/main.js', '../../src/game/round.js']) {
+      const code = stripComments(read(rel));
+      for (const re of [/innerHTML|outerHTML|insertAdjacentHTML|document\.write/, /\beval\b|new\s+Function/,
+        /\bfetch\b|XMLHttpRequest|WebSocket|sendBeacon/, /localStorage|sessionStorage|indexedDB|document\.cookie/,
+        /\bconsole\./, /Math\.random/]) {
+        assert.doesNotMatch(code, re, `${rel} : ${re}`);
+      }
     }
-    const victory = code.indexOf('checkVictory(gameState');
-    const guard = code.indexOf('if (!isGameOver(gameState))', victory);
-    const step = code.indexOf('stepMonster(', guard);
+    // L'ordre d'une image vit désormais dans round.js (stepRound).
+    const round = stripComments(read('../../src/game/round.js'));
+    const victory = round.search(/=\s*checkVictory\(\s*round\.state/);
+    const guard = round.indexOf('if (!isGameOver(state))', victory);
+    const step = round.indexOf('stepMonster(', guard);
     assert.ok(victory > 0 && guard > victory && step > guard,
       'stepMonster appelé après checkVictory, sous garde !isGameOver');
+    assert.equal([...round.matchAll(/\bstepMonster\s*\(/g)].length, 1, 'un seul appel de stepMonster');
+    // main.js ne garde que le câblage : plus aucun appel direct à la logique de manche.
+    const main = stripComments(read('../../src/main.js'));
+    for (const name of ['stepPlayer', 'stepMonster', 'checkVictory', 'declareDefeat', 'isCatching',
+      'createPlayer', 'createMonster', 'createGameState']) {
+      assert.doesNotMatch(main, new RegExp(`\\b${name}\\b`), `main.js utilise encore ${name}`);
+    }
   });
 });
 

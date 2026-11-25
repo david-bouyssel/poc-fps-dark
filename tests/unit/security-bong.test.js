@@ -151,7 +151,7 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
     assert.equal([...main.matchAll(/\bplaySlurp\s*\(/g)].length, 1, 'un seul appel de playSlurp');
     const endRound = main.match(/function endRound\(\) \{([\s\S]*?)\n\}/)[1];
     assert.match(endRound,
-      /if\s*\(\s*gameState\.status\s*!==\s*GAME_STATUS\.LOST\s*\|\|\s*!monsterAudio\.playSlurp\(\)\s*\)\s*\{\s*monsterAudio\.suspend\(\);\s*\}/,
+      /if\s*\(\s*round\.state\.status\s*!==\s*GAME_STATUS\.LOST\s*\|\|\s*!monsterAudio\.playSlurp\(\)\s*\)\s*\{\s*monsterAudio\.suspend\(\);\s*\}/,
       'victoire (ou sluuurp refusé) : suspend immédiat');
     assert.equal([...main.matchAll(/\bplayCry\s*\(/g)].length, 1, 'un seul appel de playCry');
     assert.match(main, /monsterAudio\.playCry\(\s*cryGainValue\s*\)/);

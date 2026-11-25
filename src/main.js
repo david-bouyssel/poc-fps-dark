@@ -1,7 +1,6 @@
 import { generateMaze, MAZE_LIMITS } from './maze/maze.js';
 import { MAX_SEED } from './maze/random.js';
 import { toTileGrid } from './maze/grid.js';
-import { createPlayer } from './game/player.js';
 import { ACTION, actionForCode, computeIntent } from './game/input.js';
 import {
   createTouchState,
@@ -10,18 +9,12 @@ import {
   touchActionFor,
   touchActions,
 } from './game/touch-input.js';
-import { stepPlayer } from './game/movement.js';
-import { accumulateTurn, applyMouseTurn, mouseTurnDelta } from './game/mouse-look.js';
+import { accumulateTurn, mouseTurnDelta } from './game/mouse-look.js';
 import { createGameLoop } from './game/loop.js';
 import { columnWidthFor, createRenderQuality, stepRenderQuality } from './game/render-quality.js';
 import { findExit } from './game/exit.js';
-import {
-  GAME_STATUS,
-  checkVictory,
-  createGameState,
-  declareDefeat,
-  isGameOver,
-} from './game/game-state.js';
+import { GAME_STATUS } from './game/game-state.js';
+import { createRound, isRoundOver, roundDanger, stepRound } from './game/round.js';
 import {
   PAUSE_REASON,
   canPause,
@@ -30,23 +23,10 @@ import {
   pauseGame,
   resumeGame,
 } from './game/pause.js';
-import {
-  MONSTER_EVENT,
-  createMonster,
-  isCatching,
-  monsterSprite,
-  stepMonster,
-} from './game/monster.js';
-import { dangerLevel } from './game/danger.js';
-import { DEFAULT_DIFFICULTY, DIFFICULTY_IDS, difficultySettings, isDifficulty } from './game/difficulty.js';
+import { MONSTER_EVENT, monsterSprite } from './game/monster.js';
+import { DEFAULT_DIFFICULTY, DIFFICULTY_IDS, isDifficulty } from './game/difficulty.js';
 import { buildShareUrl, parseNonNegativeInteger, parseShareParams, SHARE_STATUS } from './game/share-link.js';
-import {
-  advanceStats,
-  createRoundStats,
-  exploredRatio,
-  formatDistance,
-  formatDuration,
-} from './game/round-stats.js';
+import { exploredRatio, formatDistance, formatDuration } from './game/round-stats.js';
 import { drawMaze } from './render/canvas-renderer.js';
 import { drawFpsView } from './render/fps-renderer.js';
 import {
@@ -121,14 +101,11 @@ let currentMaze = null;
 let currentGrid = null;
 /** Sortie du labyrinthe courant (Exit gelé) ; null avant la première génération. */
 let currentExit = null;
-/** État de la manche courante (GameState gelé) ; null avant la première génération. */
-let gameState = null;
-/** Joueur courant ; null tant qu'aucune entrée en FPS depuis la dernière génération. */
-let player = null;
-/** Monstre de la manche courante ; null hors manche. */
-let monster = null;
-/** Horloge d'animation de la mâchoire (s) : avance dans update(), remise à 0 par startRound(). */
-let monsterClock = 0;
+/**
+ * Manche courante (Round gelé de ./game/round.js : joueur, monstre, statut, horloge, bilan,
+ * réglages de difficulté) ; null après une génération et avant la première entrée en FPS.
+ */
+let round = null;
 /** Images de la mâchoire : Map kind -> canvas hors écran (vide si la création a échoué). */
 let monsterImages = new Map();
 /** @type {'top' | 'fps'} */
@@ -139,12 +116,8 @@ let explored = null;
 let mapMode = AUTOMAP_MODE.MINI;
 /** État de pause de la manche (PauseState gelé) ; remis à zéro par startRound() et exitFps(). */
 let pauseState = createPauseState();
-/** Bilan de la manche courante (RoundStats gelé) : temps et distance, remis à zéro par startRound(). */
-let roundStats = createRoundStats();
 /** Qualité de rendu adaptative (RenderQuality gelé) : largeur de colonne selon le temps d'image ; remise à zéro par startRound() et enterFps(). */
 let renderQuality = createRenderQuality();
-/** Réglages de difficulté de la manche courante (monstre, brouillard), fixés par startRound(). */
-let roundSettings = difficultySettings(DEFAULT_DIFFICULTY);
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
 const pressedActions = new Set();
 /** Image d'annonce en attente (requestAnimationFrame) ; 0 si aucune. */
@@ -173,24 +146,22 @@ const monsterAudio = createMonsterAudio({ createContext: createAudioContext });
 
 const gameLoop = createGameLoop({
   update(dt) {
-    if (isGameOver(gameState)) {
+    if (isRoundOver(round)) {
       return;
     }
-    monsterClock += dt;
     renderQuality = stepRenderQuality(renderQuality, dt);
-    // Mouse look: absolute turn applied before stepPlayer, so this frame's move follows it.
-    player = applyMouseTurn(player, pendingMouseTurn);
+    // Game logic of the frame lives in stepRound: mouse turn (before the move, so this
+    // frame's move follows it), stepPlayer, checkVictory, then the monster only if the
+    // round goes on (reaching the exit at the moment of contact is a victory).
+    // Only DOM and audio effects stay here.
+    const intent = computeIntent([...pressedActions, ...touchActions(touchState)]);
+    const step = stepRound(round, intent, dt, pendingMouseTurn);
     pendingMouseTurn = 0;
-    const previousPlayer = player;
-    player = stepPlayer(player, computeIntent([...pressedActions, ...touchActions(touchState)]), dt, currentGrid);
-    roundStats = advanceStats(roundStats, dt, previousPlayer, player);
+    round = step.round;
+    const { player } = round;
+    // The exploration mask only feeds the automap: revealed from the new position.
     revealVisibleTiles(explored, currentGrid, player);
-    // Frame order: stepPlayer, checkVictory, then the monster only if the round goes on
-    // (reaching the exit at the moment of contact is a victory).
-    gameState = checkVictory(gameState, player, currentExit);
-    if (!isGameOver(gameState)) {
-      const step = stepMonster(monster, player, dt, currentGrid, roundSettings.monster);
-      monster = step.monster;
+    if (step.monsterStepped) {
       // One HUNT per switch from wander to chase: one announcement per hunt.
       if (step.events.some((event) => event.type === MONSTER_EVENT.HUNT)) {
         announce(t('round.huntAnnouncement'));
@@ -210,11 +181,8 @@ const gameLoop = createGameLoop({
       // Captions follow the monster events, not the audio player: shown even when muted.
       captionState = stepCaptions(captionState, step.events, player, dt);
       renderSoundCaptions();
-      if (isCatching(monster, player)) {
-        gameState = declareDefeat(gameState);
-      }
     }
-    if (isGameOver(gameState)) {
+    if (step.ended) {
       endRound();
     }
   },
@@ -391,27 +359,22 @@ function buildMonsterImages() {
   return images;
 }
 
-/**
- * Niveau de danger de l'image : nul pendant le délai d'immobilité du monstre et une fois la
- * manche finie (écran de fin), sinon selon la distance de chemin au monstre.
- * @returns {number} 0..1
- */
-function currentDanger() {
-  if (monster.graceRemaining > 0 || isGameOver(gameState)) {
-    return 0;
-  }
-  return dangerLevel(monster.pathDistance);
+/** @returns {boolean} vrai si une manche existe et qu'elle est finie (victoire ou défaite) */
+function isCurrentRoundOver() {
+  return round !== null && isRoundOver(round);
 }
 
 /** Dessine une image FPS (vue 3D puis automap) de la manche courante. */
 function drawFpsFrame() {
-  const frame = monsterFrame(monsterClock, monster.mode, monster.graceRemaining);
+  const { player, monster } = round;
+  const frame = monsterFrame(round.time, monster.mode, monster.graceRemaining);
   drawFpsView(canvas, currentGrid, player, {
     exit: currentExit,
     sprites: [monsterFrameSprite(monsterSprite(monster), frame)],
     spriteImages: monsterImages,
-    danger: currentDanger(),
-    fogDistance: roundSettings.fogDistance,
+    // Danger: none during the monster's grace delay and once the round is over.
+    danger: roundDanger(round),
+    fogDistance: round.settings.fogDistance,
     columnWidth: columnWidthFor(renderQuality),
   });
   drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
@@ -420,7 +383,7 @@ function drawFpsFrame() {
 function render() {
   if (viewMode === VIEW_TOP && currentMaze) {
     drawMaze(canvas, currentMaze, { exit: currentExit });
-  } else if (viewMode === VIEW_FPS && player !== null && !gameLoop.isRunning()) {
+  } else if (viewMode === VIEW_FPS && round !== null && !gameLoop.isRunning()) {
     // Round over or paused: keep the last frame (and the map) visible under the overlay.
     drawFpsFrame();
   }
@@ -528,11 +491,8 @@ function generateFromForm({ forceRandomSeed }) {
   currentMaze = maze;
   currentGrid = grid;
   currentExit = exit;
-  gameState = createGameState();
-  player = null;
-  monster = null;
+  round = null;
   explored = createExploredMask(currentGrid);
-  roundStats = createRoundStats();
   hideEndScreen();
   clearRoundStatus();
   clearError();
@@ -552,12 +512,10 @@ function generateFromForm({ forceRandomSeed }) {
  * démarre une manche neuve au nouveau niveau. Un changement forgé en FPS est ignoré.
  */
 function onDifficultyChange() {
-  if (viewMode !== VIEW_TOP || player === null || currentGrid === null) {
+  if (viewMode !== VIEW_TOP || round === null || currentGrid === null) {
     return;
   }
-  player = null;
-  monster = null;
-  gameState = createGameState();
+  round = null;
   explored = createExploredMask(currentGrid);
 }
 
@@ -578,26 +536,21 @@ function onResize() {
  * @returns {boolean} false si le joueur ou le monstre n'a pas pu être créé (erreur affichée)
  */
 function startRound() {
-  let nextPlayer;
-  let nextMonster;
-  const settings = difficultySettings(readDifficulty());
+  let nextRound;
   try {
-    nextPlayer = createPlayer(currentGrid);
-    nextMonster = createMonster(
-      currentGrid, currentMaze.seed, { exit: currentExit }, settings.monster,
-    );
+    nextRound = createRound({
+      grid: currentGrid,
+      seed: currentMaze.seed,
+      exit: currentExit,
+      difficulty: readDifficulty(),
+    });
   } catch {
     showError('errors.round');
     return false;
   }
-  player = nextPlayer;
-  monster = nextMonster;
-  roundSettings = settings;
-  monsterClock = 0;
+  round = nextRound;
   explored = createExploredMask(currentGrid);
-  roundStats = createRoundStats();
   renderQuality = createRenderQuality();
-  gameState = createGameState();
   clearHeldActions();
   hideEndScreen();
   clearPause();
@@ -613,22 +566,22 @@ function startRound() {
 function endRound() {
   gameLoop.stop();
   // Defeat: the slurp plays over the end screen and cuts every other sound.
-  if (gameState.status !== GAME_STATUS.LOST || !monsterAudio.playSlurp()) {
+  if (round.state.status !== GAME_STATUS.LOST || !monsterAudio.playSlurp()) {
     monsterAudio.suspend();
   }
   clearHeldActions();
   mapMode = AUTOMAP_MODE.MINI;
   canvas.setAttribute('aria-label', t('canvas.labelFps'));
   drawFpsFrame();
-  const won = gameState.status === GAME_STATUS.WON;
+  const won = round.state.status === GAME_STATUS.WON;
   endTitle.textContent = t(won ? 'end.wonTitle' : 'end.lostTitle');
   endMessage.textContent = t(won ? 'end.wonMessage' : 'end.lostMessage');
-  endStatTime.textContent = t('end.statTime', { value: formatDuration(roundStats.elapsed) });
+  endStatTime.textContent = t('end.statTime', { value: formatDuration(round.stats.elapsed) });
   endStatExplored.textContent = t('end.statExplored', {
     value: exploredRatio(explored, currentGrid),
   });
   endStatDistance.textContent = t('end.statDistance', {
-    value: formatDistance(roundStats.distance),
+    value: formatDistance(round.stats.distance),
   });
   clearRoundStatus();
   clearCaptions();
@@ -644,7 +597,7 @@ function endRound() {
  * @param {string} reason valeur de PAUSE_REASON
  */
 function pauseRound(reason) {
-  if (viewMode !== VIEW_FPS || !canPause(pauseState, gameState)) {
+  if (viewMode !== VIEW_FPS || round === null || !canPause(pauseState, round.state)) {
     return;
   }
   pauseState = pauseGame(pauseState, reason);
@@ -707,7 +660,7 @@ function enterFps() {
     return;
   }
   // A finished round is never resumed as is.
-  if ((player === null || isGameOver(gameState)) && !startRound()) {
+  if ((round === null || isRoundOver(round)) && !startRound()) {
     return;
   }
   viewMode = VIEW_FPS;
@@ -817,7 +770,7 @@ function touchButtonOf(event) {
 
 function onTouchPointerDown(event) {
   const button = touchButtonOf(event);
-  if (button === null || viewMode !== VIEW_FPS || isGameOver(gameState)) {
+  if (button === null || viewMode !== VIEW_FPS || isCurrentRoundOver()) {
     return;
   }
   const action = touchActionFor(button.dataset.action);
@@ -862,7 +815,7 @@ function isPointerLocked() {
 
 /** Peut-on tourner à la souris ? FPS, partie en cours et hors pause. */
 function isMouseLookActive() {
-  return viewMode === VIEW_FPS && !isGameOver(gameState) && !isPaused(pauseState);
+  return viewMode === VIEW_FPS && !isCurrentRoundOver() && !isPaused(pauseState);
 }
 
 /** Libère le verrou du pointeur s'il est tenu par le canvas (sans effet sinon, ne lève jamais). */
@@ -940,7 +893,7 @@ function onKeyDown(event) {
   }
   // Round over: only Escape and the sound key are handled; other keys keep their default
   // behaviour (Tab, Enter and Space stay usable on the end screen buttons).
-  if (isGameOver(gameState) && action !== ACTION.EXIT && action !== ACTION.TOGGLE_SOUND) {
+  if (isCurrentRoundOver() && action !== ACTION.EXIT && action !== ACTION.TOGGLE_SOUND) {
     return;
   }
   // Paused: only the keys of PAUSED_KEY_HANDLERS are handled; others keep their default
@@ -1058,7 +1011,7 @@ function init() {
       clearHeldActions();
       monsterAudio.suspend();
       pauseRound(PAUSE_REASON.HIDDEN);
-    } else if (viewMode === VIEW_FPS && !isGameOver(gameState) && !isPaused(pauseState)) {
+    } else if (viewMode === VIEW_FPS && !isCurrentRoundOver() && !isPaused(pauseState)) {
       // Context already unlocked by the initial gesture; never created here outside FPS.
       // Paused: nothing restarts, the resume is always explicit.
       monsterAudio.resume();
