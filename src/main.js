@@ -13,6 +13,7 @@ import {
 import { stepPlayer } from './game/movement.js';
 import { accumulateTurn, applyMouseTurn, mouseTurnDelta } from './game/mouse-look.js';
 import { createGameLoop } from './game/loop.js';
+import { columnWidthFor, createRenderQuality, stepRenderQuality } from './game/render-quality.js';
 import { findExit } from './game/exit.js';
 import {
   GAME_STATUS,
@@ -136,6 +137,8 @@ let mapMode = AUTOMAP_MODE.MINI;
 let pauseState = createPauseState();
 /** Bilan de la manche courante (RoundStats gelé) : temps et distance, remis à zéro par startRound(). */
 let roundStats = createRoundStats();
+/** Qualité de rendu adaptative (RenderQuality gelé) : largeur de colonne selon le temps d'image ; remise à zéro par startRound() et enterFps(). */
+let renderQuality = createRenderQuality();
 /** Réglages de difficulté de la manche courante (monstre, brouillard), fixés par startRound(). */
 let roundSettings = difficultySettings(DEFAULT_DIFFICULTY);
 /** Actions (valeurs de ACTION) actuellement enfoncées. */
@@ -170,6 +173,7 @@ const gameLoop = createGameLoop({
       return;
     }
     monsterClock += dt;
+    renderQuality = stepRenderQuality(renderQuality, dt);
     // Mouse look: absolute turn applied before stepPlayer, so this frame's move follows it.
     player = applyMouseTurn(player, pendingMouseTurn);
     pendingMouseTurn = 0;
@@ -304,6 +308,7 @@ function drawFpsFrame() {
     spriteImages: monsterImages,
     danger: currentDanger(),
     fogDistance: roundSettings.fogDistance,
+    columnWidth: columnWidthFor(renderQuality),
   });
   drawAutomap(canvas, currentGrid, explored, player, mapMode, { exit: currentExit });
 }
@@ -486,6 +491,7 @@ function startRound() {
   monsterClock = 0;
   explored = createExploredMask(currentGrid);
   roundStats = createRoundStats();
+  renderQuality = createRenderQuality();
   gameState = createGameState();
   clearHeldActions();
   hideEndScreen();
@@ -600,6 +606,7 @@ function enterFps() {
     return;
   }
   viewMode = VIEW_FPS;
+  renderQuality = createRenderQuality();
   mapMode = AUTOMAP_MODE.MINI;
   form.hidden = true;
   fpsEnterButton.hidden = true;

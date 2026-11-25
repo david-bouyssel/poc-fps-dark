@@ -523,3 +523,77 @@ describe('drawFpsView : option fogDistance', () => {
     }
   });
 });
+
+// --- Qualité de rendu adaptative (docs/design/rendu-adaptatif.md, T16) : option columnWidth ---
+
+/** Tranches de mur dessinées : { x, w } par drawImage de mur, dans l'ordre d'appel. */
+function wallSlices(options) {
+  const env = makeEnv();
+  const palette = uniquePalette();
+  drawFpsView(env.canvas, grid, player, { palette, ...options });
+  const walls = wallImagesOf(env.created);
+  return env.sequence
+    .filter((op) => op.kind === 'draw' && walls.has(op.image))
+    .map((op) => ({ x: op.args[4], w: op.args[6] }));
+}
+
+describe('drawFpsView : option columnWidth (qualité de rendu adaptative)', () => {
+  for (const cw of [2, 3, 4]) {
+    test(`columnWidth ${cw} : ceil(${VIEW_WIDTH} / ${cw}) colonnes, couvrant la vue sans trou`, () => {
+      const slices = wallSlices({ columnWidth: cw });
+      assert.equal(slices.length, Math.ceil(VIEW_WIDTH / cw));
+      let expectedX = 0;
+      for (const { x, w } of slices) {
+        assert.equal(x, expectedX, `colonne en x=${x}`);
+        assert.ok(w > 0 && w <= cw, `largeur ${w} pour columnWidth ${cw}`);
+        expectedX += w;
+      }
+      assert.equal(expectedX, VIEW_WIDTH, 'couverture exacte de la largeur');
+    });
+  }
+
+  test('columnWidth 4 : chaque tranche (sauf la dernière) fait 4 px', () => {
+    const slices = wallSlices({ columnWidth: 4 });
+    for (const { w } of slices.slice(0, -1)) assert.equal(w, 4);
+  });
+
+  test('valeurs invalides (absente, 0, 1, 5, 2.5, \'3\', null, NaN, -2, 6) : même rendu que 2 px', () => {
+    const base = wallSlices({});
+    assert.equal(base.length, Math.ceil(VIEW_WIDTH / 2));
+    assert.deepEqual(wallSlices({}), base);
+    for (const v of [0, 1, 5, 2.5, '3', null, NaN, -2, 6]) {
+      assert.deepEqual(wallSlices({ columnWidth: v }), base, `columnWidth=${String(v)}`);
+    }
+  });
+
+  test('valeur invalide : aucune exception', () => {
+    for (const v of [0, 5, 2.5, '3', null, NaN, undefined]) {
+      assert.doesNotThrow(() => wallSlices({ columnWidth: v }), String(v));
+    }
+  });
+
+  for (const cw of [3, 4]) {
+    test(`sprites alignés sur la grille de ${cw} px`, () => {
+      const env = makeEnv();
+      const palette = uniquePalette();
+      const sprites = [{ x: 3.2, y: 2.6, kind: SPRITE_KIND }];
+      drawFpsView(env.canvas, grid, player, {
+        palette,
+        sprites,
+        spriteImages: new Map([[SPRITE_KIND, SPRITE_IMAGE]]),
+        columnWidth: cw,
+      });
+      const spriteDraws = env.sequence.filter((op) => op.kind === 'draw' && op.image === SPRITE_IMAGE);
+      assert.ok(spriteDraws.length > 0, 'le sprite doit être dessiné (sinon test vide)');
+      assert.ok(spriteDraws.length >= 2, 'plusieurs tranches attendues pour le sprite');
+      // Le premier morceau part du bord gauche du sprite (fractionnaire) ; les suivants
+      // commencent sur la grille de colonnes. Aucune tranche ne dépasse une colonne.
+      for (const op of spriteDraws.slice(1)) {
+        assert.equal(op.args[4] % cw, 0, `sprite en x=${op.args[4]} non aligné sur ${cw} px`);
+      }
+      for (const op of spriteDraws) {
+        assert.ok(op.args[6] <= cw + 1e-9, `tranche de sprite plus large que ${cw} px : ${op.args[6]}`);
+      }
+    });
+  }
+});

@@ -66,7 +66,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
   et audio. Extraire l'état de manche (joueur, monstre, sortie, `explored`, statut) dans un
   module pur `src/game/round.js` testable sous Node. `main.js` ne garderait que le
   câblage DOM.
-- [ ] **Qualité de rendu adaptative** [courte] : `COLUMN_WIDTH = 2` est fixe dans
+- [x] **Qualité de rendu adaptative** [courte] : `COLUMN_WIDTH = 2` est fixe dans
   `src/render/fps-renderer.js`. Sur un grand écran HiDPI ou un mobile lent, passer à 3-4 px
   quand le temps moyen d'une image dépasse un seuil, puis revenir à 2 px. Mesure du temps
   injectée (pas de `performance` dans `src/render/`).

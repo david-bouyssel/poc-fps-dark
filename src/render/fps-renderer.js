@@ -19,8 +19,10 @@ import {
 import { isSpriteColumnVisible, projectSprites } from './sprites.js';
 import { EXIT_FOG_SCALE, generateExitTexture, isExitFace } from './exit-texture.js';
 
-/** Largeur d'une colonne de rendu, en px CSS (un rayon par colonne). */
-const COLUMN_WIDTH = 2;
+/** Largeur de colonne par défaut, en px CSS (un rayon par colonne). */
+const DEFAULT_COLUMN_WIDTH = 2;
+/** Largeurs de colonne admises par l'option columnWidth (px CSS). */
+const COLUMN_WIDTHS = Object.freeze([2, 3, 4]);
 /** Seuils de wallX sous / au-dessus desquels un liseré de joint de tuile est dessiné. */
 const EDGE_LOW = 0.04;
 const EDGE_HIGH = 0.96;
@@ -87,7 +89,7 @@ let spriteScratch = null;
  * Dessine la vue FPS. Taille CSS = zone du parent (repli : taille actuelle du canvas),
  * gestion de devicePixelRatio. Ne réaffecte canvas.width/height que si la taille change
  * (réaffecter chaque image vide le contexte et coûte cher).
- * Un rayon par tranche de COLUMN_WIDTH = 2 px CSS (perf, aspect « pixel doux »).
+ * Un rayon par tranche de options.columnWidth px CSS (2 par défaut ; 2, 3 ou 4 ; perf, aspect « pixel doux »).
  * Ordre : castRays d'abord (contrat @throws), puis sol et plafond, puis une colonne par
  * rayon (murs dessinés par-dessus). Sol et plafond : textures procédurales (floor casting
  * dans un tampon ImageData réduit, agrandi sans lissage sur tout le canvas). Repli sans
@@ -120,13 +122,15 @@ let spriteScratch = null;
  * @param {{ palette?: object, exit?: { tx: number, ty: number },
  *           sprites?: ReadonlyArray<{ x: number, y: number, kind: string, worldSize?: number }>,
  *           spriteImages?: ReadonlyMap<string, CanvasImageSource>, danger?: number,
- *           fogDistance?: number }} [options]
- *        sprites : défaut [] ; spriteImages : défaut aucune image
+ *           fogDistance?: number, columnWidth?: number }} [options]
+ *        sprites : défaut [] ; spriteImages : défaut aucune image ;
+ *        columnWidth : 2, 3 ou 4 px CSS, défaut 2 ; toute autre valeur : 2
  * @throws {TypeError} grid ou player mal formé (voir castRays)
  */
 export function drawFpsView(canvas, grid, player, options = {}) {
   const palette = { ...PALETTE, ...(options.palette ?? {}) };
   const fogDistance = resolveFogDistance(options.fogDistance);
+  const columnWidth = resolveColumnWidth(options.columnWidth);
 
   const container = canvas.parentElement;
   const cssWidth = Math.max(
@@ -163,7 +167,7 @@ export function drawFpsView(canvas, grid, player, options = {}) {
   ctx.imageSmoothingEnabled = false;
 
   // Rays first: an invalid grid or player throws before any drawing.
-  const columnCount = Math.max(1, Math.ceil(cssWidth / COLUMN_WIDTH));
+  const columnCount = Math.max(1, Math.ceil(cssWidth / columnWidth));
   const hits = castRays(grid, player, columnCount);
 
   if (!drawTexturedSurfaces(ctx, canvas, player, palette, cssWidth, cssHeight, fogDistance)) {
@@ -178,15 +182,16 @@ export function drawFpsView(canvas, grid, player, options = {}) {
     const exitImage = exit ? getExitTexture(canvas, palette) : null;
     drawTexturedWalls(
       ctx, hits, player, textures, palette, cssWidth, cssHeight, exit, exitImage, fogDistance,
+      columnWidth,
     );
   } else {
-    drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit, fogDistance);
+    drawFlatWalls(ctx, hits, player, palette, cssWidth, cssHeight, exit, fogDistance, columnWidth);
   }
 
   // Sprites last: drawn over the walls, hidden column by column by the wall distances.
   drawSprites(
     ctx, hits, player, options.sprites, options.spriteImages, cssWidth, cssHeight, palette.fog,
-    fogDistance,
+    fogDistance, columnWidth,
   );
 
   drawDangerVignette(ctx, options.danger, palette.dangerVignette, cssWidth, cssHeight);
@@ -200,6 +205,16 @@ export function drawFpsView(canvas, grid, player, options = {}) {
  */
 function resolveFogDistance(value) {
   return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : FOG_DISTANCE;
+}
+
+/**
+ * Largeur de colonne effective : la valeur si elle figure dans {2, 3, 4}, sinon 2.
+ * Ne lève jamais.
+ * @param {unknown} value
+ * @returns {number}
+ */
+function resolveColumnWidth(value) {
+  return COLUMN_WIDTHS.includes(value) ? value : DEFAULT_COLUMN_WIDTH;
 }
 
 /**
@@ -240,7 +255,7 @@ function drawDangerVignette(ctx, danger, color, cssWidth, cssHeight) {
  * rien n'est dessiné.
  */
 function drawSprites(
-  ctx, hits, player, sprites, images, cssWidth, cssHeight, fogColor, fogDistance,
+  ctx, hits, player, sprites, images, cssWidth, cssHeight, fogColor, fogDistance, columnWidth,
 ) {
   if (!Array.isArray(sprites) || sprites.length === 0) {
     return;
@@ -253,7 +268,7 @@ function drawSprites(
     const projected = projectSprites(drawable, player, cssWidth, cssHeight);
     for (const sprite of projected) {
       const image = images.get(sprite.kind);
-      drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance);
+      drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance, columnWidth);
     }
   } catch {
     // Canvas failure or invalid player: the frame stays without sprites.
@@ -343,7 +358,7 @@ function fogTintSprite(ctx, image, fog, fogColor) {
   return canvas;
 }
 
-function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance) {
+function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance, columnWidth) {
   const { depth, left, right, top, bottom, size } = sprite;
   if (!(size > 0) || !(bottom > top)) {
     return;
@@ -354,17 +369,17 @@ function drawSprite(ctx, hits, sprite, image, cssWidth, fogColor, fogDistance) {
   if (!(texWidth > 0) || !(texHeight > 0)) {
     return;
   }
-  const firstColumn = Math.max(0, Math.floor(left / COLUMN_WIDTH));
-  const lastColumn = Math.min(hits.length - 1, Math.ceil(right / COLUMN_WIDTH) - 1);
+  const firstColumn = Math.max(0, Math.floor(left / columnWidth));
+  const lastColumn = Math.min(hits.length - 1, Math.ceil(right / columnWidth) - 1);
   const source = fogTintSprite(ctx, image, fogFactor(depth, { fogDistance }), fogColor) ?? image;
   ctx.globalAlpha = 1;
   for (let column = firstColumn; column <= lastColumn; column++) {
     if (!isSpriteColumnVisible(depth, hits[column])) {
       continue;
     }
-    const columnLeft = column * COLUMN_WIDTH;
+    const columnLeft = column * columnWidth;
     const startX = Math.max(columnLeft, left);
-    const endX = Math.min(columnLeft + COLUMN_WIDTH, cssWidth, right);
+    const endX = Math.min(columnLeft + columnWidth, cssWidth, right);
     if (endX <= startX) {
       continue;
     }
@@ -462,7 +477,7 @@ function getSurfaceBuffer(canvas, cssWidth, cssHeight) {
 
 function drawTexturedWalls(
   ctx, hits, player, textures, palette, cssWidth, cssHeight, exit = null, exitImage = null,
-  fogDistance = FOG_DISTANCE,
+  fogDistance = FOG_DISTANCE, columnWidth = DEFAULT_COLUMN_WIDTH,
 ) {
   for (let column = 0; column < hits.length; column++) {
     const hit = hits[column];
@@ -474,8 +489,8 @@ function drawTexturedWalls(
     const pair = textures[textureIndexForTile(hit.tileX, hit.tileY)];
     const image = isExit ? exitImage : (hit.side === 'y' ? pair.dark : pair.light);
     const texX = textureColumn(hit, player);
-    const x = column * COLUMN_WIDTH;
-    const width = Math.min(COLUMN_WIDTH, cssWidth - x);
+    const x = column * columnWidth;
+    const width = Math.min(columnWidth, cssWidth - x);
     // The fog veil of the previous column leaves globalAlpha below 1: reset it so the wall is opaque.
     ctx.globalAlpha = 1;
     ctx.drawImage(image, texX, srcY, 1, srcHeight, x, top, width, bottom - top);
@@ -492,6 +507,7 @@ function drawTexturedWalls(
 
 function drawFlatWalls(
   ctx, hits, player, palette, cssWidth, cssHeight, exit = null, fogDistance = FOG_DISTANCE,
+  columnWidth = DEFAULT_COLUMN_WIDTH,
 ) {
   for (let column = 0; column < hits.length; column++) {
     const hit = hits[column];
@@ -507,9 +523,9 @@ function drawFlatWalls(
     if (!isExit && (hit.wallX < EDGE_LOW || hit.wallX > EDGE_HIGH)) {
       color = mixColor(color, EDGE_SHADE_COLOR, EDGE_SHADE);
     }
-    const x = column * COLUMN_WIDTH;
+    const x = column * columnWidth;
     ctx.fillStyle = color;
-    ctx.fillRect(x, top, Math.min(COLUMN_WIDTH, cssWidth - x), bottom - top);
+    ctx.fillRect(x, top, Math.min(columnWidth, cssWidth - x), bottom - top);
   }
 }
 
