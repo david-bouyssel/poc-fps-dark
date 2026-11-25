@@ -9,9 +9,9 @@ const ELEMENT_IDS = [
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'sound-toggle-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
-  'pause-screen', 'pause-message', 'resume-button', 'round-status',
+  'pause-screen', 'pause-message', 'resume-button', 'round-status', 'sound-captions',
 ];
-const HIDDEN_AT_LOAD = new Set([
+const HIDDEN_AT_LOAD = new Set([ 'sound-captions',
   'fps-exit-button', 'sound-toggle-button', 'fps-help', 'fps-goal', 'end-screen',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch', 'pause-screen',
 ]);
@@ -48,7 +48,7 @@ function makeClassList() {
 function makeElement(id) {
   const attrs = new Map();
   const el = {
-    ...makeHost(), id, hidden: HIDDEN_AT_LOAD.has(id), textContent: '', value: '', style: {},
+    ...makeHost(), id, hidden: HIDDEN_AT_LOAD.has(id), replaceChildren(...nodes) { this.children = nodes; }, textContent: '', value: '', style: {},
     width: 300, height: 150, clientWidth: 0, clientHeight: 0,
     parentElement: { clientWidth: 640, clientHeight: 480 },
     classList: makeClassList(),
@@ -87,6 +87,7 @@ const fakeWindow = makeHost();
 const fakeDocument = {
   ...makeHost(), title: '', hidden: false, activeElement: null,
   getElementById: (id) => elements.get(id) ?? null,
+  createElement: (tag) => ({ tagName: tag, textContent: '', className: '' }),
   querySelectorAll: () => [],
   body: { classList: makeClassList() },
 };

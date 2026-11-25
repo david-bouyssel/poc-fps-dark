@@ -64,6 +64,12 @@ import { applyTranslations, t } from './i18n/i18n.js';
 import { selectBongGain } from './audio/bong.js';
 import { selectAlertGain, selectCryGain } from './audio/monster-cries.js';
 import { createMonsterAudio } from './audio/monster-audio.js';
+import {
+  CAPTION_KIND_KEY,
+  CAPTION_SIDE_KEY,
+  createCaptionState,
+  stepCaptions,
+} from './audio/sound-captions.js';
 
 const DEFAULT_SIZE = 16;
 const INTEGER_PATTERN = /^\d+$/;
@@ -99,6 +105,7 @@ const pauseScreen = document.getElementById('pause-screen');
 const pauseMessage = document.getElementById('pause-message');
 const resumeButton = document.getElementById('resume-button');
 const roundStatus = document.getElementById('round-status');
+const soundCaptions = document.getElementById('sound-captions');
 
 const VIEW_TOP = 'top';
 const VIEW_FPS = 'fps';
@@ -139,6 +146,10 @@ let pendingAnnounceFrame = 0;
 let touchState = createTouchState();
 /** Rotation à la souris (rad) cumulée depuis la dernière image ; vidée par clearHeldActions(). */
 let pendingMouseTurn = 0;
+/** Légendes des sons visibles (CaptionState gelé) ; vidées par clearCaptions(). */
+let captionState = createCaptionState();
+/** Clé de la dernière liste de légendes dessinée (évite de reconstruire le DOM à chaque image). */
+let renderedCaptionKey = '';
 let resizeFrame = 0;
 
 /**
@@ -188,6 +199,9 @@ const gameLoop = createGameLoop({
       if (cryGainValue > 0) {
         monsterAudio.playCry(cryGainValue);
       }
+      // Captions follow the monster events, not the audio player: shown even when muted.
+      captionState = stepCaptions(captionState, step.events, player, dt);
+      renderSoundCaptions();
       if (isCatching(monster, player)) {
         gameState = declareDefeat(gameState);
       }
@@ -332,6 +346,33 @@ function announce(text) {
   });
 }
 
+/**
+ * Vide les légendes des sons (état remis à zéro) et masque leur zone.
+ */
+function clearCaptions() {
+  captionState = createCaptionState();
+  renderSoundCaptions();
+}
+
+/**
+ * Dessine les légendes courantes : une ligne par légende, texte par textContent (libellés
+ * de fr.js). Zone masquée hors FPS ou sans légende. Ne reconstruit rien si rien ne change.
+ */
+function renderSoundCaptions() {
+  const lines = viewMode === VIEW_FPS ? captionState.lines : [];
+  const key = lines.map((line) => `${line.kind}:${line.side}`).join('|');
+  if (key !== renderedCaptionKey) {
+    renderedCaptionKey = key;
+    soundCaptions.replaceChildren(...lines.map((line) => {
+      const element = document.createElement('p');
+      element.className = `caption caption-${line.side}`;
+      element.textContent = `${t(CAPTION_KIND_KEY[line.kind])} ${t(CAPTION_SIDE_KEY[line.side])}`;
+      return element;
+    }));
+  }
+  soundCaptions.hidden = lines.length === 0;
+}
+
 /** Sort de pause sans reprendre la boucle : état remis à zéro, écran de pause masqué. */
 function clearPause() {
   pauseState = createPauseState();
@@ -450,6 +491,7 @@ function startRound() {
   hideEndScreen();
   clearPause();
   clearRoundStatus();
+  clearCaptions();
   return true;
 }
 
@@ -478,6 +520,7 @@ function endRound() {
     value: formatDistance(roundStats.distance),
   });
   clearRoundStatus();
+  clearCaptions();
   endScreen.hidden = false;
   // State already over: the pointerlockchange that follows does nothing.
   releasePointerLock();
@@ -499,6 +542,7 @@ function pauseRound(reason) {
   gameLoop.stop();
   monsterAudio.suspend();
   clearHeldActions();
+  clearCaptions();
   drawFpsFrame();
   const messageKey = reason === PAUSE_REASON.MANUAL ? 'pause.message' : 'pause.messageAuto';
   pauseMessage.textContent = t(messageKey);
@@ -599,6 +643,7 @@ function exitFps() {
   hideEndScreen();
   clearPause();
   clearRoundStatus();
+  clearCaptions();
   canvas.setAttribute('aria-label', t('canvas.label'));
   render();
   fpsEnterButton.focus();

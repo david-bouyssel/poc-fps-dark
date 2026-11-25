@@ -388,9 +388,9 @@ const ELEMENT_IDS = [
   'maze-error', 'maze-canvas', 'fps-enter-button', 'fps-exit-button', 'sound-toggle-button', 'fps-help',
   'fps-goal', 'end-screen', 'end-title', 'end-message', 'end-stat-time', 'end-stat-explored', 'end-stat-distance', 'replay-button', 'end-new-maze-button',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
-  'pause-screen', 'pause-message', 'resume-button', 'round-status',
+  'pause-screen', 'pause-message', 'resume-button', 'round-status', 'sound-captions',
 ];
-const HIDDEN_AT_LOAD = new Set([
+const HIDDEN_AT_LOAD = new Set([ 'sound-captions',
   'fps-exit-button', 'sound-toggle-button', 'fps-help', 'fps-goal', 'end-screen',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch', 'pause-screen',
 ]);
@@ -440,7 +440,7 @@ function makeElement(id) {
   const element = {
     ...makeListenerHost(),
     id,
-    hidden: HIDDEN_AT_LOAD.has(id),
+    hidden: HIDDEN_AT_LOAD.has(id), replaceChildren(...nodes) { this.children = nodes; },
     value: '',
     style: {},
     width: 300,
@@ -481,6 +481,7 @@ describe('main.js : câblage du monstre (DOM factice)', () => {
     hidden: false,
     activeElement: null,
     getElementById: (id) => elements.get(id) ?? null,
+    createElement: (tag) => ({ tagName: tag, textContent: '', className: '' }),
     querySelectorAll: () => [],
     body: { classList: { add() {}, remove() {} } },
   };

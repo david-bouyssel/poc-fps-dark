@@ -57,7 +57,7 @@ function makeElement(id) {
   const element = {
     ...makeListenerHost(),
     id,
-    hidden: HIDDEN_AT_LOAD.has(id),
+    hidden: HIDDEN_AT_LOAD.has(id), replaceChildren(...nodes) { this.children = nodes; },
     textContent: '',
     value: '',
     style: {},
@@ -86,6 +86,7 @@ const fakeDocument = {
   activeElement: null,
   pointerLockElement: null,
   getElementById: (id) => elements.get(id) ?? null,
+  createElement: (tag) => ({ tagName: tag, textContent: '', className: '' }),
   querySelectorAll: () => [],
   body: { classList: { add() {}, remove() {} } },
 };

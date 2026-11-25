@@ -97,9 +97,9 @@ const ELEMENT_IDS = [
   'sound-toggle-button', 'fps-help', 'fps-goal', 'end-screen', 'end-title', 'end-message',
   'end-stat-time', 'end-stat-explored', 'end-stat-distance', 'replay-button',
   'end-new-maze-button', 'touch-pad-move', 'touch-pad-actions', 'fps-help-touch',
-  'pause-screen', 'pause-message', 'resume-button', 'round-status',
+  'pause-screen', 'pause-message', 'resume-button', 'round-status', 'sound-captions',
 ];
-const HIDDEN_AT_LOAD = new Set([
+const HIDDEN_AT_LOAD = new Set([ 'sound-captions',
   'fps-exit-button', 'sound-toggle-button', 'fps-help', 'fps-goal', 'end-screen',
   'touch-pad-move', 'touch-pad-actions', 'fps-help-touch', 'pause-screen',
 ]);
@@ -153,7 +153,7 @@ const fakeDocument = {
 function makeElement(id) {
   const attrs = new Map();
   const el = {
-    ...makeHost(), id, hidden: HIDDEN_AT_LOAD.has(id), value: '', style: {},
+    ...makeHost(), id, hidden: HIDDEN_AT_LOAD.has(id), replaceChildren(...nodes) { this.children = nodes; }, value: '', style: {},
     width: 300, height: 150, clientWidth: 0, clientHeight: 0,
     parentElement: { clientWidth: 160, clientHeight: 120 },
     classList: makeClassList(),
@@ -173,6 +173,7 @@ function makeElement(id) {
 const elements = new Map(ELEMENT_IDS.map((id) => [id, makeElement(id)]));
 elements.get('maze-difficulty').value = 'normal';
 fakeDocument.getElementById = (id) => elements.get(id) ?? null;
+fakeDocument.createElement = (tag) => ({ tagName: tag, textContent: '', className: '' });
 const el = (id) => elements.get(id);
 class FakeElement {}
 

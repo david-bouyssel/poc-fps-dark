@@ -53,7 +53,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
 
 ## 3. Accessibilité
 
-- [ ] **Sous-titres des sons** [courte] : un court texte ou une icône à l'écran pour
+- [x] **Sous-titres des sons** [courte] : un court texte ou une icône à l'écran pour
   « bong », alerte et cri, avec un côté (gauche / droite) d'après la position du monstre.
   Pour jouer sans le son ou pour les joueurs sourds et malentendants.
 - [x] **Annonce de l'état de manche** [express] : `#end-screen` est un `alertdialog`, mais
