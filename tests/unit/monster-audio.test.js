@@ -906,3 +906,158 @@ describe('couper le son : setMuted / isMuted', () => {
     }
   });
 });
+
+// Son spatialisé (plan docs/design/son-spatialise.md §4.1 et §6, tests 11 à 16) : un
+// StereoPannerNode par voix, pan borné, repli au centre, panner libéré en fin de voix.
+function withPanner(ctx, { failCreate = false, failSetPan = false } = {}) {
+  ctx.panners = [];
+  ctx.createStereoPanner = () => {
+    if (failCreate) throw new Error('createStereoPanner failure');
+    const panner = {
+      pan: failSetPan
+        ? { setValueAtTime() { throw new Error('pan failure'); } }
+        : fakeParam(),
+      connections: [],
+      disconnected: 0,
+      connect(node) { this.connections.push(node); },
+      disconnect() { this.disconnected += 1; },
+    };
+    ctx.panners.push(panner);
+    return panner;
+  };
+  return ctx;
+}
+
+describe('son spatialisé : panoramique des bongs, alertes et cris', () => {
+  test('play(gain, pan) : un panner par voix, pan.value posé au départ de chaque voix, env -> panner -> destination', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx);
+    player.resume();
+    assert.equal(player.play(0.5, 0.6), true);
+    assert.equal(ctx.panners.length, 4);
+    const schedule = bongSchedule(0, 0.5);
+    schedule.forEach((voice, i) => {
+      assert.deepEqual(ctx.panners[i].pan.calls, [['set', 0.6, voice.start]], `voix ${i}`);
+      assert.deepEqual(ctx.gains[i].connections, [ctx.panners[i]], `env ${i} -> panner`);
+      assert.deepEqual(ctx.panners[i].connections, [ctx.destination], `panner ${i} -> destination`);
+    });
+  });
+
+  test('playAlert(gain, pan) : 4 panners réglés à pan, chaîne conforme', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx);
+    player.resume();
+    assert.equal(player.playAlert(0.2, -0.6), true);
+    assert.equal(ctx.panners.length, 4);
+    const schedule = alertSchedule(0, 0.2);
+    schedule.forEach((voice, i) => {
+      assert.deepEqual(ctx.panners[i].pan.calls, [['set', -0.6, voice.start]], `voix ${i}`);
+      assert.deepEqual(ctx.gains[i].connections, [ctx.panners[i]]);
+    });
+  });
+
+  test('playCry(gain, pan) : 3 panners réglés à pan, chaîne conforme', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx);
+    player.resume();
+    assert.equal(player.playCry(0.1, 0.3), true);
+    assert.equal(ctx.panners.length, 3);
+    const schedule = crySchedule(0, 0.1);
+    schedule.forEach((voice, i) => {
+      assert.deepEqual(ctx.panners[i].pan.calls, [['set', 0.3, voice.start]], `voix ${i}`);
+    });
+  });
+
+  test('pan absent : centre (0), pan hors bornes borné à [-1, 1]', () => {
+    const cases = [
+      [undefined, 0],
+      [3, 1],
+      [-3, -1],
+      [0.25, 0.25],
+    ];
+    for (const [input, expected] of cases) {
+      const { ctx, player } = setup();
+      withPanner(ctx);
+      player.resume();
+      assert.equal(player.play(0.5, input), true, `play(${input})`);
+      assert.deepEqual(ctx.panners[0].pan.calls[0].slice(0, 2), ['set', expected], `pan ${input}`);
+    }
+  });
+
+  test('pan non numérique (NaN, Infinity, chaîne, null) : centre, aucune exception, retour inchangé', () => {
+    for (const input of [NaN, Infinity, -Infinity, 'x', null]) {
+      const { ctx, player } = setup();
+      withPanner(ctx);
+      player.resume();
+      let result;
+      assert.doesNotThrow(() => { result = player.playCry(0.1, input); }, String(input));
+      assert.equal(result, true, `playCry(${String(input)})`);
+      assert.equal(ctx.panners[0].pan.calls[0][1], 0, String(input));
+    }
+  });
+});
+
+describe('son spatialisé : repli au centre', () => {
+  test('contexte sans createStereoPanner : voix branchées env -> destination, son programmé', () => {
+    const { ctx, player } = setup();
+    player.resume();
+    assert.equal(player.play(0.5, 0.6), true);
+    ctx.gains.forEach((env, i) => assert.deepEqual(env.connections, [ctx.destination], `env ${i}`));
+  });
+
+  test('createStereoPanner qui lève : son programmé, voix au centre, aucune voix abandonnée', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx, { failCreate: true });
+    player.resume();
+    let result;
+    assert.doesNotThrow(() => { result = player.play(0.5, 0.6); });
+    assert.equal(result, true);
+    assert.equal(ctx.oscillators.length, 4);
+    ctx.oscillators.forEach((osc) => assert.equal(osc.startCalls.length, 1, 'voix démarrée'));
+    ctx.gains.forEach((env, i) => assert.deepEqual(env.connections, [ctx.destination], `env ${i}`));
+  });
+
+  test('réglage de pan qui lève : panner déconnecté, voix au centre, son programmé', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx, { failSetPan: true });
+    player.resume();
+    let result;
+    assert.doesNotThrow(() => { result = player.playAlert(0.2, -0.6); });
+    assert.equal(result, true);
+    assert.equal(ctx.panners.length, 4);
+    ctx.panners.forEach((panner, i) => assert.ok(panner.disconnected >= 1, `panner ${i} non déconnecté`));
+    ctx.gains.forEach((env, i) => assert.deepEqual(env.connections, [ctx.destination], `env ${i}`));
+  });
+});
+
+describe('son spatialisé : sluuurp, fin de voix, coupure', () => {
+  test('playSlurp() : aucun panner créé, voix au centre', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx);
+    player.resume();
+    assert.equal(player.playSlurp(), true);
+    assert.equal(ctx.panners.length, 0);
+    ctx.gains.forEach((env, i) => assert.deepEqual(env.connections, [ctx.destination], `env ${i}`));
+  });
+
+  test('fin de voix (onended) : chaque panner de la voix est déconnecté', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx);
+    player.resume();
+    player.play(0.5, 0.6);
+    for (const osc of ctx.oscillators) osc.onended();
+    ctx.panners.forEach((panner, i) => assert.ok(panner.disconnected >= 1, `panner ${i} non déconnecté`));
+  });
+
+  test('son coupé : play, playCry, playAlert ne créent ni voix ni panner', () => {
+    const { ctx, player } = setup();
+    withPanner(ctx);
+    player.resume();
+    player.setMuted(true);
+    assert.equal(player.play(0.5, 0.6), false);
+    assert.equal(player.playCry(0.5, 0.6), false);
+    assert.equal(player.playAlert(0.5, 0.6), false);
+    assert.equal(ctx.oscillators.length, 0);
+    assert.equal(ctx.panners.length, 0);
+  });
+});

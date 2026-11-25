@@ -46,16 +46,27 @@ function stopVoice(voice) {
 
 /**
  * Déconnecte les nœuds d'une voix, sans jamais lever.
- * @param {{ osc: any, env: any, filter?: any }} voice
+ * @param {{ osc: any, env: any, filter?: any, panner?: any }} voice
  */
 function disconnectVoice(voice) {
   try {
     voice.osc.disconnect();
     if (voice.filter) voice.filter.disconnect();
     if (voice.env) voice.env.disconnect();
+    if (voice.panner) voice.panner.disconnect();
   } catch {
     // Nodes already disconnected.
   }
+}
+
+/**
+ * Ramène un panoramique à un nombre dans [-1, 1] ; toute autre valeur donne 0 (centre).
+ * @param {unknown} pan
+ * @returns {number}
+ */
+function sanitizePan(pan) {
+  if (typeof pan !== 'number' || !Number.isFinite(pan)) return 0;
+  return Math.min(1, Math.max(-1, pan));
 }
 
 /**
@@ -76,8 +87,8 @@ function applyPoints(param, points) {
  * @param {{ createContext: () => (AudioContext | null | undefined),
  *           options?: Partial<typeof BONG> }} deps
  * @returns {{ resume(): void, suspend(): void, setMuted(value: boolean): void,
- *             isMuted(): boolean, play(gain: number): boolean,
- *             playCry(gain: number): boolean, playAlert(gain: number): boolean,
+ *             isMuted(): boolean, play(gain: number, pan?: number): boolean,
+ *             playCry(gain: number, pan?: number): boolean, playAlert(gain: number, pan?: number): boolean,
  *             playSlurp(): boolean,
  *             readonly state: string }}  objet gelé
  * @throws {TypeError} createContext n'est pas une fonction
@@ -191,11 +202,47 @@ export function createMonsterAudio({ createContext, options } = {}) {
   }
 
   /**
+   * Branche la sortie d'une voix : env -> panner -> destination si le contexte sait créer un
+   * StereoPannerNode, sinon env -> destination (centre). Un échec du panner ne lève pas :
+   * la voix joue au centre. pan === null : pas de panner (sluuurp).
+   * @param {any} env
+   * @param {number | null} pan
+   * @param {{ panner?: any }} entry
+   * @param {number} start  instant de départ de la voix (réglage du panoramique)
+   */
+  function connectOutput(env, pan, entry, start) {
+    const destination = ctx.destination;
+    if (pan === null || typeof ctx.createStereoPanner !== 'function') {
+      env.connect(destination);
+      return;
+    }
+    let panner = null;
+    try {
+      panner = ctx.createStereoPanner();
+      panner.pan.setValueAtTime(sanitizePan(pan), start);
+      panner.connect(destination);
+      env.connect(panner);
+    } catch {
+      if (panner !== null) {
+        try {
+          panner.disconnect();
+        } catch {
+          // Panner never connected.
+        }
+      }
+      panner = null;
+      env.connect(destination);
+    }
+    if (panner !== null) entry.panner = panner;
+  }
+
+  /**
    * Programme un « bong bong ».
    * @param {number} gain
+   * @param {number} [pan=0]  panoramique [-1, 1] (gauche -> droite) ; invalide -> centre
    * @returns {boolean} true si un bong est programmé
    */
-  function play(gain) {
+  function play(gain, pan = 0) {
     if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
@@ -205,7 +252,7 @@ export function createMonsterAudio({ createContext, options } = {}) {
       const schedule = bongSchedule(now, Math.min(gain, 1));
       for (const voice of schedule) {
         const osc = ctx.createOscillator();
-        const entry = { osc, env: null };
+        const entry = { osc, env: null, panner: null };
         created.push(entry);
         osc.type = voice.wave;
         osc.frequency.setValueAtTime(voice.startFrequency, voice.start);
@@ -216,7 +263,7 @@ export function createMonsterAudio({ createContext, options } = {}) {
         env.gain.linearRampToValueAtTime(voice.peak, voice.attackEnd);
         env.gain.exponentialRampToValueAtTime(voice.floorGain, voice.decayEnd);
         osc.connect(env);
-        env.connect(ctx.destination);
+        connectOutput(env, pan, entry, voice.start);
         osc.start(voice.start);
         osc.stop(voice.stop);
         osc.onended = () => {
@@ -238,15 +285,16 @@ export function createMonsterAudio({ createContext, options } = {}) {
   }
 
   /**
-   * Programme une SynthVoice : osc -> (filter) -> env -> destination. L'entrée est
+   * Programme une SynthVoice : osc -> (filter) -> env -> (panner) -> destination. L'entrée est
    * ajoutée à created avant toute opération qui peut lever.
    * @param {import('./monster-cries.js').SynthVoice} voice
    * @param {Array<object>} created
    * @param {() => void} [onEnded]  appelé après la déconnexion, à la fin de la voix
+   * @param {number | null} [pan=null]  panoramique ; null : pas de panner (sluuurp)
    */
-  function scheduleSynthVoice(voice, created, onEnded) {
+  function scheduleSynthVoice(voice, created, onEnded, pan = null) {
     const osc = ctx.createOscillator();
-    const entry = { osc, env: null, filter: null };
+    const entry = { osc, env: null, filter: null, panner: null };
     created.push(entry);
     osc.type = voice.wave;
     applyPoints(osc.frequency, voice.frequency);
@@ -264,7 +312,7 @@ export function createMonsterAudio({ createContext, options } = {}) {
     } else {
       osc.connect(env);
     }
-    env.connect(ctx.destination);
+    connectOutput(env, pan, entry, voice.start);
     osc.start(voice.start);
     osc.stop(voice.stop);
     osc.onended = () => {
@@ -291,9 +339,10 @@ export function createMonsterAudio({ createContext, options } = {}) {
   /**
    * Programme un cri (le monstre voit le joueur). Délai propre au cri (CRY.minInterval).
    * @param {number} gain
+   * @param {number} [pan=0]  panoramique [-1, 1] ; invalide -> centre
    * @returns {boolean} true si un cri est programmé
    */
-  function playCry(gain) {
+  function playCry(gain, pan = 0) {
     if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
@@ -301,7 +350,7 @@ export function createMonsterAudio({ createContext, options } = {}) {
       const now = ctx.currentTime;
       if (now - lastCryStart < CRY.minInterval - INTERVAL_EPSILON) return false;
       for (const voice of crySchedule(now, Math.min(gain, 1))) {
-        scheduleSynthVoice(voice, created);
+        scheduleSynthVoice(voice, created, undefined, sanitizePan(pan));
       }
       lastCryStart = now;
       return true;
@@ -314,9 +363,10 @@ export function createMonsterAudio({ createContext, options } = {}) {
   /**
    * Programme une alerte (début de traque). Délai propre (ALERT.minInterval).
    * @param {number} gain
+   * @param {number} [pan=0]  panoramique [-1, 1] ; invalide -> centre
    * @returns {boolean} true si une alerte est programmée
    */
-  function playAlert(gain) {
+  function playAlert(gain, pan = 0) {
     if (state !== MONSTER_AUDIO_STATE.RUNNING) return false;
     if (typeof gain !== 'number' || !Number.isFinite(gain) || gain <= 0) return false;
     const created = [];
@@ -324,7 +374,7 @@ export function createMonsterAudio({ createContext, options } = {}) {
       const now = ctx.currentTime;
       if (now - lastAlertStart < ALERT.minInterval - INTERVAL_EPSILON) return false;
       for (const voice of alertSchedule(now, Math.min(gain, 1))) {
-        scheduleSynthVoice(voice, created);
+        scheduleSynthVoice(voice, created, undefined, sanitizePan(pan));
       }
       lastAlertStart = now;
       return true;

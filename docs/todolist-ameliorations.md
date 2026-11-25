@@ -70,7 +70,7 @@ appel réseau, aucun stockage, mêmes graines et mêmes labyrinthes.
   `src/render/fps-renderer.js`. Sur un grand écran HiDPI ou un mobile lent, passer à 3-4 px
   quand le temps moyen d'une image dépasse un seuil, puis revenir à 2 px. Mesure du temps
   injectée (pas de `performance` dans `src/render/`).
-- [ ] **Son spatialisé** [courte] : les sons ont seulement un gain selon la distance.
+- [x] **Son spatialisé** [courte] : les sons ont seulement un gain selon la distance.
   Ajouter un `StereoPannerNode` piloté par l'angle joueur-monstre, pour situer le monstre
   à l'oreille. Pas de nouveau type de nœud interdit par `docs/agents/architecture.md` :
   à valider par le concepteur.

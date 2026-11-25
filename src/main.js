@@ -46,6 +46,7 @@ import { applyTranslations, t } from './i18n/i18n.js';
 import { selectBongGain } from './audio/bong.js';
 import { selectAlertGain, selectCryGain } from './audio/monster-cries.js';
 import { createMonsterAudio } from './audio/monster-audio.js';
+import { stereoPan } from './audio/spatial.js';
 import {
   CAPTION_KIND_KEY,
   CAPTION_SIDE_KEY,
@@ -167,16 +168,14 @@ const gameLoop = createGameLoop({
         announce(t('round.huntAnnouncement'));
       }
       const bongGainValue = selectBongGain(step.events);
-      if (bongGainValue > 0) {
-        monsterAudio.play(bongGainValue);
-      }
       const alertGainValue = selectAlertGain(step.events);
-      if (alertGainValue > 0) {
-        monsterAudio.playAlert(alertGainValue);
-      }
       const cryGainValue = selectCryGain(step.events);
-      if (cryGainValue > 0) {
-        monsterAudio.playCry(cryGainValue);
+      if (bongGainValue > 0 || alertGainValue > 0 || cryGainValue > 0) {
+        // Pan from the end-of-step positions (player and monster already moved this frame).
+        const pan = stereoPan(player, round.monster);
+        if (bongGainValue > 0) monsterAudio.play(bongGainValue, pan);
+        if (alertGainValue > 0) monsterAudio.playAlert(alertGainValue, pan);
+        if (cryGainValue > 0) monsterAudio.playCry(cryGainValue, pan);
       }
       // Captions follow the monster events, not the audio player: shown even when muted.
       captionState = stepCaptions(captionState, step.events, player, dt);

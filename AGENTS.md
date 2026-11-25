@@ -17,7 +17,7 @@ dessus et sur l'automap) : y entrer en FPS donne la victoire et un écran de fin
 (déterministe par graine), immobile 3 s, puis errance ou traque par plus court chemin ;
 plus rapide que la marche, moins que la course ; un contact donne la défaite. À chaque changement de direction, le monstre émet un
 « bong bong » grave synthétisé en Web Audio (sans fichier son), d'autant plus fort qu'il
-est proche en distance de chemin, coupé hors vue FPS, page cachée et en fin de partie. Quand il
+est proche en distance de chemin, placé à gauche ou à droite selon la position du monstre, coupé hors vue FPS, page cachée et en fin de partie. Quand il
 se met à traquer, il émet une alerte, deux bips courts (au plus une fois toutes les 4 s) ; quand
 il voit le joueur (ligne de vue dégagée à 12 tuiles au plus), il pousse un cri strident,
 discret face aux bongs (au plus un toutes les 6 s) ; quand il attrape

@@ -77,7 +77,7 @@ DOM se vérifient manuellement (voir plus bas).
 | `tests/unit/sprites.test.js` | projection (cohérence avec `castRays`, tri, exclusions), `worldSize` par sprite |
 | `tests/unit/i18n.test.js` | clés `fps.*` (dont `fps.goal`), `end.*`, `canvas.labelFps` et `canvas.labelFpsMap` |
 | `tests/functional/fps-walkthrough.test.js` | parcours BFS de la cellule (0, 0) à (7, 7) sans collision |
-| `tests/functional/static-server.test.js` | modules `game/`, `render/` et `audio/` FPS servis (dont sortie, état de partie, `render/monster-sprite.js`, `audio/bong.js`, `audio/monster-cries.js` et `audio/monster-audio.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
+| `tests/functional/static-server.test.js` | modules `game/`, `render/` et `audio/` FPS servis (dont sortie, état de partie, `render/monster-sprite.js`, `audio/bong.js`, `audio/monster-cries.js`, `audio/monster-audio.js` et `audio/spatial.js`), boutons FPS, `end-screen`, `replay-button`, `end-new-maze-button` et `fps-goal` dans `/` |
 | `tests/unit/fps-renderer.test.js` | non-régression : `globalAlpha` à 1 pour chaque tranche de mur, voile de brouillard borné, option `fogDistance` (voile plus fort si plus courte, valeur invalide = défaut) |
 | `tests/unit/share-link.test.js` | `parseNonNegativeInteger` (formats refusés, 10 chiffres au plus), `parseShareParams` (absent, valide, bornes, doublons, longueur, difficulté en liste blanche, ordre des raisons, gel, erreurs), `buildShareUrl` (chemin conservé, requête et fragment remplacés, `d` facultatif, erreurs), aller-retour, pureté |
 | `tests/functional/share-link.test.js` | lien construit puis analysé : même labyrinthe, même sortie, même départ du monstre que la génération directe |
@@ -210,6 +210,10 @@ portée. Contact : « sluuurp » complet par-dessus l'écran « Attrapé ! », p
 cri. Échap ou changement d'onglet pendant le sluuurp : coupure immédiate. « Rejouer »
 pendant le sluuurp : coupure, puis bongs normaux. Victoire : silence immédiat. Console
 sans erreur.
+
+Son spatialisé : au casque, monstre à gauche -> bong à gauche ; on tourne de 180° -> bong
+à droite ; monstre devant -> centre ; sluuurp au centre ; navigateur sans
+`StereoPannerNode` : sons au centre, console sans erreur.
 
 Tactile (vrai téléphone) : « Explorer en 3D » -> croix à gauche et actions à droite, en
 portrait comme en paysage, sans défilement ni zoom ; ▲ avance, ↺ ↻ tournent, plusieurs

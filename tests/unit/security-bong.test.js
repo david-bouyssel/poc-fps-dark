@@ -70,9 +70,9 @@ function hitsFor(files, patterns) {
 describe('sécurité statique : src/audio/ et accès Web Audio', () => {
   const audioFiles = listFiles(audioDir);
 
-  test('src/audio/ ne contient que bong.js, monster-audio.js, monster-cries.js et sound-captions.js', () => {
+  test('src/audio/ ne contient que bong.js, monster-audio.js, monster-cries.js, sound-captions.js et spatial.js', () => {
     assert.deepEqual(audioFiles.map(rel).sort(),
-      ['src/audio/bong.js', 'src/audio/monster-audio.js', 'src/audio/monster-cries.js', 'src/audio/sound-captions.js']);
+      ['src/audio/bong.js', 'src/audio/monster-audio.js', 'src/audio/monster-cries.js', 'src/audio/sound-captions.js', 'src/audio/spatial.js']);
   });
 
   test('sound-captions.js : pur (aucune API Web Audio, aucun DOM, imports limités à bong.js et monster-cries.js)', () => {
@@ -94,10 +94,10 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
     assert.deepEqual(hits, [], `Motifs interdits :\n${hits.join('\n')}`);
   });
 
-  test('monster-audio.js : seuls nœuds créés createOscillator, createGain, createBiquadFilter', () => {
+  test('monster-audio.js : seuls nœuds créés createOscillator, createGain, createBiquadFilter, createStereoPanner', () => {
     const code = stripComments(readFileSync(path.join(audioDir, 'monster-audio.js'), 'utf8'));
     const created = [...new Set([...code.matchAll(/\bctx\.(create\w+)\s*\(/g)].map((m) => m[1]))].sort();
-    assert.deepEqual(created, ['createBiquadFilter', 'createGain', 'createOscillator']);
+    assert.deepEqual(created, ['createBiquadFilter', 'createGain', 'createOscillator', 'createStereoPanner']);
     // Aucune autre méthode create* appelée sur quoi que ce soit.
     const anyCreate = [...new Set([...code.matchAll(/\.(create\w+)\s*\(/g)].map((m) => m[1]))].sort();
     assert.deepEqual(anyCreate, created);
@@ -154,9 +154,9 @@ describe('sécurité statique : src/audio/ et accès Web Audio', () => {
       /if\s*\(\s*round\.state\.status\s*!==\s*GAME_STATUS\.LOST\s*\|\|\s*!monsterAudio\.playSlurp\(\)\s*\)\s*\{\s*monsterAudio\.suspend\(\);\s*\}/,
       'victoire (ou sluuurp refusé) : suspend immédiat');
     assert.equal([...main.matchAll(/\bplayCry\s*\(/g)].length, 1, 'un seul appel de playCry');
-    assert.match(main, /monsterAudio\.playCry\(\s*cryGainValue\s*\)/);
+    assert.match(main, /monsterAudio\.playCry\(\s*cryGainValue\s*,\s*pan\s*\)/);
     assert.equal([...main.matchAll(/\bplayAlert\s*\(/g)].length, 1, 'un seul appel de playAlert');
-    assert.match(main, /monsterAudio\.playAlert\(\s*alertGainValue\s*\)/);
+    assert.match(main, /monsterAudio\.playAlert\(\s*alertGainValue\s*,\s*pan\s*\)/);
     assert.match(main,
       /import\s*\{[^}]*\bselectAlertGain\b[^}]*\}\s*from\s*'\.\/audio\/monster-cries\.js'/);
   });
